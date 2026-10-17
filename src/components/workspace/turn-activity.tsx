@@ -27,7 +27,11 @@ function TurnStatus({ job, disconnected, receivingFiles }: TurnStatusProps) {
     (job?.result?.phase === "tools" && parts.some(part => part.type === "tool" && part.tool === "read_skill" && part.status === "running") && !parts.some(part => part.type === "tool" && part.tool !== "read_skill" && part.status === "running")) || (!job?.result?.phase &&
     !parts.some(part => part.type === "tool" && part.status === "running") &&
     (last?.type === "tool" || (!last && !job?.result?.live_reply)));
-  if (!running || (!thinking && !receivingFiles && !disconnected)) return null;
+  if (!running) return null;
+  // Keep one status-line footprint for the whole running turn. Tool/model
+  // handoffs must not insert/remove a row and move the scroll anchor each time.
+  if (!thinking && !receivingFiles && !disconnected)
+    return <span className="ws-turn-status" aria-hidden="true" />;
   const status = receivingFiles ? "Uploading files…" : disconnected ? "Reconnecting…" : "Thinking…";
   return <span className="ws-turn-status" role="status"><Loader2 size={13} className="animate-spin" aria-hidden="true" /><span>{t(status)}</span></span>;
 }

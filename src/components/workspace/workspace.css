@@ -2735,7 +2735,7 @@
 .ws-tool-heading::-webkit-details-marker { display: none; }
 .ws-tool-heading:focus-visible { outline: 2px solid var(--ws-green); outline-offset: -2px; }
 .ws-tool-heading-label { flex: 1; min-width: 0; font-weight: 500; }
-.ws-tool-count { color: #879185; font-weight: 400; }
+.ws-tool-count { display: inline-block; min-width: 5ch; white-space: nowrap; font-variant-numeric: tabular-nums; color: #879185; font-weight: 400; }
 .ws-tool-status { display: inline-flex; align-items: center; gap: 5px; color: #7c877b; font-size: 11px; flex-shrink: 0; }
 .ws-tool-status.has-error, .ws-tool-error { color: #986344; }
 .ws-tool-chevron { transition: transform .15s; }

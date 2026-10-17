@@ -7,13 +7,15 @@ import { visibleTurnParts, type TurnPart } from "@/lib/workspace/turn-progress";
 
 type ToolPart = Extract<TurnPart, {type: "tool"}>;
 
+const canGroup = (part: ToolPart) => !!(part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_"));
+
 // Only adjacent calls of the same kind are grouped; prose always ends a group.
 function groupParts(parts: TurnPart[]) {
   const groups: Array<Extract<TurnPart, {type: "text"}> | {type: "tools"; items: ToolPart[]}> = [];
   for (const part of visibleTurnParts(parts)) {
     const last = groups.at(-1);
     if (part.type === "text") groups.push(part);
-    else if ((part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_")) && last?.type === "tools" && (last.items[0].tool || last.items[0].label) === (part.tool || part.label)) last.items.push(part);
+    else if (canGroup(part) && last?.type === "tools" && (last.items[0].tool || last.items[0].label) === (part.tool || part.label)) last.items.push(part);
     else groups.push({type: "tools", items: [part]});
   }
   return groups;
@@ -36,22 +38,23 @@ export function TurnParts({ parts, running = false, onOpenLink }: {
       const failed = group.items.filter(part => part.status === "error");
       const status = active || failed[0] || first;
       const sources = [...new Map(group.items.flatMap(part => part.sources || []).map(source => [source.href, source])).values()];
-      const expandable = group.items.length > 1 || group.items.some(part => part.href || part.list || part.sources?.length || part.status === "error");
+      const counted = canGroup(first);
+      const expandable = counted || group.items.length > 1 || group.items.some(part => part.href || part.list || part.sources?.length || part.status === "error");
       // Older receipts did not retain list entries; don't present their raw
       // returned/total counter as though it were an inspectable result.
       const target = first.query || (first.tool?.startsWith("list_") && !first.list ? undefined : first.target);
       return <div className="ws-tool-block" key={first.id}><details className="ws-tool-disclosure">
         <summary className={`ws-tool-heading${expandable ? "" : " ws-tool-heading-static"}`} onClick={event => { if (!expandable) event.preventDefault(); }} tabIndex={expandable ? 0 : -1}>
           <span className={`ws-tool-status${failed.length ? " has-error" : ""}`} title={statusText(status)} aria-label={statusText(status)}>{statusIcon(status)}</span>
-          <span className="ws-tool-heading-label">{t(first.tool === "workspace" ? (first.inventory ? "Returned overview" : first.label === "Reading the requested overview" ? first.label : "Checking roles, candidates and work agreements") : first.label)}{group.items.length > 1 ? <span className="ws-tool-count"> × {group.items.length}</span> : target && <span className="ws-tool-inline-target"> · {target}</span>}</span>
-          {group.items.length === 1 && first.list && <span className="ws-tool-inline-target">· {first.list.returned} {t("items returned")}</span>}
+          <span className="ws-tool-heading-label">{t(first.tool === "workspace" ? (first.inventory ? "Returned overview" : first.label === "Reading the requested overview" ? first.label : "Checking roles, candidates and work agreements") : first.label)}{counted ? <span className="ws-tool-count"> × {group.items.length}</span> : target && <span className="ws-tool-inline-target"> · {target}</span>}</span>
+          {!counted && group.items.length === 1 && first.list && <span className="ws-tool-inline-target">· {first.list.returned} {t("items returned")}</span>}
           {first.inventory && <span className="ws-tool-inline-target">· {inventoryText(first)}</span>}
           {(failed.length > 0 || (!running && active)) && <span className="ws-tool-status">{statusText(status)}</span>}
           {expandable && <ChevronRight size={14} className="ws-tool-chevron" />}
         </summary>
         <div className="ws-tool-details">
           {group.items.map(part => <div className="ws-tool-call" key={part.id}>
-            {group.items.length > 1 && <div className="ws-tool-call-line">
+            {counted && <div className="ws-tool-call-line">
               <span>{part.query || part.target || t(part.label)}</span>
               <span className={`ws-tool-status${part.status === "error" ? " has-error" : ""}`}>{statusIcon(part)}{statusText(part)}</span>
             </div>}
