@@ -1,7 +1,25 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { auth } from "../src/lib/auth";
-import { gmailMessage, readMailboxMessage } from "../src/lib/workspace/mailbox";
+import { gmailMessage, readMailboxMessage, searchMailbox } from "../src/lib/workspace/mailbox";
+
+test("unavailable Gmail search and reading explain review and alternatives before accessing the provider", async (t) => {
+  const previous = process.env.GMAIL_READ_ENABLED;
+  t.after(() => { if (previous === undefined) delete process.env.GMAIL_READ_ENABLED; else process.env.GMAIL_READ_ENABLED = previous; });
+  process.env.GMAIL_READ_ENABLED = "false";
+  let tokenCalls = 0;
+  t.mock.getter(auth, "api", () => ({ getAccessToken: async () => { tokenCalls++; throw new Error("must not request access"); } }));
+  for (const action of [() => searchMailbox("owner", {provider:"google",query:"test"}), () => readMailboxMessage("owner", {provider:"google",message_id:"test"})]) {
+    await assert.rejects(action(), (error: unknown) => {
+      assert.match((error as Error).message, /awaiting Google review/);
+      assert.match((error as Error).message, /Sending remains available/);
+      assert.match((error as Error).message, /paste.*upload/);
+      assert.doesNotMatch((error as Error).message, /[Rr]econnect/);
+      return true;
+    });
+  }
+  assert.equal(tokenCalls, 0);
+});
 
 test("Gmail decodes each MIME part using its declared charset", () => {
   const part = { mimeType: "text/plain", headers: [{ name: "Content-Type", value: 'text/plain; charset="gb2312"' }], body: { data: Buffer.from("d6d0cec4", "hex").toString("base64url") } };

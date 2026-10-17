@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { rows, WorkspaceError } from "./database";
 import { emailAddress } from "./email-contract";
-import { hasMailboxScope, mailboxSearchInput, mailboxReadInput, type MailboxConnection, type MailboxProvider } from "./mailbox-contract";
+import { hasMailboxScope, mailboxReadUnavailableReason, mailboxSearchInput, mailboxReadInput, type MailboxConnection, type MailboxProvider } from "./mailbox-contract";
 
 export function mailboxConfigured(provider: MailboxProvider) {
   return provider === "google" || !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
@@ -14,7 +14,7 @@ export function mailboxReadEnabled(provider: MailboxProvider) {
 }
 export async function mailboxToken(userId: string, provider: MailboxProvider, capability: "read" | "send") {
   if (!mailboxConfigured(provider)) throw new WorkspaceError("This email provider has not been configured yet.", 409);
-  if (capability === "read" && !mailboxReadEnabled(provider)) throw new WorkspaceError("Mailbox reading is not available yet. Provider verification and data-processing setup must be completed first.", 409);
+  if (capability === "read" && !mailboxReadEnabled(provider)) throw new WorkspaceError(mailboxReadUnavailableReason(provider), 409);
   try {
     const token = await auth.api.getAccessToken({ body: { providerId: provider, userId } });
     if (!token.accessToken || !hasMailboxScope(token.scopes.join(" "), provider, capability)) throw new Error("scope");
@@ -36,6 +36,7 @@ export async function mailboxIdentity(provider: MailboxProvider, token: string) 
 }
 export async function mailboxConnection(userId: string, provider: MailboxProvider): Promise<MailboxConnection> {
   const base: MailboxConnection = {provider, configured:mailboxConfigured(provider),connected:false,can_read:false,read_enabled:mailboxReadEnabled(provider),email:null};
+  if (!base.read_enabled) base.read_unavailable_reason = mailboxReadUnavailableReason(provider);
   const [account] = await rows<{scope:string|null;available:boolean;requires_reconnect:boolean;mailboxEmail:string|null}>(sql`SELECT a.scope,a."mailboxEmail",(a."accessToken" IS NOT NULL) AS available, EXISTS(SELECT 1 FROM hirelix_private_email_deliveries e WHERE e.user_id::text=a."userId" AND coalesce(e.snapshot->>'provider','google')=${provider} AND e.updated_at>a."updatedAt" AND e.status='failed' AND e.error LIKE ${`${provider === "google" ? "Gmail" : "Microsoft"} declined sending.%`}) AS requires_reconnect FROM account a WHERE a."userId"=${userId} AND a."providerId"=${provider} ORDER BY a."updatedAt" DESC LIMIT 1`);
   base.email = account?.mailboxEmail || null;
   base.granted_read = hasMailboxScope(account?.scope,provider,"read");
