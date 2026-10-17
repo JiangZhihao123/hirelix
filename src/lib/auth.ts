@@ -117,6 +117,8 @@ function createAuth() {
     secret: readEnv("BETTER_AUTH_SECRET"),
     baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
     trustedOrigins: getTrustedOrigins(),
+    // Missing/consumed OAuth state must start a fresh flow, never skip validation.
+    onAPIError: { errorURL: "/auth/retry" },
     socialProviders: {
       google: {
         clientId: readEnv("GOOGLE_CLIENT_ID"),
