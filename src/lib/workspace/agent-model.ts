@@ -146,12 +146,14 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" = "
   };
   return wrapLanguageModel({ model, middleware });
 }
-export function agentProviderOptions() {
+export function agentProviderOptions(firstConversationCall = false) {
   return isUsingOfficialDeepSeek()
     ? {
         deepseek: {
           thinking: {
-            type: resolveDeepSeekThinkingMode("DEEPSEEK_THINKING", "enabled"),
+            type: firstConversationCall
+              ? "disabled" as const
+              : resolveDeepSeekThinkingMode("DEEPSEEK_THINKING", "enabled"),
           },
           reasoningEffort: resolveDeepSeekReasoningEffort(
             "DEEPSEEK_REASONING_EFFORT",

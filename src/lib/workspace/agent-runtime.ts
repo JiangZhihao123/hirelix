@@ -267,9 +267,16 @@ export const assistantReply: JobHandler = async (job, progress) => {
       maxOutputTokens: 16384,
       maxRetries: 1,
       stopWhen: [stepCountIs(20), () => ctx.clarification !== null],
-      prepareStep: async () => {
+      prepareStep: async ({ stepNumber }) => {
         stepStarted = Date.now();
-        return {};
+        // Queued follow-ups must not change which message started the conversation.
+        // Resumes and retries may already have performed model/tool work.
+        const firstConversationCall = stepNumber === 0 &&
+          details.messages.find(message => message.role === "user" && message.metadata.delivery !== "removed")?.id === question.id &&
+          !job.payload.resuming && !job.payload.continuation_job_id &&
+          job.attempts === 1 && !persisted.result?.agent_steps &&
+          !persisted.result?.tool_receipts;
+        return { providerOptions: agentProviderOptions(firstConversationCall) };
       },
       onStepFinish: async (step) => {
         trace.push({
