@@ -23,6 +23,7 @@ Hirelix is a personal AI assistant for independent headhunters. On an explicit u
 - Local Google readonly OAuth consent and real scoped search succeeded. At 16:02 Asia/Shanghai, the test message was not found in Gmail. Do not manufacture a matching Gmail read result or claim receipt.
 - Production Gmail and Microsoft reading flags are false. Production web and worker release efc9b49 passed their deployments (Actions 39015998192).
 - Direct Microsoft folder lookup confirms the original test is in Sent Items, not Outbox or Drafts; recipient delivery is still unconfirmed. Do not use this sent copy as the Gmail incoming-read demonstration.
+- A separate owner-approved Outlook for Mac control, `Hirelix 双向验收 M2G`, reached Gmail INBOX at 16:30:28 Asia/Shanghai. At 16:32, the real Hirelix Agent searched and read this exact message and returned its correct Chinese body, labels and source link. Gmail message ID: `1a148fbde4a0ab2f`; screenshot `/tmp/hirelix-gmail-incoming-verified.png`. This is now a real matching Gmail message suitable for the controlled demo; it does not prove delivery of the earlier API message. The temporary local Gmail reading gate was restored false after this test.
 
 ## Remaining review blockers
 
