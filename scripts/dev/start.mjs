@@ -7,6 +7,7 @@ const dbUrl = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : nul
 const needsTunnel = dbUrl && ['localhost', '127.0.0.1'].includes(dbUrl.hostname) && dbUrl.port === '15432';
 let tunnel;
 let next;
+let worker;
 let retry;
 let stopping = false;
 
@@ -42,6 +43,7 @@ function stop(code = 0) {
   stopping = true;
   clearTimeout(retry);
   next?.kill('SIGTERM');
+  worker?.kill('SIGTERM');
   tunnel?.kill('SIGTERM');
   process.exitCode = code;
 }
@@ -68,6 +70,12 @@ if (needsTunnel && !(await portReady())) {
 }
 
 if (!stopping) {
+  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--tsconfig', 'scheduler/tsconfig.json', 'scheduler/index.ts'], {
+    stdio: 'inherit',
+    env: { ...process.env, SEARCH_JOB_SCHEDULER_ENABLED: 'false' },
+  });
+  worker.on('error', error => { console.error('[dev] Agent worker could not start:', error.message); stop(1); });
+  worker.once('close', code => { if (!stopping) stop(code || 1); });
   next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', ...process.argv.slice(2)], { stdio: 'inherit' });
   next.on('error', error => { console.error('[dev] Next.js could not start:', error.message); stop(1); });
   next.once('close', code => stop(code ?? 1));

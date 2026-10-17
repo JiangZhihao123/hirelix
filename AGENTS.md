@@ -95,7 +95,8 @@ Default search and scoring use the official DeepSeek API. OpenRouter is optional
 
 ## Build, Test, and Development Commands
 
-- `npm run dev`: start Next.js at `http://localhost:3000`.
+- `npm run dev`: start Next.js at `http://localhost:3000` and the independent Agent worker together; worker source changes automatically restart it. Both use the same `.env.local` database.
+- 后续修改默认先在本地独立 PostgreSQL 数据库验证，再考虑生产部署；本地网页与 Agent worker 必须连接同一个隔离库，不能用页面可达代替真实任务执行验证。
 - `npm run scheduler:dev`: run the local scheduler with `.env.local`.
 - `npm run build`: production build.
 - `npm run lint`: ESLint.
