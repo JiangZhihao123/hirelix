@@ -1,6 +1,6 @@
 # Google Gmail readonly verification recording script
 
-Status: an initial real demonstration is uploaded unlisted; verification is not submitted. The final questionnaire exposed a missing complete consent-screen segment, which is being recaptured. See below.
+Status: submitted for verification. Google Verification Center confirms data access is under review. Complete English consent footage is included in the revised unlisted video. Historical preparation notes are preserved below.
 
 ## Reviewer-visible use case
 
@@ -51,3 +51,11 @@ Official references:
 - Owner approved YouTube upload and its displayed terms. Initial video uploaded as unlisted: https://youtu.be/emOsyxbx1ss . Its description explicitly discloses the missing permission confirmation clicks.
 - Google Data Access saved this URL and the gmail.send justification. Final submission opens a questionnaire requiring confirmation that all verification requirements are met. That confirmation has NOT been checked and the application has NOT been submitted.
 - Official requirements explicitly require a complete English OAuth consent screen. A fresh local reconnect was started to capture it. The owner is asked to pass only the unverified-app warning and stop on the consent page. Local Gmail is temporarily disconnected pending this flow.
+
+### Complete consent capture
+
+- Continuous Chrome capture now starts before opening a fresh OAuth flow. The owner passed the security warning during capture. The English consent page and expanded five existing grants were recorded, including Gmail message/settings read and send permissions, followed by a successful callback.
+- Revised unlisted video: https://youtu.be/c3S9jLrKIuc . Local artifact: `/tmp/hirelix-google-review-complete.mp4` (214.9 seconds). It joins actual OAuth capture to the earlier real functional demonstration, with unrelated history masked.
+- Google Data Access now uses the revised URL. Submission questionnaire was answered for the public Hirelix product and submitted. Google Verification Center now explicitly shows that data access is under review. Evidence: `/tmp/hirelix-google-review-submitted.png`. This is acceptance for review, not approval or CASA certification.
+
+- After submission, the temporary local Gmail read flag was restored false. Production Gmail remains false; production Microsoft reading remains enabled. No additional test emails were sent.
