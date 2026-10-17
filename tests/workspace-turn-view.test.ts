@@ -37,3 +37,20 @@ test("early tool receipt inherits running state before the receipt id reaches th
   assert.equal(view[1].activeJob?.status, "running");
  }
 });
+
+test("first message stays visible through conversation promotion until persisted readback", () => {
+ const optimistic = {text:"hi",priorIds:[]};
+ const base = {messages:[] as Message[],pendingKey:"request",optimistic};
+ const before = conversationTurnView({...base,conversationId:null,sending:true});
+ const promoted = conversationTurnView({...base,conversationId:"c",sending:false,job});
+ for (const view of [before,promoted]) {
+  assert.equal(view.filter(item=>item.message.role === "user").length,1);
+  assert.equal(view[0].message.content,"hi");
+  assert.equal(view.length,2);
+ }
+ assert.equal(before[0].key,promoted[0].key);
+ assert.equal(before[1].key,promoted[1].key);
+ const persisted = conversationTurnView({...base,conversationId:"c",sending:false,job,messages:[user]});
+ assert.equal(persisted.filter(item=>item.message.role === "user").length,1);
+ assert.equal(persisted.some(item=>item.optimistic),false);
+});

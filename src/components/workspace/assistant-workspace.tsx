@@ -449,7 +449,8 @@ export function AssistantWorkspace({
       });
       if ((!pending && !stopped) || delivery === "immediate") setSubmittedJob(result.job);
       else setSubmittedJob(null);
-      setOptimistic(null);
+      // Keep the submitted message visible until conversation readback replaces it.
+      // The first send promotes this same view from a draft to a saved conversation.
       if (!quickReply) {
         setDraft("");
         mentions.clear();
@@ -650,7 +651,7 @@ export function AssistantWorkspace({
           />
           <div
             ref={scroll}
-            className={`ws-conversation-scroll ${!conversationId ? "ws-conversation-scroll-empty" : ""}`}
+            className={`ws-conversation-scroll ${!displayedMessages.length ? "ws-conversation-scroll-empty" : ""}`}
             onScroll={(event) => {
               if (!conversationId) return;
               const el = event.currentTarget;
@@ -671,7 +672,7 @@ export function AssistantWorkspace({
               setShowJump(!nearBottom);
             }}
           >
-            {conversationId && !query.data && !optimistic ? (
+            {conversationId && !query.data && !displayedMessages.length ? (
               query.loading && !optimistic ? (
                 <Loading>{t("Opening your conversation…")}</Loading>
               ) : null
