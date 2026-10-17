@@ -3,6 +3,13 @@ import { test } from "node:test";
 import { auth } from "../src/lib/auth";
 import { gmailMessage, readMailboxMessage } from "../src/lib/workspace/mailbox";
 
+test("Gmail decodes each MIME part using its declared charset", () => {
+  const part = { mimeType: "text/plain", headers: [{ name: "Content-Type", value: 'text/plain; charset="gb2312"' }], body: { data: Buffer.from("d6d0cec4", "hex").toString("base64url") } };
+  assert.equal(gmailMessage({id:"chinese",payload:{parts:[part]}}).body,"中文");
+  assert.equal(gmailMessage({id:"normalized",payload:{...part,body:{data:Buffer.from("中文").toString("base64url")}}}).body,"中文");
+  assert.throws(() => gmailMessage({id:"unknown",payload:{...part,headers:[{name:"Content-Type",value:"text/plain; charset=unknown-charset"}]}}), /unsupported text encoding/);
+});
+
 test("Gmail preserves provider labels instead of treating a sent copy as received", () => {
   const message = gmailMessage({ id: "sent-copy", labelIds: ["SENT"], payload: { mimeType: "text/plain", body: { data: Buffer.from("test").toString("base64url") } } });
   assert.deepEqual(message.mailbox_labels, ["SENT"]);

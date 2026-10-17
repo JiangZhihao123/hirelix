@@ -57,7 +57,15 @@ export function gmailMessage(value: {id:string;threadId?:string;payload?:GmailPa
   const headers = Object.fromEntries((value.payload?.headers || []).map(h=>[h.name.toLowerCase(),h.value]));
   function text(part: GmailPart, mime: string): string {
     if (part.filename) return "";
-    if (part.mimeType === mime && part.body?.data) return Buffer.from(part.body.data,"base64url").toString("utf8");
+    if (part.mimeType === mime && part.body?.data) {
+      const bytes = Buffer.from(part.body.data,"base64url");
+      // Gmail may normalize part data to UTF-8 while preserving its original charset header.
+      try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { /* Decode original bytes below. */ }
+      const contentType = part.headers?.find(h=>h.name.toLowerCase()==="content-type")?.value || "";
+      const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType)?.[1] || "utf-8";
+      try { return new TextDecoder(charset).decode(bytes); }
+      catch { throw new WorkspaceError(`This email uses an unsupported text encoding (${charset}). Open the original message to read it.`, 422); }
+    }
     return (part.parts || []).map(p=>text(p,mime)).filter(Boolean).join("\n");
   }
   const plain = text(value.payload || {},"text/plain");
