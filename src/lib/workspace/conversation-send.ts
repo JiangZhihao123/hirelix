@@ -80,6 +80,11 @@ export async function sendMessage(
         tx,
       );
     }
+    if (input.resume_after_mailbox_message_id) {
+      const [latest] = await rows<Message>(sql`SELECT * FROM hirelix_agent_messages WHERE user_id=${userId}::uuid AND conversation_id=${conversation.id}::uuid ORDER BY created_at DESC,id DESC LIMIT 1`,tx);
+      if (!latest || latest.id !== input.resume_after_mailbox_message_id || latest.role !== "assistant" || !latest.metadata.gmail || input.email_confirmation_message_id)
+        throw new WorkspaceError("The conversation has moved on. Continue with your latest request instead.",409);
+    }
     const previous = input.delivery === "immediate"
       ? await interruptConversation(userId, conversation.id, tx, false) : undefined;
     // The selected document can be retrieved from another conversation. The

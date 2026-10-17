@@ -4,7 +4,7 @@ import { useT } from "@/components/LanguageProvider";
 import type { ReactNode } from "react";
 
 export type MessageState = { type: "success" | "error"; text: string } | null;
-export type SettingsSectionId = "account" | "billing";
+export type SettingsSectionId = "account" | "email" | "billing";
 
 export function SettingsSection({
   id,

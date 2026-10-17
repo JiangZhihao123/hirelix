@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { clientDocument, assertSharingAllowed } from "./document-sharing";
-import { mailboxConnection } from "./mailbox";
+import { mailboxConnection, defaultMailboxProvider } from "./mailbox";
 import { hasMailboxScope } from "./mailbox-contract";
 import { sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
 import { emailRecipient, emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
@@ -35,12 +35,13 @@ export async function prepareEmailReply({job, conversation, question, messages, 
   job: Job; conversation: Conversation; question: Message; messages: Message[];
   document: Deliverable | null; plan: EmailPlan; locale: string; inline?: boolean;
 }): Promise<PreparedJob> {
+  if ((job.payload.request as {resume_after_mailbox_message_id?:string})?.resume_after_mailbox_message_id && plan.intent === "confirm") throw new WorkspaceError("Connecting a mailbox does not authorize sending. Review the prepared email first.",409);
   const zh = locale === "zh";
   const say = (en: string, cn: string) => zh ? cn : en;
   const latest = [...messages].reverse().find(message => message.role === "assistant" && message.metadata.email);
   const pending = latest?.metadata.email as ConversationEmail | undefined;
   const explicit = (job.payload.request as {email_confirmation_message_id?:string})?.email_confirmation_message_id;
-  const provider = plan.intent === "confirm" && pending ? pending.snapshot.provider || "google" : plan.provider || pending?.snapshot.provider || "google";
+  const provider = plan.intent === "confirm" && pending ? pending.snapshot.provider || "google" : plan.provider || pending?.snapshot.provider || await defaultMailboxProvider(job.user_id) || "google";
   const connection = await mailboxConnection(job.user_id, provider);
   let email: ConversationEmail | undefined, update: ConversationEmail | undefined;
   let answer = "";

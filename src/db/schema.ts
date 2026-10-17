@@ -355,6 +355,7 @@ export const hirelix_user_settings = pgTable("hirelix_user_settings", {
   id: uuid("id").primaryKey().defaultRandom(),
   user_id: uuid("user_id").notNull().unique(),
   pdl_api_key: text("pdl_api_key"),
+  default_mailbox_provider: text("default_mailbox_provider"),
   company_profile: jsonb("company_profile"),
   ui_locale: text("ui_locale").notNull().default("en"),
   subscription_plan: text("subscription_plan").default("free"),
@@ -870,6 +871,7 @@ export const account = pgTable("account", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   accountId: text("accountId").notNull(),
+  mailboxEmail: text("mailboxEmail"),
   providerId: text("providerId").notNull(),
   accessToken: text("accessToken"),
   refreshToken: text("refreshToken"),

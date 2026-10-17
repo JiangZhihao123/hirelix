@@ -11,10 +11,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useLanguage, useT } from "@/components/LanguageProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { AgentText } from "@/components/AgentText";
 import { api, ErrorNotice, Field, useQuery } from "./client";
-import { connectMailbox } from "./mailbox-connections";
-import type { MailboxConnection, MailboxProvider } from "@/lib/workspace/mailbox-contract";
+import { connectMailbox, MailboxReturnNotice } from "./mailbox-connections";
+import type { MailboxSettings, MailboxProvider } from "@/lib/workspace/mailbox-contract";
 import { recommendationCover } from "@/lib/workspace/recommendation-presentation";
 import { downloadDocument } from "./document-download";
 import type { Deliverable } from "@/lib/workspace/types";
@@ -44,6 +45,10 @@ export function RecommendationDelivery({
   onChanged: (value: Deliverable) => void;
 }) {
   const t = useT();
+  const { user } = useAuth();
+  const [draftReady, setDraftReady] = useState<string | null>(null);
+  const providerChosen = useRef(false);
+  const draftKey = user?.id ? `hirelix:email-draft:${user.id}:${document.id}:${document.version}` : null;
   const { locale } = useLanguage();
   const zh = locale === "zh";
   const [provider, setProvider] = useState<MailboxProvider>("google");
@@ -76,7 +81,7 @@ export function RecommendationDelivery({
     receipts = useQuery<{ receipts: Receipt[]; default_recipient: string | null }>(
       `/deliverables/${document.id}/email`,
     ),
-    mailboxes = useQuery<{connections:MailboxConnection[]}>("/mailboxes");
+    mailboxes = useQuery<MailboxSettings>("/mailboxes");
   const to = recipientOverride ?? receipts.data?.default_recipient ?? "";
   const connection = {...mailboxes,data:mailboxes.data?.connections.find(c=>c.provider===provider)};
   const source = document.source_snapshot as {
@@ -95,18 +100,37 @@ export function RecommendationDelivery({
   const emailBody = body ?? (useLink ? recommendationCover({language: document.source_snapshot.language === "zh" ? "zh" : "en", role:source.role?.title || "", people:source.people || [], files:source.files || []}) : document.content);
   const emailContent = emailBody + (useLink ? `\n\n${linkText}` : "");
   useEffect(() => {
-    const key = `hirelix:gmail-delivery:${document.id}`;
-    const saved = sessionStorage.getItem(key);
-    if (!saved) return;
-    sessionStorage.removeItem(key);
+    if (!draftKey) return;
+    providerChosen.current = false;
+    setTo(null); setSubject(null); setBody(null); setProvider("google");
+    setIncludeLink(true); setAttachCvs(true); setMode("link");
     try {
-      const draft = JSON.parse(saved);
-      if (draft.version !== document.version) return;
-      setTo(draft.to); setSubject(draft.subject); setBody(draft.body);
-      setProvider(draft.provider === "microsoft" ? "microsoft" : "google");
-      setIncludeLink(draft.includeLink); setAttachCvs(draft.attachCvs); setMode("gmail");
-    } catch { /* An invalid local draft does not change saved recommendation content. */ }
-  }, [document.id, document.version]);
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if ((draft.provider === "google" || draft.provider === "microsoft") &&
+            ["link", "gmail", "copy"].includes(draft.mode) &&
+            [draft.to, draft.subject, draft.body].every(value => value === null || typeof value === "string") &&
+            typeof draft.includeLink === "boolean" && typeof draft.attachCvs === "boolean") {
+          setTo(draft.to); setSubject(draft.subject); setBody(draft.body);
+          setProvider(draft.provider); providerChosen.current = true;
+          setIncludeLink(draft.includeLink); setAttachCvs(draft.attachCvs); setMode(draft.mode);
+        }
+      }
+    } catch { /* Storage may be disabled; the current form remains usable. */ }
+    setDraftReady(draftKey);
+  }, [draftKey]);
+  useEffect(() => {
+    if (draftReady !== draftKey || providerChosen.current || !mailboxes.data) return;
+    const preferred = mailboxes.data.default_provider || mailboxes.data.connections.find(c => c.connected)?.provider;
+    if (preferred) setProvider(preferred);
+    providerChosen.current = true;
+  }, [draftReady, draftKey, mailboxes.data]);
+  useEffect(() => {
+    if (draftReady !== draftKey || !draftKey || !providerChosen.current) return;
+    try { sessionStorage.setItem(draftKey, JSON.stringify({provider, mode, to: recipientOverride, subject, body, includeLink, attachCvs})); }
+    catch { /* Preserve in-memory editing if storage is unavailable. */ }
+  }, [draftReady, draftKey, provider, mode, recipientOverride, subject, body, includeLink, attachCvs, mailboxes.data]);
   const inProgress = receipts.data?.receipts.some(
     (r) => r.status === "sending",
   );
@@ -393,18 +417,18 @@ export function RecommendationDelivery({
           <section>
             {mode === "gmail" ? (
               <>
-                <Field label={zh ? "发件邮箱服务" : "Email provider"}><select value={provider} disabled={busy} onChange={event=>{setProvider(event.target.value as MailboxProvider);sendKey.current=null;}}><option value="google">Gmail / Google Workspace</option><option value="microsoft">Outlook / Microsoft 365</option></select></Field>
-                <p className="ws-muted">
-                  {connection.data?.connected
-                    ? `${zh ? "发件人" : "From"}: ${connection.data.email}`
-                    : (provider === "google" ? t("Gmail is not connected") : (zh ? "Microsoft 邮箱尚未连接" : "Microsoft mailbox is not connected"))}
-                </p>
-                {!connection.data?.connected && (
+                <MailboxReturnNotice connections={mailboxes.data?.connections} loading={mailboxes.loading} />
+                <Field label={zh ? "发件人" : "From"}><select value={provider} disabled={busy || mailboxes.loading} onChange={event => {providerChosen.current = true; setProvider(event.target.value as MailboxProvider); sendKey.current = null;}}>
+                  {(["google", "microsoft"] as const).map(value => {const mailbox = mailboxes.data?.connections.find(c => c.provider === value); return <option key={value} value={value}>{mailbox?.email || (value === "google" ? "Gmail / Google Workspace" : "Outlook / Microsoft 365")}{mailboxes.data?.default_provider === value ? (zh ? " · 默认" : " · Default") : ""}</option>;})}
+                </select></Field>
+                <p className="ws-muted" role="status">{mailboxes.loading ? (zh ? "正在检查邮箱…" : "Checking mailboxes…") : connection.data?.connected ? (zh ? "使用此邮箱发送本封邮件，不会改变默认发件人。" : "This mailbox will send this email. Your default sender stays the same.") : connection.data?.error || (zh ? "请先连接此邮箱。草稿会在当前浏览器标签页中保留。" : "Connect this mailbox to send. Your draft stays in this browser tab.")}</p>
+                <ErrorNotice error={mailboxes.error} retry={mailboxes.refresh} />
+                {!mailboxes.loading && !connection.data?.connected && (
                   <button type="button" className="ws-button" disabled={busy || !connection.data?.configured} onClick={() => void run(async () => {
-                    sessionStorage.setItem(`hirelix:gmail-delivery:${document.id}`,JSON.stringify({version:document.version,provider,to,subject,body,includeLink,attachCvs}));
-                    await connectMailbox(provider,false,`/app/submissions/${document.id}#recommendation-delivery`);
-                  })}>{provider === "google" ? t("Connect Gmail") : "Connect Outlook"}</button>
+                    await connectMailbox(provider, !!connection.data?.granted_read && !!connection.data?.read_enabled, `/app/submissions/${document.id}#recommendation-delivery`);
+                  })}>{connection.data?.email ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : provider === "google" ? t("Connect Gmail") : "Connect Outlook"}</button>
                 )}
+                <Link className="ws-link" href="/app/settings?section=email">{zh ? "管理邮箱与默认发件人" : "Manage email and default sender"}</Link>
                 <Field label={zh ? "收件人" : "Recipient"}>
                   <input
                     type="email"

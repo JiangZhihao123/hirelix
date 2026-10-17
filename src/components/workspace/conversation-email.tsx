@@ -1,28 +1,47 @@
 "use client";
 import { Mail, Loader2, CheckCircle2, AlertCircle, Paperclip } from "lucide-react";
 import { recipientAddressError } from "@/lib/workspace/email-contract";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { connectMailbox, MailboxConnections } from "./mailbox-connections";
-import type { MailboxConnection } from "@/lib/workspace/mailbox-contract";
+import { useAuth } from "@/components/AuthProvider";
+import type { MailboxConnection, MailboxProvider } from "@/lib/workspace/mailbox-contract";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice, useQuery } from "./client";
 import type { ConversationEmail as Email } from "@/lib/workspace/email-contract";
 
-export function ConversationEmail({email, conversationId, messageId, onChanged}: {email?:Email;conversationId:string;messageId:string;onChanged:()=>void}) {
+export function ConversationEmail({email, conversationId, messageId, onChanged, mailboxProvider}: {mailboxProvider?:MailboxProvider;email?:Email;conversationId:string;messageId:string;onChanged:()=>void}) {
+  const {user} = useAuth();
+  const [returnNotice, setReturnNotice] = useState("");
+  const resuming = useRef(false);
   const t = useT(), {locale} = useLanguage();
   const mailboxes = useQuery<{connections:MailboxConnection[]}>("/mailboxes");
-  const provider = email?.snapshot.provider || "google";
+  const provider = email?.snapshot.provider || mailboxProvider || "google";
   const providerName = provider === "microsoft" ? "Microsoft" : "Gmail";
   const connection = {...mailboxes,data:mailboxes.data?.connections.find(c=>c.provider===provider)};
   const [bodyOpen,setBodyOpen] = useState(email?.status === "review");
   const [submitted,setSubmitted] = useState(false);
   const [busy,setBusy] = useState(false),[error,setError] = useState("");
   const key = useRef<string | null>(null);
-  async function connect() {
+  const returnKey = user?.id ? `hirelix:mailbox-return:${user.id}:${conversationId}:${messageId}` : null;
+  useEffect(() => {
+    if (email || !returnKey || resuming.current || mailboxes.loading || !mailboxes.data) return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("mailbox_connected")) return;
+    let saved: {provider:MailboxProvider;request_key:string;locale:string;timezone:string} | null = null;
+    try { saved = JSON.parse(sessionStorage.getItem(returnKey) || "null"); } catch { return; }
+    if (!saved || saved.provider !== params.get("mailbox_connected") || !mailboxes.data.connections.some(c => c.provider === saved!.provider && c.connected)) return;
+    resuming.current = true;
+    void api("/conversations",{method:"POST",body:JSON.stringify({conversation_id:conversationId,resume_after_mailbox_message_id:messageId,request_key:saved.request_key,locale:saved.locale,timezone:saved.timezone,message:saved.locale === "zh" ? `已连接 ${saved.provider} 邮箱。请继续准备之前请求的邮件，仅供我检查，不要发送、发布链接或修改其他业务资料。` : `The ${saved.provider} mailbox is connected. Continue preparing the previously requested email for my review only. Do not send, publish links or change other business records.`})}).then(() => {
+      sessionStorage.removeItem(returnKey); setReturnNotice(locale === "zh" ? "邮箱已连接，正在继续准备邮件；尚未发送。" : "Mailbox connected. Continuing email preparation; nothing has been sent."); onChanged();
+    }).catch(cause => {setError(cause instanceof Error ? cause.message : "Could not continue preparing. Your previous work is preserved.");});
+  }, [email, returnKey, mailboxes.loading, mailboxes.data, conversationId, messageId, locale, onChanged]);
+  async function connect(selected: MailboxProvider = provider) {
     setBusy(true);setError("");
     try {
       const callbackURL = `/app?conversation=${encodeURIComponent(conversationId)}`;
-      await connectMailbox(provider,false,callbackURL);
+      if (!email && returnKey) sessionStorage.setItem(returnKey,JSON.stringify({provider:selected,request_key:crypto.randomUUID(),locale,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone}));
+      const selectedConnection = mailboxes.data?.connections.find(c => c.provider === selected);
+      await connectMailbox(selected,!!selectedConnection?.granted_read && !!selectedConnection?.read_enabled,callbackURL);
     } catch(cause) {setError(cause instanceof Error ? cause.message : "Could not connect Gmail");setBusy(false);}
   }
   async function respond(cancel = false) {
@@ -46,7 +65,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged}:
   const Icon = status === "sending" ? Loader2 : addressError || status === "failed" || status === "unknown" ? AlertCircle : status === "sent" ? CheckCircle2 : Mail;
   return <section className="ws-email-card" data-status={addressError ? "failed" : status} aria-label={t("Email confirmation")}>
     <header><Icon size={20} className={status === "sending" ? "animate-spin" : undefined} /><strong role="status" aria-live="polite">{t(title).replaceAll("Gmail",providerName)}</strong></header>
-    {!email && <MailboxConnections callbackURL={`/app?conversation=${encodeURIComponent(conversationId)}`} />}
+    {!email && <MailboxConnections compact preferredProvider={provider} onConnect={connect} callbackURL={`/app?conversation=${encodeURIComponent(conversationId)}`} />}
 
     {email && <>
       <dl className="ws-email-envelope"><div><dt>{t("Sender email")}</dt><dd>{email.snapshot.from}</dd></div><div><dt>{t("Recipient email")}</dt><dd><strong>{email.snapshot.to}</strong></dd></div></dl>
@@ -67,6 +86,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged}:
       {(status === "sent" || status === "unknown") && <a className="ws-link" href={`${provider === "microsoft" ? "https://outlook.office.com/mail/sentitems" : `https://mail.google.com/mail/?authuser=${encodeURIComponent(email.snapshot.from)}#sent`}`} target="_blank" rel="noopener noreferrer">{provider === "microsoft" ? "Open Outlook Sent" : t("Open Gmail Sent")}</a>}
     </>}
     {(!email || status === "review" || status === "failed") && !!email && !connection.loading && !connection.data?.connected && <button className="ws-button" disabled={busy} onClick={()=>void connect()}>{provider === "microsoft" ? "Connect Outlook" : t("Connect Gmail")}</button>}
+    {returnNotice && <p role="status">{returnNotice}</p>}
     <ErrorNotice error={error || connection.error} />
   </section>;
 }

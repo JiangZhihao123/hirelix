@@ -117,7 +117,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       <a className="ws-link" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
                     </div>)}
-                    {(metadata.email || metadata.email_result || metadata.gmail) && <ConversationEmail email={metadata.email_result || metadata.email} conversationId={message.conversation_id!} messageId={metadata.email_result?.preview_message_id || message.id} onChanged={onReady} />}
+                    {(metadata.email || metadata.email_result || metadata.gmail) && <ConversationEmail mailboxProvider={metadata.gmail?.provider} email={metadata.email_result || metadata.email} conversationId={message.conversation_id!} messageId={metadata.email_result?.preview_message_id || message.id} onChanged={onReady} />}
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}

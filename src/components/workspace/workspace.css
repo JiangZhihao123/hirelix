@@ -2981,3 +2981,18 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-reference-results p { padding:14px 8px; }
 .ws-reference-picker footer { padding:10px 4px 0; }
 .ws-reference-picker footer button { color:var(--ws-green); font-weight:600; }
+
+.ws-mailbox-settings { padding: 24px; border: 1px solid var(--ws-border, #dce3dc); border-radius: 16px; background: #fff; }
+.ws-mailbox-settings h2 { margin: 0 0 8px; font-size: 22px; }
+.ws-mailbox-settings header > p { margin: 0 0 24px; color: #657267; }
+.ws-mailbox-account { padding: 18px 0; border-bottom: 1px solid #e4e9e3; }
+.ws-mailbox-account:last-of-type { border-bottom: 0; }
+.ws-mailbox-heading { display:flex; align-items: center; justify-content: space-between; gap:16px; }
+.ws-mailbox-heading strong { overflow-wrap:anywhere; }
+.ws-mailbox-heading p { margin: 6px 0; font-size:14px; }
+.ws-mailbox-details { display:grid; gap:12px; margin-top:12px; }
+.ws-mailbox-details p, .ws-mailbox-compact > p { font-size:14px; line-height:1.6; }
+.ws-mailbox-details > button { justify-self:start; }
+.ws-mailbox-compact .ws-mailbox-account { padding:10px 0; }
+
+.ws-email-card > .ws-mailbox-compact { padding: 0 20px 12px; }

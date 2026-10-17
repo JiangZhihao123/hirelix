@@ -49,6 +49,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         locale?: string;
         timezone?: string;
         email_confirmation_message_id?: string;
+        resume_after_mailbox_message_id?: string;
       }
     | undefined;
   const locale = request?.locale || "en",
@@ -172,6 +173,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         }).format(new Date()),
       },
       preferred_language: locale,
+      mailbox_return: request?.resume_after_mailbox_message_id ? "Mailbox connected. Continue preparing the previously requested email only. No sending, publishing, reading mail or business mutations are authorized by this return." : null,
       capabilities: {
         email: {providers: ["google", "microsoft"], send_with_confirmation: true, read_inbox: "Check mailbox_status; requires explicit read permission and provider availability", monitor_replies: false},
         uploaded_files: "Retained conversation attachments; separate from candidate and role records.",

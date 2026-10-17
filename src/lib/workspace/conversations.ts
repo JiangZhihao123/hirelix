@@ -18,6 +18,7 @@ export { assistantReply } from "./agent-runtime";
 export const conversationInput = z.object({
   message: z.string().trim().max(50000),
   delivery: z.enum(["queue", "immediate"]).default("queue"),
+  resume_after_mailbox_message_id: z.uuid().nullable().default(null),
   email_confirmation_message_id: z.uuid().nullable().default(null),
   question_message_id: z.uuid().nullable().default(null),
   file_ids: z.array(z.uuid()).max(MAX_CONVERSATION_FILES).default([]),
@@ -64,7 +65,7 @@ export type AssistantMeta = {
   recommendation_links?: Array<{document_id: string; version: number; href: string; expires_at: string}>;
   document_edits?: Array<{id:string;title:string;version:number;href:string}>;
   exports?: { document_id: string; formats: Array<"pdf" | "docx"> };
-  gmail?: {connected:boolean;email:string|null};
+  gmail?: {connected:boolean;email:string|null;provider?:"google"|"microsoft"};
   email?: ConversationEmail;
   email_result?: ConversationEmail & {preview_message_id:string};
   question?: ConversationQuestion;
