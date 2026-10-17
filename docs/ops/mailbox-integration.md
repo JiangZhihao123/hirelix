@@ -39,6 +39,14 @@ Official references:
 
 ## Verification boundary
 
+### 2026-10-17 real-chain follow-up
+
+- Explicitly approved one Outlook-to-Gmail message, exact subject `Hirelix 邮箱接入测试`, no attachment. Microsoft accepted it once; durable receipt `30cebb15-b740-40de-9c98-997e3fe0d1da`. Conversation `70ea19ee-894a-4dc8-933c-16b63dafe5c3` shows preview, sending, acceptance and a textual result.
+- Local Microsoft Mail.Read and Google gmail.readonly consent completed with the owner's approval. Real Agent search/read found the exact Outlook sent message and verified its body. Gmail matching search returned no messages; bounded related failure searches found no matching notice. Recipient delivery remains unconfirmed, and no second message was sent.
+- Fixed local web/worker configuration drift: a development-only bootstrap reloads env before clients import, and the supervisor explicitly watches hidden env files. Verified an actual worker restart after touching `.env.local`; tsx `--include` alone did not restart for this hidden file.
+- Vercel and `/etc/hirelix.env` have Microsoft credentials and both production read flags explicitly false. No secret values are in this record. Release `b07ecef` passed CI/CD run `39015393415`; Vercel deployment `dpl_FwdhDNZ4uCuFGjbeQDYiFcTi1fDF` is Ready on hirelix.online, and VPS worker readback is b07ecef/active. Later follow-up commits require their own release evidence.
+- Google review remains unsubmitted. Do not describe saved scope configuration or local consent as review approval. Remaining submission material includes a complete real consent/read/disconnect demonstration video and verified AI processor data-use terms; restricted-scope server handling also needs the Google-required security assessment process.
+
 Unit and local database regression are separate from real OAuth, mailbox send/read, Vercel deployment, and scheduler deployment. Microsoft registration is not publisher verification. Enterprise tenant consent policies can still block end users until their administrator approves or publisher requirements are fulfilled.
 
 Follow-up real Chrome verification: after a fresh authorization and user sign-in, localhost returned to `/app/settings` without an OAuth error. Settings showed the actual Outlook mailbox identity with Sending enabled and Reading not authorized. This confirms the local authorization/identity chain, not a real message send, delivery, read, or production connection. Reading remains unavailable. Screenshot: `/tmp/hirelix-microsoft-connected.png`.
