@@ -70,7 +70,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged, 
     {email && <>
       <dl className="ws-email-envelope"><div><dt>{t("Sender email")}</dt><dd>{email.snapshot.from}</dd></div><div><dt>{t("Recipient email")}</dt><dd><strong>{email.snapshot.to}</strong></dd></div></dl>
       {addressError && <div className="ws-email-notice" role="alert">{t(addressError)}</div>}
-      {status === "sent" && <p className="ws-email-notice">{(locale === "zh" ? `${providerName} 已接受邮件，但尚未确认收件人收到。可在邮箱查看退信；授权读取后，也可以让助理检查。` : `${providerName} accepted this email. Recipient delivery is not confirmed. Check your mailbox for failures, or ask the assistant when reading is connected.`)}</p>}
+      {status === "sent" && <p className="ws-email-notice">{locale === "zh" ? `${providerName} 已接受邮件，但尚未确认收件人收到。请在邮箱查看退信。${connection.data?.can_read ? "也可以让助理按需检查。" : ""}` : `${providerName} accepted this email. Recipient delivery is not confirmed. Check your mailbox for failures.${connection.data?.can_read ? " You can also ask the assistant to check." : ""}`}</p>}
       {status === "unknown" && <p className="ws-email-notice" role="alert">{t("The sending result is unknown. Check Gmail Sent before retrying to avoid a duplicate email.").replaceAll("Gmail",providerName)}</p>}
       {status === "sending" && <p className="ws-email-notice">{t("Waiting for Gmail confirmation. You can stay in this conversation; the result will appear here.").replaceAll("Gmail",providerName)}</p>}
       <div className="ws-email-subject">{email.snapshot.title}</div>

@@ -17,6 +17,7 @@ test("reserved recipient domains are blocked without rejecting real public domai
 test("email cards distinguish provider acceptance, unknown outcome, failure and active sending",()=>{
   assert.match(render(email),/ws-email-card/);
   assert.match(render({...email,status:"sent",receipt:"receipt-id"}),/Recipient delivery is not confirmed/);
+  assert.doesNotMatch(render({...email,status:"sent"}),/when reading is connected|ask the assistant to check/);
   assert.match(render({...email,status:"sent"}),/Open Gmail Sent/);
   assert.match(render({...email,status:"unknown"}),/avoid a duplicate/);
   assert.match(render({...email,status:"failed",error:"Invalid recipient"}),/Invalid recipient/);
