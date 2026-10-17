@@ -12,6 +12,15 @@ export const emailPlanSchema = z.object({
 }).default({ intent: "none", to: null, subject: null, body: null, use_document: false, authorization_quote: null });
 export type EmailPlan = z.infer<typeof emailPlanSchema>;
 export const emailAddress = z.email().max(320);
+// Public Gmail delivery cannot use reserved testing/documentation domains.
+export function recipientAddressError(address: string): string | null {
+  if (!emailAddress.safeParse(address).success) return "Enter a valid recipient email address.";
+  const domain = address.slice(address.lastIndexOf("@") + 1).toLowerCase();
+  const reserved = ["test", "invalid", "localhost", "example", "example.com", "example.net", "example.org"];
+  return reserved.some(name => domain === name || domain.endsWith(`.${name}`))
+    ? "This recipient uses a reserved test or example domain. Replace it with a real email address before sending."
+    : null;
+}
 export const emailSnapshotSchema = z.object({
   from: emailAddress,
   to: emailAddress,

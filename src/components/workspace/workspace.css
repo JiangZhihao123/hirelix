@@ -2963,3 +2963,19 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 
 .ws-composer-footer .ws-composer-action { margin-left:auto; padding:0; min-height:33px; border-radius:50%; }
 .ws-conversation-queue li .ws-icon { flex-shrink:0; width:28px; height:28px; }
+
+/* Email previews and durable send receipts stay in their conversation. */
+.ws-email-card { margin: 16px 0; border: 1px solid #ccd9d2; border-radius: 16px; background: #fff; overflow: hidden; max-width: 720px; box-shadow: 0 2px 8px #173d2d08; }
+.ws-email-card > header { display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: #edf4ef; color: #315b49; border-bottom: 1px solid #dfe7e1; }
+.ws-email-card[data-status="failed"] > header, .ws-email-card[data-status="unknown"] > header { background: #fff4e9; color: #8b471b; }
+.ws-email-card > p, .ws-email-card > .ws-error, .ws-email-card > .ws-link { margin: 12px 20px; }
+.ws-email-envelope { margin: 16px 20px; font-size: 14px; }
+.ws-email-envelope > div { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 12px; margin: 8px 0; }
+.ws-email-envelope dt { color: #68786f; } .ws-email-envelope dd { margin: 0; overflow-wrap: anywhere; }
+.ws-email-card .ws-email-notice { margin: 12px 20px; padding: 12px; border-radius: 8px; background: #f6f5ef; font-size: 13px; line-height: 1.6; }
+.ws-email-subject { margin: 18px 20px 12px; font-weight: 600; line-height: 1.5; }
+.ws-email-body { margin: 12px 20px; } .ws-email-body summary { cursor: pointer; font-size: 13px; color: #52695c; }
+.ws-email-body > div { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; margin-top: 14px; font-size: 14px; line-height: 1.7; }
+.ws-email-attachments { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid #edf0ec; font-size: 13px; }
+.ws-email-help, .ws-email-receipt { font-size: 12px; color: #69776f; } .ws-email-receipt { margin: 12px 20px; overflow-wrap: anywhere; }
+.ws-email-card footer { display: flex; gap: 10px; padding: 4px 20px 18px; } .ws-email-card > .ws-link { display: inline-block; font-size: 13px; }

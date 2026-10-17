@@ -9,7 +9,7 @@ import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from ".
 import { clientDocument, assertSharingAllowed, activeDocumentShare } from "./document-sharing";
 import { readFile } from "./files";
 import { markSubmitted } from "./deliverables";
-import { emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
+import { recipientAddressError, emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
 import type { Deliverable } from "./types";
 import { recommendationCover } from "./recommendation-presentation";
 const gmailLogger = getLogger({ component: "workspace_gmail" });
@@ -227,6 +227,8 @@ export async function reserveEmailDelivery(
 }
 
 async function composeGmail(userId: string, snapshot: EmailSnapshot) {
+  const addressError = recipientAddressError(snapshot.to);
+  if (addressError) throw new WorkspaceError(addressError, 400);
   let accessToken: string;
   try {
     const token = await auth.api.getAccessToken({

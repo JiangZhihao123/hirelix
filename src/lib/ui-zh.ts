@@ -1,5 +1,18 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Review email": "确认邮件内容",
+  "Accepted by Gmail": "Gmail 已接受发送",
+  "Sending email…": "正在发送邮件…",
+  "Sending result unknown": "发送结果未知",
+  "Send receipt": "发送回执",
+  "Open Gmail Sent": "打开 Gmail 已发送",
+  "Enter a valid recipient email address.": "请填写有效的收件人邮箱地址。",
+  "This recipient uses a reserved test or example domain. Replace it with a real email address before sending.": "收件人使用的是保留测试或示例域名，无法用于真实邮件投递。请提供真实邮箱地址后重新准备邮件。",
+  "Gmail accepted this email. Recipient delivery is not confirmed. Hirelix cannot read bounce notices; check Gmail for delivery failures.": "Gmail 已接受这封邮件，但尚未确认收件人收到。Hirelix 无法读取退信，请在 Gmail 中查看是否投递失败。",
+  "The sending result is unknown. Check Gmail Sent before retrying to avoid a duplicate email.": "尚无法确认发送结果。请先检查 Gmail 已发送邮件，避免重复发送。",
+  "Waiting for Gmail confirmation. You can stay in this conversation; the result will appear here.": "正在等待 Gmail 确认，发送结果会显示在此对话中。",
+  "To change the recipient or message, tell the assistant in this conversation. Review the updated card before sending.": "要修改收件人或正文，请直接在此对话中说明；更新后的邮件会重新显示供你确认。",
+
   "Attachments": "附件",
   "Requested changes are saved directly. Your previous version is kept.": "助理会直接保存修改，同时保留之前的版本。",
   "This delivery request belongs to another record": "这次提交对应的推荐记录已保存，不能修改后重复提交。",

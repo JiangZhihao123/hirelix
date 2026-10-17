@@ -17,15 +17,15 @@ export async function supersedeEmailReviews(userId: string, conversationId: stri
 }
 export async function hydrateEmailReceipts(userId: string, messages: Message[]) {
   const keys = messages.flatMap(message => {
-    const email = message.metadata.email as ConversationEmail | undefined;
+    const email = (message.metadata.email_result || message.metadata.email) as ConversationEmail | undefined;
     return email ? [email.request_key] : [];
   });
   if (!keys.length) return;
   const receipts = await rows<Receipt & {request_key: string}>(sql`SELECT * FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND request_key IN (${sql.join(keys.map(key => sql`${key}`),sql`,`)})`);
   for (const message of messages) {
-    const email = message.metadata.email as ConversationEmail | undefined;
+    const email = (message.metadata.email_result || message.metadata.email) as ConversationEmail | undefined;
     const receipt = email && receipts.find(item => item.request_key === email.request_key);
-    if (email && receipt) message.metadata.email = {...email, status: effectiveDeliveryStatus(receipt), receipt: receipt.id, error: receipt.error || undefined};
+    if (email && receipt) message.metadata[message.metadata.email_result ? "email_result" : "email"] = {...email, status: effectiveDeliveryStatus(receipt), receipt: receipt.id, error: receipt.error || undefined};
   }
 }
 export async function prepareEmailReply({job, conversation, question, messages, document, plan, locale, inline = false}: {
@@ -86,7 +86,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       }
     }
     if (update && !answer) answer = update.status === "sent"
-      ? pending?.status === "sent" ? say(`This email was already sent to ${update.snapshot.to}. I did not send it again.`, `这封邮件此前已发送给 ${update.snapshot.to}，本次没有重复发送。`) : say(`Sent through Gmail to ${update.snapshot.to}.`, `已通过 Gmail 发送给 ${update.snapshot.to}。`)
+      ? pending?.status === "sent" ? say(`This email was already sent to ${update.snapshot.to}. I did not send it again.`, `这封邮件此前已发送给 ${update.snapshot.to}，本次没有重复发送。`) : say(`Gmail accepted the email to ${update.snapshot.to}. Recipient delivery is not confirmed; check Gmail for any bounce notice.`, `Gmail 已接受发送至 ${update.snapshot.to} 的邮件。尚未确认收件人收到，请在 Gmail 查看是否有退信。`)
       : update.status === "failed" ? say("Gmail rejected this email. It was not sent. Check the connection and ask for a new preview.","Gmail 拒绝了这封邮件，未发送。请检查连接后重新准备预览。")
       : say("Gmail has not confirmed this send. Check Gmail Sent before trying again; I will not automatically resend it.","Gmail 尚未确认发送结果。请先查看 Gmail 已发送邮件，我不会自动重发。");
   } else {

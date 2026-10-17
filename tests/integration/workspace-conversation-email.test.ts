@@ -57,13 +57,15 @@ test("real PG: cancellation and supersession survive reload and reject stale/cro
 test("real PG: provider receipt restores a completed or ambiguous send after interrupted conversation commit",async()=>{
  const owner=randomUUID(),email:ConversationEmail={status:"sending",snapshot,request_key:randomUUID()};
  const reserved=await reserveConversationEmail(owner,snapshot,email.request_key,"<qa@test>",async()=>{});
- const messages=[{metadata:{email}} as unknown as Message];
+ const messages=[{metadata:{email}} as unknown as Message, {metadata:{email_result:{...email,preview_message_id:"preview"}}} as unknown as Message];
  await db.execute(sql`UPDATE hirelix_private_email_deliveries SET created_at=now()-interval '3 minutes' WHERE id=${reserved.receipt.id}::uuid`);
  await hydrateEmailReceipts(owner,messages);
  assert.equal((messages[0].metadata.email as ConversationEmail).status,"unknown");
  await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='sent',provider_message_id='qa-receipt' WHERE id=${reserved.receipt.id}::uuid`);
  await hydrateEmailReceipts(owner,messages);
  assert.equal((messages[0].metadata.email as ConversationEmail).status,"sent");
+ assert.equal((messages[1].metadata.email_result as ConversationEmail).status,"sent");
+ assert.equal((messages[1].metadata.email_result as {preview_message_id:string}).preview_message_id,"preview");
  assert.equal((await sendConversationEmail(owner,snapshot,email.request_key,async()=>{throw new Error("must not execute again");})).status,"sent");
 });
 
@@ -152,4 +154,12 @@ test('real PG: document email edits apply with CVs and no link, and confirmation
   assert.equal(unchanged.content,doc.content);
   assert.equal(unchanged.version,doc.version);
  } finally { await finishJob(job,{result:{}}); }
+});
+
+test("real PG: reserved recipient is rejected before OAuth, send reservation or provider request",async()=>{
+ const owner=randomUUID(),accountId=randomUUID(),key=randomUUID();
+ await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'QA','sender@gmail.com',true,now(),now())`);
+ await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${accountId},${accountId},'google',${owner},'nonfunctional-policy-fixture','https://www.googleapis.com/auth/gmail.send',now(),now())`);
+ await assert.rejects(()=>sendConversationEmail(owner,{...snapshot,from:'sender@gmail.com'},key,async()=>{throw new Error('must not reserve');}),/reserved test or example domain/);
+ assert.equal((await rows(sql`SELECT id FROM hirelix_private_email_deliveries WHERE user_id=${owner}::uuid`)).length,0);
 });

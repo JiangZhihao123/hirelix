@@ -53,7 +53,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
   const metadata = message.metadata as AssistantMeta;
   const showReceipts = !isTurnRunning(activeJob);
   const parts = turnParts(activeJob?.result ?? message.metadata);
-  const prose = parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : activeJob ? String(activeJob.result?.live_reply || "") : message.content;
+  const prose = parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : String(activeJob?.result?.live_reply || message.content);
   const displayedSources = new Set(parts.flatMap(part => part.type === "tool" ? (part.sources || []).map(source => source.href) : []));
   if (metadata.exports) displayedSources.add(`/app/submissions/${metadata.exports.document_id}`);
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
@@ -117,7 +117,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       <a className="ws-link" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
                     </div>)}
-                    {(metadata.email || metadata.gmail) && <ConversationEmail email={metadata.email} conversationId={message.conversation_id!} messageId={message.id} onChanged={onReady} />}
+                    {(metadata.email || metadata.email_result || metadata.gmail) && <ConversationEmail email={metadata.email_result || metadata.email} conversationId={message.conversation_id!} messageId={metadata.email_result?.preview_message_id || message.id} onChanged={onReady} />}
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
