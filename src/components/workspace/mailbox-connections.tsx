@@ -1,18 +1,15 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { authClient } from "@/lib/auth-client";
-import { mailboxScopes, type MailboxProvider, type MailboxSettings } from "@/lib/workspace/mailbox-contract";
+import { mailboxCallbackURLs, mailboxScopes, type MailboxProvider, type MailboxSettings } from "@/lib/workspace/mailbox-contract";
 import { api, useQuery, ErrorNotice } from "./client";
 
 export async function connectMailbox(provider: MailboxProvider, read: boolean, callbackURL: string) {
-  const callback = new URL(callbackURL, window.location.origin);
-  if (callback.origin !== window.location.origin) throw new Error("Return to Hirelix after connecting your mailbox.");
-  const failure = new URL(callback);
-  callback.searchParams.set("mailbox_connected", provider);
+  const callbacks = mailboxCallbackURLs(callbackURL, window.location.origin, provider);
   const scopes = [mailboxScopes[provider].send, ...(read ? [mailboxScopes[provider].read] : []), ...(provider === "microsoft" ? ["User.Read", "offline_access"] : [])];
-  const result = await authClient.linkSocial({ provider, scopes, disableRedirect: true, callbackURL: callback.href, errorCallbackURL: failure.href });
+  const result = await authClient.linkSocial({ provider, scopes, disableRedirect: true, ...callbacks });
   if (result.error || !result.data?.url) throw new Error(result.error?.message || "Could not connect this mailbox.");
   const url = new URL(result.data.url);
   url.searchParams.set("prompt", "consent");
@@ -21,11 +18,19 @@ export async function connectMailbox(provider: MailboxProvider, read: boolean, c
 
 export function MailboxReturnNotice({connections, loading}: {connections: MailboxSettings["connections"] | undefined; loading:boolean}) {
   const params = useSearchParams(), {locale} = useLanguage(), zh = locale === "zh";
-  if (params.get("error")) return <p className="ws-email-notice" role="alert">{zh ? "连接未完成。之前的内容仍保留，可以重试或继续工作。" : "Connection was not completed. Your work is preserved; retry or continue working."}</p>;
+  const notice = useRef<HTMLParagraphElement>(null), positioned = useRef(false);
+  const returned = !!params.get("mailbox_connected") || params.get("mailbox_return") === "1";
+  useEffect(() => {
+    if (returned && !loading && notice.current && !positioned.current) {
+      notice.current.scrollIntoView({ block: "center" });
+      positioned.current = true;
+    }
+  }, [returned, loading]);
+  if (params.get("error")) return <p ref={notice} className="ws-email-notice" role="alert">{zh ? "连接未完成。之前的内容仍保留，可以重试或继续工作。" : "Connection was not completed. Your work is preserved; retry or continue working."}</p>;
   const provider = params.get("mailbox_connected");
   if (!provider) return null;
   const connection = connections?.find(c => c.provider === provider);
-  return <p className="ws-email-notice" role="status">{loading ? (zh ? "正在确认邮箱连接…" : "Checking mailbox connection…") : connection?.connected ? (zh ? `已连接 ${connection.email}。可以继续当前工作，连接操作没有发送邮件。` : `Connected as ${connection.email}. Continue your work; connecting did not send an email.`) : (zh ? "尚未确认邮箱连接，请检查下方状态或重试。" : "Mailbox connection is not confirmed. Check the status below or retry.")}</p>;
+  return <p ref={notice} className="ws-email-notice" role="status">{loading ? (zh ? "正在确认邮箱连接…" : "Checking mailbox connection…") : connection?.connected ? (zh ? `已连接 ${connection.email}。可以继续当前工作，连接操作没有发送邮件。` : `Connected as ${connection.email}. Continue your work; connecting did not send an email.`) : (zh ? "尚未确认邮箱连接，请检查下方状态或重试。" : "Mailbox connection is not confirmed. Check the status below or retry.")}</p>;
 }
 
 export function MailboxConnections({ callbackURL = "/app/settings?section=email", oauthError, compact = false, preferredProvider = "google", onConnect }: { callbackURL?: string; oauthError?: string | null; compact?: boolean; preferredProvider?: MailboxProvider; onConnect?: (provider: MailboxProvider) => Promise<void> }) {

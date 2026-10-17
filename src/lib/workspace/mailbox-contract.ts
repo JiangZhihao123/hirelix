@@ -1,6 +1,19 @@
 import { z } from "zod";
 export const mailboxProvider = z.enum(["google", "microsoft"]);
 export type MailboxProvider = z.infer<typeof mailboxProvider>;
+export function mailboxCallbackURLs(path: string, origin: string, provider: MailboxProvider) {
+  const success = new URL(path, origin);
+  if (success.origin !== origin) throw new Error("Return to Hirelix after connecting your mailbox.");
+  success.searchParams.delete("error");
+  success.searchParams.delete("error_description");
+  success.searchParams.delete("mailbox_connected");
+  const failure = new URL(success);
+  // better-auth appends error parameters as text, so a fragment would swallow them.
+  failure.hash = "";
+  failure.searchParams.set("mailbox_return", "1");
+  success.searchParams.set("mailbox_connected", provider);
+  return { callbackURL: success.href, errorCallbackURL: failure.href };
+}
 export const mailboxScopes = {
   google: { send: "https://www.googleapis.com/auth/gmail.send", read: "https://www.googleapis.com/auth/gmail.readonly" },
   microsoft: { send: "Mail.Send", read: "Mail.Read" },
