@@ -1,3 +1,4 @@
+import { workErrorDiagnostics } from "./error-diagnostics";
 import { turnParts } from "./turn-progress";
 import { isIncludedTask } from "./database";
 import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
@@ -170,18 +171,22 @@ export async function processJob(
       heartbeatRunning = false;
     }
   }, 30000);
+  let phase = "prepare";
   try {
     const prepared = await agentCreditContext.run(job, () => handlers[job.kind]!(job, async (message) => {
       if (leaseLost) throw new LostLease();
       await heartbeat(job, message);
     }));
     if (leaseLost) throw new LostLease();
+    phase = "persist";
     await finishJob(job, prepared);
   } catch (error) {
     const fields = {
       job_id: job.id,
       kind: job.kind,
       attempt: job.attempts,
+      phase,
+      ...workErrorDiagnostics(error),
       error_type: error instanceof Error ? error.name : "Unknown",
       provider_status: error instanceof IndexProviderError ? error.status : undefined,
     };

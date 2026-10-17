@@ -326,7 +326,18 @@ export async function importDetails(userId: string, id: string, page = 1) {
   const counts = await rows<{ status: string; count: number }>(
     sql`SELECT status,count(*)::int AS count FROM hirelix_private_import_rows WHERE user_id=${userId}::uuid AND job_id=${id}::uuid GROUP BY status`,
   );
-  return { job, items, counts, page, page_size: 50 };
+  // A later Agent action may save the same source after an import failure.
+  // Preserve the failed job as history; derive recovery only from persisted,
+  // user-owned profile/CV records, never an assistant's claim of success.
+  const savedProfiles = job.status === "error" && typeof job.payload.file_id === "string"
+    ? await rows<{ id: string; name: string }>(sql`
+        SELECT DISTINCT p.id,p.name FROM hirelix_private_records r
+        JOIN hirelix_agent_people p ON p.id=r.person_id AND p.user_id=r.user_id
+        WHERE r.user_id=${userId}::uuid AND r.file_id=${job.payload.file_id}::uuid
+          AND r.kind IN ('profile','cv') AND r.created_at>${job.updated_at}::timestamptz
+      `)
+    : [];
+  return { job, items, counts, savedProfiles, page, page_size: 50 };
 }
 export async function confirmMapping(
   userId: string,

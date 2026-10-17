@@ -5,6 +5,7 @@ import { unzipSync } from "fflate";
 import { load } from "cheerio";
 import { createCanvas } from "@napi-rs/canvas";
 import { WorkspaceError } from "./database";
+import { getLogger } from "@/lib/logger";
 import { pdfOptions } from "./pdf-options";
 import { MAX_SOURCE_IMAGES, transcribeImages, type SourceImage } from "./vision";
 
@@ -32,6 +33,18 @@ function ensureContent(document: ReadDocument) {
 }
 
 export async function readDocument(file: {name: string; bytes: Uint8Array}, imageBudget = MAX_SOURCE_IMAGES, readVisuals = true): Promise<ReadDocument> {
+  const document = await readDocumentContent(file, imageBudget, readVisuals);
+  // PDF font mappings and other source formats can contain NUL. PostgreSQL
+  // text/jsonb cannot represent it; retain the original bytes, clean extracted text.
+  const removed = document.text.split("\u0000").length - 1;
+  if (removed) {
+    getLogger({ component: "document_reader" }).warn({ removed_null_characters: removed }, "Removed unsupported NUL characters from extracted text");
+    document.text = document.text.replaceAll("\u0000", "");
+  }
+  return readVisuals ? ensureContent(document) : document;
+}
+
+async function readDocumentContent(file: {name: string; bytes: Uint8Array}, imageBudget: number, readVisuals: boolean): Promise<ReadDocument> {
   const extension = file.name.split(".").pop()?.toLowerCase() || "";
   if (IMAGE_EXTENSIONS.includes(extension)) {
     if (!readVisuals) return {text: "", images: []};

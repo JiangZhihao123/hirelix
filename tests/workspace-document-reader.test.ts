@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {makeFileFixtures} from './helpers/workspace-file-fixtures';
 import {readDocument} from '../src/lib/workspace/document-reader';
+import {pdfOptions} from '../src/lib/workspace/pdf-options';
 import {attachmentError} from '../src/lib/workspace/attachments';
 test('actual office files preserve sheets, cell addresses, slide text and PDF pixels',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'hirelix-files-'))+'/';
@@ -51,4 +52,38 @@ test('PDFs without ToUnicode preserve Chinese through predefined Adobe CMaps', a
  page.node.set(PDFName.of('Contents'), context.register(context.flateStream(`BT /F1 18 Tf 30 100 Td <${hex}> Tj ET`)));
  const result = await readDocument({name:'chinese-cid.pdf', bytes:await pdf.save()}, 0, false);
  for (const phrase of expected.split(' ')) assert.ok(result.text.includes(phrase), `Missing Chinese text: ${phrase}`);
+});
+
+test('source text removes PostgreSQL-incompatible NUL without changing the original file', async () => {
+ const bytes=Buffer.from('王\u0000宇鑫\n姓名\t履历 😀');
+ const original=Buffer.from(bytes);
+ for(const readVisuals of [true,false]) {
+  const result=await readDocument({name:'source.txt',bytes},20,readVisuals);
+  assert.equal(result.text,'王宇鑫\n姓名\t履历 😀');
+  assert.deepEqual(bytes,original);
+ }
+});
+
+test('PDF font mappings containing NUL can be extracted for database storage',async()=>{
+ const {PDFDocument,PDFName}=await import('pdf-lib');
+ const pdf=await PDFDocument.create(),ctx=pdf.context;
+ const cmap=ctx.register(ctx.flateStream('/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def /CMapName /Test def /CMapType 2 def 1 begincodespacerange <00> <FF> endcodespacerange 3 beginbfchar <41> <0041> <42> <0000> <43> <0043> endbfchar endcmap CMapName currentdict /CMap defineresource pop end end'));
+ const font=ctx.register(ctx.obj({Type:'Font',Subtype:'Type1',BaseFont:'Helvetica',ToUnicode:cmap}));
+ const page=pdf.addPage([300,200]);
+ page.node.set(PDFName.of('Resources'),ctx.obj({Font:{F1:font}}));
+ page.node.set(PDFName.of('Contents'),ctx.register(ctx.flateStream(`BT /F1 8 Tf 30 100 Td (${'ABC'.repeat(20)}) Tj ET`)));
+ const bytes=await pdf.save();
+ const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');
+ const task=pdfjs.getDocument({...pdfOptions,data:new Uint8Array(bytes)});
+ try {
+  const source=await task.promise;
+  const content=await (await source.getPage(1)).getTextContent();
+  assert.ok(content.items.some(item=>'str' in item&&item.str.includes('\u0000')),'fixture reproduces the real PDF.js NUL extraction');
+ }finally{await task.destroy();}
+ for(const visual of [false,true]){
+  const result=await readDocument({name:'nul-font.pdf',bytes},20,visual);
+  assert.ok(result.text.includes('AC'));
+  assert.ok(!result.text.includes('\u0000'));
+  assert.equal(result.images.length,visual?1:0);
+ }
 });

@@ -44,6 +44,7 @@ type Preview = {
   job: Job;
   items: ImportRow[];
   counts: Array<{ status: string; count: number }>;
+  savedProfiles?: Array<{ id: string; name: string }>;
   page: number;
   page_size: number;
 };
@@ -780,6 +781,19 @@ export function ConversationImport({
             ? t("I have your file. I’ll read the candidates and check for duplicates.")
             : t(job.progress)}
         </Loading>
+      ) : job.status === "error" && !!preview.data?.savedProfiles?.length ? (
+        <>
+          <p className="ws-import-person-saved"><Check size={12} />{t("Saved to candidates")}</p>
+          {preview.data.savedProfiles.map(person => (
+            <p key={person.id}><Link href={`/app/candidates?person=${person.id}`}>{person.name} · {t("Open candidate")} <ArrowUpRight size={14} /></Link></p>
+          ))}
+          <details className="ws-import-notes">
+            <summary>{locale === "zh" ? "查看先前的导入记录" : "View earlier import attempt"}</summary>
+            <p>{locale === "zh" ? "首次导入未完成。以上档案随后通过这份原文件保存；这不代表文件中的所有人选均已导入。" : "The earlier import did not finish. The profiles above were subsequently saved from this original file; other profiles in the file may still need importing."}</p>
+            <p>{t(job.error || "This file needs another attempt")}</p>
+            <button className="ws-button" onClick={() => void api(`/jobs/${jobId}`, { method: "POST" }).then(preview.refresh).catch(cause => setError(cause.message))}>{locale === "zh" ? "重新读取文件" : "Read file again"}</button>
+          </details>
+        </>
       ) : job.status === "error" ? (
         <>
           <p>{t("I’ve kept your original file, but couldn’t finish reading it.")}</p>

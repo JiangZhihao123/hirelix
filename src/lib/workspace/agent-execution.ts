@@ -1,3 +1,4 @@
+import { workErrorDiagnostics } from "./error-diagnostics";
 import { getLogger } from "@/lib/logger";
 import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
@@ -138,6 +139,7 @@ export async function completeAgentWork(
       () => void heartbeat(child).catch(() => {}),
       20000,
     );
+    let phase = "prepare";
     try {
       const prepared = await agentCreditContext.run({ ...child, signal }, () =>
         handler(child, async (message) => {
@@ -149,23 +151,25 @@ export async function completeAgentWork(
       );
       signal.throwIfAborted();
       await activeAgentJob(parent);
+      phase = "persist";
       await finishJob(child, prepared);
     } catch (error) {
-      if (!(error instanceof LostLease) && !signal.aborted)
-        await failJob(
-          child,
-          error instanceof WorkspaceError
-            ? error.message
-            : "This work could not finish. Review the input and retry.",
-        );
       if (error instanceof LostLease || signal.aborted) throw error;
       getLogger({ component: "workspace_agent_work" }).error(
         {
           job_id: child.id,
           kind: child.kind,
+          phase,
+          ...workErrorDiagnostics(error),
           error_type: error instanceof Error ? error.name : "Unknown",
         },
         "Agent work tool failed",
+      );
+      await failJob(
+        child,
+        error instanceof WorkspaceError
+          ? error.message
+          : "This work could not finish. Review the input and retry.",
       );
       throw error instanceof WorkspaceError
         ? error
