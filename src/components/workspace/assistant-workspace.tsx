@@ -4,7 +4,7 @@ import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { MessageCandidateReferences } from "./message-candidate-references";
 import { ComposerReference } from "./composer-reference";
 import { MessageRoleReference, type RoleReference } from "./message-role-reference";
-import { useCandidateMentions } from "./candidate-mentions";
+import { useContextReferences } from "./context-references";
 import { conversationTurnView } from "./conversation-turn-view";
 import { useTurnStream } from "./use-turn-stream";
 import { isTurnRunning } from "@/lib/workspace/turn-progress";
@@ -20,7 +20,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUp,
@@ -117,7 +116,7 @@ export function AssistantWorkspace({
   const [attachmentDraftError, setAttachmentDraftError] = useState("");
   const persistedAttachments = useRef<PendingFile[] | null>(null);
   const dragDepth = useRef(0);
-  const [contextOpen, setContextOpen] = useState(false);
+
   const [source, setSource] = useState<{title: string; href: string} | null>(null);
   const memoryRequested = useSearchParams().has("memories");
   const [memoriesOpen, setMemoriesOpen] = useState(false);
@@ -133,7 +132,7 @@ export function AssistantWorkspace({
     priorIds: string[];
     files?: PendingFile[];
     candidates?: Array<{id: string; name: string}>;
-    role?: RoleReference;
+    roles?: RoleReference[];
   } | null>(handoffText ? { text: handoffText, priorIds: [] } : null);
   const fileInput = useRef<HTMLInputElement>(null);
   const stickToBottom = useRef(true);
@@ -230,7 +229,7 @@ export function AssistantWorkspace({
     documentId,
   );
   const draftRoleKey = `${draftStorageKey}:role`;
-  const mentions = useCandidateMentions(draftStorageKey, composer, setDraft);
+  const mentions = useContextReferences(draftStorageKey, composer, setDraft);
   const attachmentDraftKey = user ? `${user.id}:${draftStorageKey}` : null;
   const attachmentsReady = !!attachmentDraftKey && attachmentDraftLoaded === attachmentDraftKey;
   const requestStorageKey = `${attachmentDraftKey}:request`;
@@ -306,29 +305,7 @@ export function AssistantWorkspace({
     field.style.height = "auto";
     field.style.height = `${Math.min(field.scrollHeight, 220)}px`;
   }, [draft]);
-  useEffect(() => {
-    if (!contextOpen) return;
-    function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        setContextOpen(false);
-      }
-    }
-    function onPointerDown(event: PointerEvent) {
-      if (
-        contextOpen &&
-        event.target instanceof Element &&
-        !event.target.closest(".ws-assistant-context, .ws-composer-role-trigger")
-      ) {
-        setContextOpen(false);
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [contextOpen]);
+
   useEffect(() => {
     if (!optimistic || !query.data) return;
     if (
@@ -416,7 +393,8 @@ export function AssistantWorkspace({
     const text = (reply ?? draft).trim();
     const outgoingAttachments = quickReply ? [] : attachments;
     const outgoingRole = quickReply ? undefined : roles.data?.roles.find(role => role.id === (viewedSource?.kind === "role" ? viewedSource.id : activeRoleId));
-    const outgoingCandidates = quickReply ? [] : [...new Map([...(linkedPersonId ? [{id: linkedPersonId, name: person.data?.person.name || t("Candidate")}] : []), ...mentions.references].map(candidate => [candidate.id, candidate])).values()];
+    const outgoingRoles = quickReply ? [] : [...new Map([...(outgoingRole ? [outgoingRole] : []), ...mentions.references.filter(ref => ref.kind === "role").map(ref => ({id: ref.id, title: ref.title || ref.name, client_name: ref.client_name || ""}))].map(role => [role.id, role])).values()];
+    const outgoingCandidates = quickReply ? [] : [...new Map([...(linkedPersonId ? [{id: linkedPersonId, name: person.data?.person.name || t("Candidate")}] : []), ...mentions.references.filter(ref => ref.kind === "candidate")].map(candidate => [candidate.id, candidate])).values()];
     if (stopping || sendInFlight.current || sending || (quickReply && pending) || (!text && !outgoingAttachments.length)) return;
     if (!quickReply && (!attachmentsReady || outgoingAttachments.some(item => item.status === "uploading"))) return;
     if (outgoingAttachments.some(item => attachmentError(item.file.name, item.file.size))) return;
@@ -429,7 +407,7 @@ export function AssistantWorkspace({
     setError("");
     stickToBottom.current = true;
     setShowJump(false);
-    if (!pending && !stopped || delivery === "immediate") setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, role: outgoingRole, priorIds: query.data?.messages.map(m => m.id) || []});
+    if (!pending && !stopped || delivery === "immediate") setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, roles: outgoingRoles, priorIds: query.data?.messages.map(m => m.id) || []});
     try {
       const fileIds: string[] = [];
       for (const item of outgoingAttachments) {
@@ -457,6 +435,7 @@ export function AssistantWorkspace({
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         conversation_id: conversationId,
         role_id: quickReply ? null : roleId || null,
+        role_ids: outgoingRoles.map(role => role.id),
         document_id: conversationId ? null : documentId,
       };
       const signature = JSON.stringify(payload);
@@ -708,7 +687,7 @@ export function AssistantWorkspace({
             ) : (
               displayedMessages.map(({key, message, activeJob, optimistic: isOptimistic}, index) => isOptimistic ? (
                 <article key={key} className="ws-message ws-message-user ws-message-optimistic" aria-label={t("Your message")}>
-                  <MessageRoleReference reference={optimistic?.role} onOpen={setSource} />
+                  {optimistic?.roles?.map(role => <MessageRoleReference key={role.id} reference={role} onOpen={setSource} />)}
                   <MessageCandidateReferences references={optimistic?.candidates || []} onOpen={setSource} />
                   {!!optimistic?.files?.length && <div className="ws-message-attachments">
                     {optimistic.files.map(item => <MessageAttachment key={item.id} name={item.file.name} size={item.file.size} file={item.file} />)}
@@ -723,7 +702,7 @@ export function AssistantWorkspace({
                 importRefresh={job?.status === "done" ? job.id : undefined}
                 laterScheduleIds={displayedMessages.slice(index + 1).flatMap(item => (item.message.metadata as AssistantMeta).schedules?.map(schedule => schedule.id) || [])}
                 onReady={query.refresh} onRevise={document => { setSource(null); setRevisionTarget(document); setDraft(`${document.title}: ${t("Please revise the document: ")}`); composer.current?.focus(); }}
-                onMemories={() => setMemoriesOpen(true)} onSource={source => { setRevisionTarget(null); setContextOpen(false); setSource(source); }}
+                onMemories={() => setMemoriesOpen(true)} onSource={source => { setRevisionTarget(null);  setSource(source); }}
                 onReview={(messageId, action) => setReview({messageId, action})} onCopy={(id, content) => void copyConversationMessage(id, content, setCopiedId, setError)} copiedId={copiedId}
               />)
             )}
@@ -796,7 +775,7 @@ export function AssistantWorkspace({
               role="combobox"
               aria-expanded={mentions.open}
               aria-autocomplete="list"
-              aria-controls={mentions.open ? "candidate-mentions" : undefined}
+              aria-controls={mentions.open ? "context-reference-options" : undefined}
               aria-activedescendant={mentions.selectedId}
               value={sending ? "" : draft}
               onChange={(e) => mentions.update(e.target.value, e.target.selectionStart)}
@@ -819,20 +798,22 @@ export function AssistantWorkspace({
               </button>
               <button
                 type="button"
-                className={`ws-attach-button ws-composer-role-trigger ${contextOpen ? "is-active" : ""}`}
+                className="ws-attach-button"
+                data-reference-trigger
                 disabled={sending || !draftReady}
-                aria-expanded={contextOpen}
-                onClick={() => setContextOpen(!contextOpen)}
+                aria-expanded={mentions.open}
+                onClick={() => mentions.start("role")}
               >
-                <BriefcaseBusiness size={14} />{t("Link role / JD")}
+                <BriefcaseBusiness size={14} />{t("Link role")}
               </button>
               <button
                 type="button"
                 className="ws-attach-button"
                 disabled={sending || !draftReady}
                 aria-expanded={mentions.open}
-                aria-controls="candidate-mentions"
-                onClick={() => { setContextOpen(false); mentions.startMention(); }}
+                aria-controls="context-reference-options"
+                data-reference-trigger
+                onClick={() => mentions.start("candidate")}
               >
                 <UserRound size={14} />{t("Link candidate")}
               </button>
@@ -862,12 +843,7 @@ export function AssistantWorkspace({
           </form>
         </section>
         {source && <ContextPanel source={source} onClose={() => setSource(null)} onTitle={title => setSource(current => current ? {...current, title} : current)} />}
-        {contextOpen && <aside className="ws-assistant-context" aria-label={t("Link role / JD")}>
-          <div className="ws-context-heading"><strong>{t("Link role / JD")}</strong><button className="ws-icon" onClick={() => setContextOpen(false)} aria-label={t("Close")}><X size={16} /></button></div>
-          <button className="ws-button" onClick={() => { setContextOpen(false); router.push(`/app?prompt=${encodeURIComponent(t("Save a role from the JD and client context I provide."))}`); }}>{t("Add role")}</button>
-          {roles.data?.roles.map(role => <button className="ws-detail-link" key={role.id} onClick={() => { setRoleId(role.id); setSource(null); setContextOpen(false); }}>{role.client_name} · {role.title}</button>)}
-          <Link className="ws-link" href="/app/roles">{t("View all roles")} <ArrowUpRight size={13} /></Link>
-        </aside>}
+
       </div>
       {memoriesOpen && <PersonalMemories onClose={() => setMemoriesOpen(false)} />}
       {review && conversationId && (

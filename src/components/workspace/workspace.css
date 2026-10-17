@@ -1714,9 +1714,9 @@
 .ws-composer-context-tag button:hover {
   background: #dbe9d9;
 }
-.ws-composer-reference { display: inline-flex; align-items: center; gap: 9px; max-width: min(100%, 360px); min-width: 0; padding: 8px 9px; border: 1px solid #dce6de; border-radius: 11px; background: #f7faf7; color: #345c4b; }
+.ws-composer-reference { display: inline-flex; align-items: center; gap: 6px; max-width: min(100%, 360px); min-width: 0; padding: 4px 7px; border: 1px solid #dce6de; border-radius: 11px; background: #f7faf7; color: #345c4b; }
 .ws-composer-reference-role { border-color: #dde3ed; background: #f7f9fc; color: #4e6489; }
-.ws-composer-reference-icon { display: flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; border-radius: 9px; background: #e7efe8; }
+.ws-composer-reference-icon { display: flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 6px; background: #e7efe8; }
 .ws-composer-reference-role .ws-composer-reference-icon { background: #e9eef6; }
 .ws-composer-reference-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ws-composer-reference-text small { font-size: 10px; line-height: 14px; opacity: .8; }
@@ -2820,25 +2820,7 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-source-extracted summary { color: var(--ws-green); cursor: pointer; font-size: 13px; }
 .ws-source-extracted > .ws-source-content, .ws-source-extracted > p { max-height: 380px; overflow: auto; margin-top: 12px; }
 
-.ws-mention-picker {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 16px;
-  width: min(420px, calc(100% - 32px));
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 8px;
-  border: 1px solid var(--ws-line);
-  border-radius: 14px;
-  background: var(--ws-surface, #fff);
-  box-shadow: 0 8px 28px #1f47351a;
-  z-index: 20;
-}
-.ws-mention-picker header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px 8px; font-size: 12px; color: var(--ws-muted); }
-.ws-mention-picker > button { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 9px; border-radius: 8px; }
-.ws-mention-picker > button[aria-selected="true"], .ws-mention-picker > button:hover { background: #edf3ee; }
-.ws-mention-picker strong, .ws-mention-picker small { display: block; }
-.ws-mention-picker small, .ws-mention-picker p { font-size: 12px; color: var(--ws-muted); }
+
 .ws-mention-picker p { padding: 12px; }
 .ws-message-references { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
 .ws-message-references button { display: inline-flex; align-items: center; gap: 8px; color: var(--ws-green); border: 1px solid var(--ws-line); padding: 6px 10px; border-radius: 8px; font-size: 13px; }
@@ -2980,3 +2962,22 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-email-attachments { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid #edf0ec; font-size: 13px; }
 .ws-email-help, .ws-email-receipt { font-size: 12px; color: #69776f; } .ws-email-receipt { margin: 12px 20px; overflow-wrap: anywhere; }
 .ws-email-card footer { display: flex; gap: 10px; padding: 4px 20px 18px; } .ws-email-card > .ws-link { display: inline-block; font-size: 13px; }
+
+/* One composer-anchored picker for both typed mentions and context buttons. */
+.ws-reference-picker { position:absolute; bottom:calc(100% + 8px); left:0; width:min(480px,100%); height:min(400px,60vh); display:flex; flex-direction:column; padding:12px; border:1px solid var(--ws-line); border-radius:14px; background:var(--ws-surface,#fff); box-shadow:0 8px 28px #1f47351a; z-index:20; }
+.ws-reference-picker header, .ws-reference-picker footer { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; padding:2px 4px 8px; }
+.ws-reference-picker input { flex-shrink:0; width:100%; border:1px solid var(--ws-line); border-radius:8px; padding:9px 11px; font-size:13px; outline-offset:2px; }
+.ws-reference-filters { display:flex; gap:6px; padding:8px 0; }
+.ws-reference-filters button { padding:5px 10px; border-radius:7px; font-size:12px; }
+.ws-reference-filters button[aria-pressed=true] { background:#e6eee7; color:var(--ws-green); }
+.ws-reference-results { overflow-y:auto; min-height:0; flex:1; }
+.ws-reference-results > button { display:flex; align-items:center; gap:10px; width:100%; padding:9px; border-radius:8px; text-align:left; }
+.ws-reference-results > button > span { flex:1; min-width:0; }
+.ws-reference-results strong, .ws-reference-results small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ws-reference-results strong { font-size:13px; }
+.ws-reference-results small, .ws-reference-results p, .ws-reference-picker footer { font-size:11px; color:var(--ws-muted); }
+.ws-reference-results > button:hover, .ws-reference-results > button.is-focused { background:#f1f5f1; }
+.ws-reference-results > button[aria-selected=true] { background:#e8f0e9; }
+.ws-reference-results p { padding:14px 8px; }
+.ws-reference-picker footer { padding:10px 4px 0; }
+.ws-reference-picker footer button { color:var(--ws-green); font-weight:600; }

@@ -17,10 +17,10 @@ import { addRecord } from "./records";
 
 export async function mentionPeople(userId: string, query = "") {
   const match = `%${query.trim().replace(/[\\%_]/g, "\\$&")}%`;
-  const people = await rows<Pick<Person, "id" | "name" | "headline" | "location">>(sql`
-    SELECT id,name,headline,location FROM hirelix_agent_people
+  const people = await rows<Pick<Person, "id" | "name" | "headline" | "location"> & {company: string | null}>(sql`
+    SELECT id,name,headline,location,profile->'experience'->0->>'company' AS company FROM hirelix_agent_people
     WHERE user_id=${userId}::uuid
-      AND (${!query.trim()} OR concat_ws(' ',name,email,headline) ILIKE ${match})
+      AND (${!query.trim()} OR concat_ws(' ',name,email,headline,jsonb_path_query_array(profile,'$.experience[*].company')::text,jsonb_path_query_array(profile,'$.experience[*].title')::text) ILIKE ${match})
     ORDER BY (lower(name)=lower(${query.trim()})) DESC,updated_at DESC,id LIMIT 10
   `);
   return { people };

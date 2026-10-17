@@ -158,7 +158,7 @@ export const uiZh: Record<string, string> = {
   "Resuming saved work": "继续执行",
 
   "Choose role": "选择职位",
-  "Link role / JD": "关联职位 / JD",
+  "Link role": "关联职位",
   "View all roles": "查看全部职位",
   "Ask about this item…": "围绕这份资料继续提问…",
   "Save candidate details I provide in this conversation.": "请根据我在对话中提供的资料保存候选人。",

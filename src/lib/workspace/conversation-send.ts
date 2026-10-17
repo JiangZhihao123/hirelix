@@ -89,6 +89,11 @@ export async function sendMessage(
     const messageRoleId = viewedSource?.kind === "role" ? viewedSource.id : resolvedRoleId;
     const selectedRole = messageRoleId ? await owned<Role>(userId, "role", messageRoleId, tx) : null;
     const roleReference = selectedRole ? { id: selectedRole.id, title: selectedRole.title, client_name: selectedRole.client_name } : null;
+    const roleReferences = [];
+    for (const roleId of new Set([...(messageRoleId ? [messageRoleId] : []), ...input.role_ids])) {
+      const role = await owned<Role>(userId, "role", roleId, tx);
+      roleReferences.push({id: role.id, title: role.title, client_name: role.client_name});
+    }
     const workDocumentId = input.work_document_id || (viewedSource?.kind === "deliverable" ? viewedSource.id : null);
     const workDocument = workDocumentId ? await owned<Deliverable>(userId, "deliverable", workDocumentId, tx) : null;
     if (input.email_confirmation_message_id) {
@@ -96,7 +101,7 @@ export async function sendMessage(
       if (!preview || !["review","sending","sent","unknown"].includes((preview.metadata.email as {status:string}).status)) throw new WorkspaceError("This email preview is no longer available",409);
     }
     const [message] = await rows<Message>(
-      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ delivery: "queued", ...(roleReference ? { role_id: roleReference.id, role_reference: roleReference } : {}), ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
+      sql`INSERT INTO hirelix_agent_messages(user_id,role,content,conversation_id,metadata) VALUES(${userId}::uuid,'user',${input.message},${conversation.id}::uuid,${json({ delivery: "queued", ...(roleReference ? { role_id: roleReference.id, role_reference: roleReference } : {}), ...(roleReferences.length ? {role_references: roleReferences} : {}), ...(candidateReferences.length ? { candidate_references: candidateReferences } : {}), ...(viewedSource ? {viewed_source:viewedSource} : {}), ...(workDocument ? { work_document_id: workDocument.id, work_document_title: workDocument.title } : {}), ...(document ? { document_id: document.id } : {}), ...(attachments.length ? { attachments } : {}) })}) RETURNING *`,
       tx,
     );
     // Queueing must not answer a question yet: its message can still be edited or removed.
