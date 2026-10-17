@@ -42,7 +42,7 @@ export function ConversationEmail({email, conversationId, messageId, onChanged}:
   }
   const status = submitted && email?.status === "review" ? "sending" : email?.status;
   const addressError = email ? recipientAddressError(email.snapshot.to) : null;
-  const title = !email ? "Gmail connection" : status === "review" ? "Review email" : status === "sent" ? "Accepted by Gmail" : status === "sending" ? "Sending email…" : status === "unknown" ? "Sending result unknown" : status === "cancelled" ? "Email cancelled" : status === "superseded" ? "Email preview replaced" : "Email not sent";
+  const title = !email ? "Email connections" : status === "review" ? "Review email" : status === "sent" ? "Accepted by Gmail" : status === "sending" ? "Sending email…" : status === "unknown" ? "Sending result unknown" : status === "cancelled" ? "Email cancelled" : status === "superseded" ? "Email preview replaced" : "Email not sent";
   const Icon = status === "sending" ? Loader2 : addressError || status === "failed" || status === "unknown" ? AlertCircle : status === "sent" ? CheckCircle2 : Mail;
   return <section className="ws-email-card" data-status={addressError ? "failed" : status} aria-label={t("Email confirmation")}>
     <header><Icon size={20} className={status === "sending" ? "animate-spin" : undefined} /><strong role="status" aria-live="polite">{t(title).replaceAll("Gmail",providerName)}</strong></header>

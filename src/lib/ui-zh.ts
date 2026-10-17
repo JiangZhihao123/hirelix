@@ -176,6 +176,7 @@ export const uiZh: Record<string, string> = {
   "Email not sent": "邮件未发送",
   "Check Gmail Sent before retrying": "请先核实 Gmail 已发送邮件，勿重复发送",
   "Gmail connection": "Gmail 连接",
+  "Email connections": "邮箱连接",
   "Gmail connected": "Gmail 已连接",
   "Gmail is not connected": "Gmail 尚未连接",
   "No attachments": "无附件",
