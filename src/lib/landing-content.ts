@@ -1,5 +1,8 @@
 import { AGENT_PLAN } from "./agent-plan";
 
+export const mailboxAvailability =
+  "Connected-mailbox sending requires your explicit authorization. Gmail inbox reading is not currently available. Outlook access depends on granted permissions and the provider’s account restrictions. You can also paste an email or upload it as a PDF or text file for analysis.";
+
 export const landingFaqs = [
   [
     "What is Hirelix?",
@@ -31,11 +34,19 @@ export const landingFaqs = [
   ],
   [
     "Will the agent contact candidates or clients for me?",
-    "Hirelix prepares drafts for you to review, edit, copy, or export. It does not autonomously contact people. Optional Gmail sending requires a connected account with sending permission and your explicit send action.",
+    "Hirelix can prepare recommendations and emails for review. Creating a draft does not send it. A connected mailbox and your explicit send authorization are required; provider acceptance does not guarantee delivery to the recipient.",
+  ],
+  ["Can Hirelix read my Gmail or Outlook inbox?", mailboxAvailability],
+  [
+    "How do I start with one role and several candidates?",
+    "Upload a job description and candidate CVs or a CSV list. Ask Hirelix to save them, compare the candidates against the role, and prepare a recommendation for the people you select. Review the evidence and unresolved questions before sharing. Record client feedback separately for each person, then continue the assignment in the same or a new conversation.",
+  ],
+  [
+    "Is Hirelix an ATS or a candidate database?",
+    "Hirelix is a conversational personal AI agent for a headhunter’s own work, not a source of external candidates. It keeps the profiles, roles, documents and conversations you save. It is not presented as a replacement for a firm’s ATS, and no automatic ATS synchronization is promised.",
   ],
   [
     "Can I export or delete candidate information?",
     "You can export a candidate’s saved profile and records, and delete candidate profiles from your workspace. Read our Privacy Policy for details on how information is handled.",
   ],
 ];
-

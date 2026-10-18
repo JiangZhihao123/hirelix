@@ -41,7 +41,9 @@ const structuredData = {
       featureList: [
         "Search your saved candidate records",
         "Review updates to role requirements",
-        "Prepare candidate submission drafts",
+        "Prepare candidate recommendation drafts",
+        "Keep client feedback separate for each candidate",
+        "Continue saved assignments across conversations",
         "Import CSV, PDF and DOCX candidate materials",
         "Export candidate records",
       ],

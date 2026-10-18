@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const SITE_URL = "https://hirelix.online";
 export const SITE_TITLE = "Hirelix | Your Personal AI Agent for Headhunting";
 export const SITE_DESCRIPTION =
-  "Your personal AI agent for headhunting. Build on saved candidates, client briefs, conversations, and preferences, from one role to the next.";
+  "AI recruiting assistant for independent headhunters. Compare your candidates against a JD, prepare client recommendations, and continue work across conversations.";
 
 export const publicPages = [
   { path: "/", label: "Hirelix", description: SITE_DESCRIPTION },
@@ -30,6 +30,12 @@ export const publicPages = [
     label: "Candidate submissions",
     description:
       "Prepare a client-ready recommendation from saved candidate evidence.",
+  },
+  {
+    path: "/guides/candidate-feedback",
+    label: "Candidate feedback and follow-up",
+    description:
+      "Keep feedback separate for each candidate and continue a recruiting assignment across conversations.",
   },
   {
     path: "/contact",

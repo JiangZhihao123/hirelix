@@ -83,7 +83,6 @@ const scenarios = [
   },
 ];
 
-
 // Keep server-rendered buttons inactive until their handlers are attached.
 const subscribeToHydration = () => () => {};
 
@@ -203,7 +202,10 @@ export default function Home() {
               <br className="ha-desktop-break" /> for <span>headhunting.</span>
             </h1>
             <p className="ha-lead">
-              Start with a JD, a CV, or a question. Tell your agent what you want to do, then build on your saved candidates, roles, and conversations.
+              Compare your candidates against a JD, prepare client
+              recommendations, and pick up the next conversation with the
+              context already saved. Your AI recruiting assistant works with the
+              people and records you bring.
             </p>
             <div className="ha-hero-actions">
               <button
@@ -219,7 +221,8 @@ export default function Home() {
               </a>
             </div>
             <p className="ha-hero-caption">
-              {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits · No card required
+              {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits
+              · No card required
             </p>
           </div>
           <div className="ha-preview" aria-label="Illustrative agent workspace">
@@ -496,7 +499,9 @@ export default function Home() {
                 <ShieldCheck />
                 <h3>You set the direction.</h3>
                 <p>
-                  Your agent acts on clear instructions and asks you to resolve ambiguous identities or conflicting facts. Review client-facing work before sharing.
+                  Your agent acts on clear instructions and asks you to resolve
+                  ambiguous identities or conflicting facts. Review
+                  client-facing work before sharing.
                 </p>
               </article>
               <article>
@@ -522,18 +527,122 @@ export default function Home() {
           </div>
         </section>
 
+        <section
+          className="ha-control ha-section"
+          aria-labelledby="first-assignment"
+        >
+          <div className="ha-wrap">
+            <div className="ha-section-heading">
+              <p className="ha-eyebrow">A PRACTICAL FIRST ASSIGNMENT</p>
+              <h2 id="first-assignment">
+                One role. Your candidates. A clear next step.
+              </h2>
+              <p>
+                Bring a JD and two or three CVs. Ask for a comparison, then
+                choose what to take forward.
+              </p>
+            </div>
+            <div className="ha-control-grid">
+              <article>
+                <Users />
+                <h3>Compare with evidence</h3>
+                <p>
+                  See how each candidate fits this role and which requirements
+                  still need checking.
+                </p>
+                <Link href="/guides/candidate-rediscovery">
+                  Compare your saved candidates <ArrowUpRight size={13} />
+                </Link>
+              </article>
+              <article>
+                <FileText />
+                <h3>Prepare the recommendation</h3>
+                <p>
+                  Select the people and evidence to include. Review the draft
+                  and chosen CVs before sharing.
+                </p>
+                <Link href="/guides/candidate-submissions">
+                  Prepare a client recommendation <ArrowUpRight size={13} />
+                </Link>
+              </article>
+              <article>
+                <MessageSquare />
+                <h3>Continue after client feedback</h3>
+                <p>
+                  Keep each person’s feedback separate. Come back in a new
+                  conversation and pick up the same assignment.
+                </p>
+                <Link href="/guides/candidate-feedback">
+                  Follow up on each candidate <ArrowUpRight size={13} />
+                </Link>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section id="pricing" className="ha-pricing ha-section">
           <p className="ha-eyebrow">ONE PERSONAL AGENT</p>
-          <h2>Start with your work.<br />Stay for what you build.</h2>
-          <p>Try it for {AGENT_PLAN.trialDays} days with {AGENT_PLAN.trialCredits} AI credits. No card required.</p>
+          <h2>
+            Start with your work.
+            <br />
+            Stay for what you build.
+          </h2>
+          <p>
+            Try it for {AGENT_PLAN.trialDays} days with{" "}
+            {AGENT_PLAN.trialCredits} AI credits. No card required.
+          </p>
           <div className="ha-pricing-options">
-            {([{ code: "agent_monthly", amount: AGENT_PLAN.monthlyCents / 100, cadence: "month", note: "Billed monthly" }, { code: "agent_annual", amount: AGENT_PLAN.annualCents / 100, cadence: "year", note: "Save $98 a year" }]).map(plan => <article key={plan.code}>
-              <h3>{AGENT_PLAN.name}</h3><p className="ha-price"><strong>${plan.amount}</strong> / {plan.cadence}</p><p>{plan.note}</p>
-              <ul><li>{AGENT_PLAN.monthlyCredits} AI credits each monthly subscription period</li><li>Your candidates, roles, and conversation history</li><li>CV and CSV imports, client drafts, and exports</li></ul>
-              <button className="ha-button ha-button-primary" disabled={!hydrated} onClick={() => enter("pricing", false, plan.code)}>Start free trial <ArrowUpRight size={18} /></button>
-            </article>)}
+            {[
+              {
+                code: "agent_monthly",
+                amount: AGENT_PLAN.monthlyCents / 100,
+                cadence: "month",
+                note: "Billed monthly",
+              },
+              {
+                code: "agent_annual",
+                amount: AGENT_PLAN.annualCents / 100,
+                cadence: "year",
+                note: "Save $98 a year",
+              },
+            ].map((plan) => (
+              <article key={plan.code}>
+                <h3>{AGENT_PLAN.name}</h3>
+                <p className="ha-price">
+                  <strong>${plan.amount}</strong> / {plan.cadence}
+                </p>
+                <p>{plan.note}</p>
+                <ul>
+                  <li>
+                    {AGENT_PLAN.monthlyCredits} AI credits each monthly
+                    subscription period
+                  </li>
+                  <li>Your candidates, roles, and conversation history</li>
+                  <li>CV and CSV imports, client drafts, and exports</li>
+                </ul>
+                <button
+                  className="ha-button ha-button-primary"
+                  disabled={!hydrated}
+                  onClick={() => enter("pricing", false, plan.code)}
+                >
+                  Start free trial <ArrowUpRight size={18} />
+                </button>
+              </article>
+            ))}
           </div>
-          <p className="ha-pricing-terms">USD, plus applicable tax. Subscribe when you’re ready; your trial does not automatically become a paid plan. Subscriptions renew until canceled. AI work uses credits based on the services consumed. Longer or more complex work may use more credits. Only completed work is charged. System retries, automatic indexing and follow-on imports are included. Monthly credits reset after a successful renewal. Annual plans receive a new allowance each month on the subscription anniversary. Shorter months use their last day, and unused credits do not roll over. Your saved work stays available when AI access ends. <Link href="/refund-policy">Refund policy</Link>.</p>
+          <p className="ha-pricing-terms">
+            USD, plus applicable tax. Subscribe when you’re ready; your trial
+            does not automatically become a paid plan. Subscriptions renew until
+            canceled. AI work uses credits based on the services consumed.
+            Longer or more complex work may use more credits. Only completed
+            work is charged. System retries, automatic indexing and follow-on
+            imports are included. Monthly credits reset after a successful
+            renewal. Annual plans receive a new allowance each month on the
+            subscription anniversary. Shorter months use their last day, and
+            unused credits do not roll over. Your saved work stays available
+            when AI access ends.{" "}
+            <Link href="/refund-policy">Refund policy</Link>.
+          </p>
         </section>
 
         <section

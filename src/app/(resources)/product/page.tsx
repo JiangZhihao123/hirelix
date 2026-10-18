@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { mailboxAvailability } from "@/lib/landing-content";
 import { publicMetadata } from "@/lib/seo";
 
 export const metadata = publicMetadata(
@@ -86,8 +87,15 @@ export default function ProductPage() {
         <p>
           Review candidate assessments and client-facing drafts before using
           them. Copy, export, or share approved work through the available
-          controls. Optional Gmail delivery requires sending permission and your
-          explicit action.
+          controls. Creating a draft does not send it.
+        </p>
+      </section>
+      <section>
+        <h2>Can Hirelix work with email?</h2>
+        <p>{mailboxAvailability}</p>
+        <p>
+          A provider accepting an email is not proof that it reached the
+          recipient. Check delivery before deciding to resend.
         </p>
       </section>
       <section className="hr-related">
@@ -101,6 +109,11 @@ export default function ProductPage() {
           <li>
             <Link href="/guides/candidate-submissions">
               Prepare a recommendation from the context you already have
+            </Link>
+          </li>
+          <li>
+            <Link href="/guides/candidate-feedback">
+              Keep individual feedback connected to the role
             </Link>
           </li>
           <li>

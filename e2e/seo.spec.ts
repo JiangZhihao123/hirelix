@@ -163,3 +163,20 @@ test("a reader can follow the assistant story to a guide, pricing, and the real 
   expect(attribution.traffic_source).toBe("perplexity");
   expect(attribution.utm_campaign).toBe("seo-qa");
 });
+
+test("current product facts and practical feedback guide are crawlable without JavaScript", async ({ request }) => {
+  const $ = load(await (await request.get("/")).text());
+  expect($("#first-assignment").text()).toContain("One role. Your candidates.");
+  expect($('a[href="/guides/candidate-feedback"]').length).toBeGreaterThan(0);
+  expect($("details").text()).toContain("Gmail inbox reading is not currently available");
+  const guide = await request.get("/guides/candidate-feedback");
+  expect(guide.status()).toBe(200);
+  const content = load(await guide.text());
+  expect(content("h1").text()).toContain("Track client feedback");
+  expect(content("article").text()).toContain("Coordinating six colleagues does not establish six direct reports");
+  const llms = await (await request.get("/llms.txt")).text();
+  expect(llms).toContain(`${SITE_URL}/guides/candidate-feedback`);
+  expect(llms).toContain("Gmail inbox reading is not currently available");
+  const auth = await request.get("/auth/retry");
+  expect(auth.headers()["x-robots-tag"]).toContain("noindex");
+});

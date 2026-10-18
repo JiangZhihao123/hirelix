@@ -66,3 +66,46 @@ PLAYWRIGHT_CHANNEL=chrome PLAYWRIGHT_BASE_URL=http://127.0.0.1:3200 PLAYWRIGHT_R
 4. 记录旧定位是否已更新。2026-10-08 的网页搜索仍返回旧首页的 “AI sourcing and screening for technical recruiters” 摘要，而实时 HTTP 首页已经是 Personal Agent；因此外部索引存在旧内容证据，不能宣称 GEO 已完成生效。
 5. 以英文无品牌问题建立自然发现基线，例如 “What AI tools can help an independent headhunter maintain candidate relationships over time?”、“What assistant can help a boutique recruiter work with their existing candidate pool?”。单独记录平台、日期、原始问题、是否自发提到 Hirelix、引用 URL、定位是否准确。含品牌/指定 URL 的问题只验证理解与读取，不当作自然推荐。
 6. 分别观察 Search Console 的索引、英文市场展示/点击，以及 AI/referral 来源进入产品的转化。当前没有新内容的排名、AI 自然推荐或新增客户证据；本轮未创建定时监控或对外发布品牌宣传。
+
+## 2026-10-19：按当前 Personal Agent 能力补强
+
+### 本轮发现
+
+生产首页、产品页、robots、sitemap 和 llms.txt 直读均为 200，首页 canonical 正确，实时首页已不是旧寻访定位。但本轮搜索 `"Hirelix" "AI"` 与 `"hirelix.online"` 返回的首页索引仍是 “AI Sourcing and Screening for Technical Recruiters”，第三方目录也仍描述外部寻访。这是搜索返回内容过时的证据，不等于网站不可抓取或完全未收录。该次品牌搜索不能当作无品牌 GEO 推荐实验。
+
+### 已实现的增量
+
+- 保持 Personal AI Agent 主标题，首屏副标题改成明确的工作结果：按 JD 比较自己的人选、准备推荐、跨会话续接；不宣传已下线的外部人才寻访。
+- 首页增加一个职位、两三份 CV 的可操作起点，分别链接候选人重访、推荐准备、逐人反馈指南。链接与关键正文均在服务端 HTML 中。
+- 新指南 `/guides/candidate-feedback` 用明确标注的虚构例子解释：反馈与人选/职位关联、来源日期、意向与排期、协调与直属管理、跨会话续接和邮箱不可用时如何提供材料。不是客户案例或成功率证明。
+- 新页面纳入 canonical/OG/Twitter、Article/Breadcrumb、公开内链、sitemap 和 llms.txt。沿用现有结构，不增加另一套 SEO 数据模型。
+- 首页 FAQ、产品页、机器可读摘要同步公开邮箱边界；FAQ 与 JSON-LD 同源，价格继续使用 AGENT_PLAN。没有虚构评价、推荐背书、搜索量或 freshness 日期。
+- `/auth/` 从 robots 抓取范围排除，认证恢复页补 `X-Robots-Tag: noindex, nofollow, noarchive`。保留私人资料、推荐链接及 API 的已有边界，未新增覆盖全局规则的 AI crawler Allow 组。
+
+### 搜索意图与落地页
+
+| 用户问题 / 搜索意图 | 主要承接页 | 可核验回答 |
+| --- | --- | --- |
+| personal AI agent / AI recruiting assistant for independent headhunters | `/`、`/product` | 产品对象、自己的资料库、可执行工作与限制 |
+| how to rediscover candidates in an existing database | `/guides/candidate-rediscovery` | JD 对比、过去资料与当前意愿的边界 |
+| how to prepare a candidate recommendation for a client | `/guides/candidate-submissions` | 候选证据、私密资料、审核与交付 |
+| how to track client feedback for multiple candidates | `/guides/candidate-feedback` | 逐人反馈、后续行动、跨会话续接 |
+| Hirelix pricing / free trial / email integration | `/pricing`、首页 FAQ、`/product` | 统一产品常量与当前邮箱能力，不承诺无条件可用 |
+
+以上为内容意图映射，未购买关键词数据，未声明流量规模或排名。
+
+### 发布后的外部工作
+
+本次变更先在本地验证并提交；未授权新的生产发布时不推送 main。新指南必须实际部署可达后，才适合提交相应 URL。随后在有权限的 Search Console / Bing Webmaster Tools 复查 sitemap、索引和旧摘要；提交回执不是收录或排名证明。第三方旧目录描述需在有权管理的账号内单独更正，本轮没有对外发帖、留言或冒充目录所有者。
+
+GEO 观察应把三项分开：指定 URL 能读到新事实、品牌问题能正确解释产品、无品牌需求是否自然提到并引用 Hirelix。记录问题、平台、时间、引用与定位错误；不能用品牌提示得到的一次回答代表自然推荐。现有归因已覆盖 AI/referral，不新增冗余分析系统；无 referrer 的访问仍不能可靠归因。
+
+官方依据：[Google 的 AI 搜索指南](https://developers.google.com/search/docs/appearance/ai-features) 与[生成式搜索优化指南](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)强调 SEO 基础、可抓取的有用正文和内容一致性，不存在需要专门添加的 GEO schema。`llms.txt` 仅作为便利摘要，不是展示资格或推荐保证。
+
+### 本轮本地验收结果
+
+- `NEXT_DIST_DIR=.next-seo-release npm run build`：通过，包含 TypeScript 检查和新指南静态生成。
+- 变更相关文件 ESLint：通过。
+- 生产包在 `127.0.0.1:3200` 运行，真实 Chrome 执行 `e2e/seo.spec.ts` 与 `e2e/landing.spec.ts`：11 项通过。覆盖 10 个公开页面的元信息、结构化数据、sitemap、私有路径边界、FAQ 与正文一致性，以及内容页到定价和登录的路径。
+- Chrome 目视检查新增首页首个委托区块和反馈指南：桌面布局、阅读层级与链接正常。截图保存在本地 `output/seo-geo/first-assignment.png` 与 `output/seo-geo/candidate-feedback.png`。
+- 本轮为本地生产包验收，未推送或部署，不代表新内容已被搜索引擎收录或 AI 自然引用。

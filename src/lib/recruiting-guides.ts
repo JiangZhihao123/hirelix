@@ -75,4 +75,49 @@ export const recruitingGuides = [
       },
     ],
   },
+  {
+    slug: "candidate-feedback",
+    title: "Track client feedback for each candidate and keep the role moving",
+    description:
+      "A practical guide for independent headhunters: record individual client feedback, preserve uncertain facts, and resume the same assignment in a new conversation.",
+    summary:
+      "Candidate feedback is a client's response to a particular person for a particular role. Keep it linked to both, alongside its source and date. Hirelix can use those saved records to prepare the next conversation without turning interest into a booked interview or a hold into a rejection.",
+    sections: [
+      {
+        title: "Start with a role-specific recommendation",
+        paragraphs: [
+          "Bring a JD and two or three candidate CVs or a CSV list. Ask the assistant to save the materials, compare the candidates against this brief, and identify evidence gaps. Choose whom to include in the client recommendation. A strong profile for one role is not automatically a strong profile for another.",
+          "Review the draft and select any CVs before sharing. A generated document, an active client link, an accepted email and a confirmed delivery are different states. A draft alone does not show that the client has received anything.",
+        ],
+      },
+      {
+        title: "Record the response for each person",
+        paragraphs: [
+          "Illustrative example using fictional people: a client wants an initial conversation with Eva, holds Leo until his direct-report experience is verified, and declines Nina for this role. Save three separate outcomes rather than a single note saying the client likes the shortlist.",
+          "A useful instruction is: ‘For Harbor's Head of Customer Success role, record the client's feedback from today's call: Eva — interested, no time agreed; Leo — on hold pending verification of direct reports; Nina — not progressing for this role. Do not schedule or send anything.’ Include the actual date, source and wording when known; do not invent missing details.",
+        ],
+      },
+      {
+        title: "Separate evidence, judgment and the next action",
+        paragraphs: [
+          "Coordinating six colleagues does not establish six direct reports. If the source does not give the reporting relationship, keep it unknown and make verification the next action. Likewise, interview interest does not mean a date has been agreed; a hold does not mean the candidate was rejected.",
+          "For each person, preserve what the client said, what evidence supports the assessment, what remains unknown, and what you are authorized to do next. Recruiter notes can remain private while a client recommendation contains only the material chosen for that audience.",
+        ],
+      },
+      {
+        title: "Resume the assignment in a new conversation",
+        paragraphs: [
+          "Name the client and role and ask: ‘Continue the Harbor Head of Customer Success assignment. Find the latest recommendation and individual feedback. Summarize the next step for each candidate; do not change records or send anything.’ The assistant can retrieve saved work rather than requiring you to paste every prior message.",
+          "If more than one role or candidate matches, resolve that ambiguity before updating records. Review the retrieved sources and their dates: an old note about availability is not current confirmation. Context retrieval is useful, but it is not a guarantee that every past detail will be recalled.",
+        ],
+      },
+      {
+        title: "Use saved feedback when mailbox access is unavailable",
+        paragraphs: [
+          "You can paste the client's message or upload an exported email as a PDF or text file, then ask the assistant to save the relevant feedback. Gmail inbox reading is not currently available; Outlook access can be limited by account permissions or provider restrictions. Do not assume the assistant has read new mail just because an earlier message was saved.",
+          "After a new conversation with the client or candidate, save what changed with its source and date. Keep prior facts intact, review the revised recommendation, and authorize any external action separately.",
+        ],
+      },
+    ],
+  },
 ] as const;
