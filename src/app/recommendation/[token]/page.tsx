@@ -55,7 +55,7 @@ export default async function Recommendation({
           <div className="space-y-8">{doc.people.map((person,index)=><section id={`candidate-${person.id}`} key={person.id} className="scroll-mt-6 rounded-xl border border-[#dde3dd] p-5 sm:p-7">
             <header className="mb-5 flex items-start gap-4">
               <span className="rounded-full bg-[#eef3ef] px-3 py-1 text-sm text-[#285542]">{String(index+1).padStart(2,'0')}</span>
-              <div><h2 className="text-xl font-semibold">{person.name}</h2><p className="mt-1 text-sm text-[#67736b]">{[person.headline,person.location].filter(Boolean).join(' · ')}</p></div>
+              <div><h2 className="text-xl font-semibold">{layout.headings[person.id] || person.name}</h2><p className="mt-1 text-sm text-[#67736b]">{[layout.headings[person.id] === `${person.name} — ${person.headline}` ? "" : person.headline,person.location].filter(Boolean).join(' · ')}</p></div>
             </header>
             {layout.sections[person.id] && <div className="text-[15px] leading-8"><AgentText content={layout.sections[person.id]} /></div>}
             <div className="mt-5 flex flex-wrap gap-3">{doc.files.filter(file=>file.person_id===person.id).map(file=><a key={file.id} className="rounded-lg border border-[#dde3dd] px-4 py-2 text-sm text-[#285542] hover:bg-[#f7f8f6]" href={`/recommendation/${token}/files/${file.id}`}>{zh ? "下载简历" : "Download CV"} · {file.name} ↓</a>)}</div>

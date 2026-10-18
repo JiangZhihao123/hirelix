@@ -1,6 +1,7 @@
 /** Presentation only: never infer candidate facts or split unstructured prose by names. */
 export function recommendationSections(content: string, people: Array<{id: string; name: string}>) {
   const sections: Record<string, string> = {};
+  const headings: Record<string, string> = {};
   const opening: string[] = [];
   const closing: string[] = [];
   let afterCandidates = false;
@@ -9,10 +10,11 @@ export function recommendationSections(content: string, people: Array<{id: strin
   for (const line of content.split('\n')) {
     if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
     const heading = !fenced ? /^##\s+(.+?)\s*$/.exec(line)?.[1] : undefined;
-    const matches = heading ? people.filter(person => person.name === heading) : [];
+    const matches = heading ? people.filter(person => person.name === heading || heading.startsWith(`${person.name} — `)) : [];
     if (matches.length === 1) {
       current = matches[0].id;
       sections[current] ??= '';
+      headings[current] = heading!;
     } else if (heading) {
       current = null;
       afterCandidates = Object.keys(sections).length > 0;
@@ -21,8 +23,8 @@ export function recommendationSections(content: string, people: Array<{id: strin
     else (afterCandidates ? closing : opening).push(line);
   }
   // Partially identified documents remain intact, rather than losing or misattributing text.
-  if (people.some(person => !sections[person.id]?.trim())) return {overview: content, closing: "", sections: {} as Record<string,string>};
-  return {closing: closing.join("\n").trim(), overview: opening.join('\n').trim(), sections};
+  if (people.some(person => !sections[person.id]?.trim())) return {overview: content, closing: "", sections: {} as Record<string,string>, headings: {} as Record<string,string>};
+  return {closing: closing.join("\n").trim(), overview: opening.join('\n').trim(), sections, headings};
 }
 
 export function recommendationCover(doc: {language: string; role: string; people: Array<{name: string}>; files?: Array<unknown>}) {
