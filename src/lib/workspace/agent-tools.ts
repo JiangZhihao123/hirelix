@@ -1008,7 +1008,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     share_document: define(
       "share_document",
-      "Publish or revoke a client recommendation link when explicitly authorized. Publishing exposes the saved client-facing copy and selected CVs to anyone with the link; it neither sends email nor proves delivery. Read the saved document first. Publishing the same saved version reuses its active link. Existing links keep their snapshot when the draft changes; publishing a newer version replaces the old link. Never share internal assessments.",
+      "Publish or revoke a client recommendation link when explicitly authorized. Publishing exposes the saved client-facing copy and selected CVs to anyone with the link; it neither sends email nor proves delivery. Read the saved document first. Publishing the same saved version reuses its active link. Existing links keep their snapshot when the draft changes; publishing a newer version replaces the old link. The public page displays only the published recommendation and selected CVs, plus forms for submitting feedback. The page shows candidate names, headlines and locations, not their private profile records or sharing-permission notes. Submitted feedback and its history are visible only to the recruiter, never to the client through the link. Explain this in ordinary user language, without printing metadata field names. Never share internal assessments.",
       z.object({...authorization, document_id: z.uuid(), expected_version: z.number().int().positive(), operation: z.enum(["publish", "revoke"])}),
       input => mutate("share_document", input, input.authorization_quote, async tx => {
         if (input.operation === "revoke") {
@@ -1019,7 +1019,7 @@ export function createAgentTools(ctx: AgentToolContext) {
         }
         const share = await publishDocument(userId, input.document_id, input.expected_version, tx);
         return {
-          output: {status: "published", ...share, href: share.path, delivery_status: "not_sent"},
+          output: {status: "published", ...share, href: share.path, delivery_status: "not_sent", feedback_visibility: "recruiter_only", client_can_view_feedback_history: false},
           metadata: {recommendation_links: [{document_id: input.document_id, version: share.version, href: share.path, expires_at: share.expires_at}]},
         };
       }),

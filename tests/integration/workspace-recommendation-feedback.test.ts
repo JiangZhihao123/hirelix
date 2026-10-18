@@ -67,6 +67,10 @@ test("real PG: independent page feedback, retry deduplication, fixed copies, rev
   assert.equal(feedback.length, 2);
   assert.deepEqual(feedback.map(item => [item.person_id,item.role_id,item.details.response]), [[a.id,role.id,"interview"],[b.id,role.id,"hold"]]);
   assert.ok(feedback.every(item => item.details.identity_verified === false && item.details.recommendation_version === document.version));
+  const publicCopy = (await readSharedDocument(token))!.snapshot;
+  assert.equal(publicCopy.content, "Two candidates");
+  assert.ok(!JSON.stringify(publicCopy).includes(request.comment), "Submitted feedback is not public recommendation content");
+  assert.ok(!JSON.stringify(publicCopy).includes(request.name), "Feedback author is private to the recruiter");
   const changed = await updateDeliverable(owner, document.id, {title: document.title, content: "Changed draft", expected_version: document.version});
   assert.equal((await readSharedDocument(token))?.snapshot.content, "Two candidates");
   assert.equal((await roleDetails(owner,role.id)).deliverables[0].status, "draft");

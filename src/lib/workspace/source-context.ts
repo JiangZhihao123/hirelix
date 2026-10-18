@@ -50,6 +50,6 @@ export function resolveWorkspaceHref(href: string, sourceLinks: readonly string[
   let url: URL;
   try { url = new URL(href); } catch { return href; }
   const path = `${url.pathname}${url.search}`;
-  const source = sourceLinks.find(link => link === path && link.startsWith("/") && viewedSourceFromHref(link));
+  const source = sourceLinks.find(link => link === path && link.startsWith("/") && (viewedSourceFromHref(link) || /^\/recommendation\/[a-f0-9-]{36}\.[\w-]{43}$/.test(link)));
   return source ? `${source}${url.hash}` : href;
 }

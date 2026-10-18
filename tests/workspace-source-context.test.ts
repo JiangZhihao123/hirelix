@@ -55,3 +55,11 @@ test("generated application hosts resolve only to exact trusted source paths", (
   assert.equal(resolveWorkspaceHref(`https://invented.example${path}`, []), `https://invented.example${path}`);
   assert.equal(resolveWorkspaceHref('https://example.com/article', ['/article']), 'https://example.com/article');
 });
+
+
+test("published client links resolve from an exact trusted publication receipt", () => {
+  const link = `/recommendation/${item}.${"a".repeat(43)}`;
+  assert.equal(resolveWorkspaceHref(`https://invented.example${link}`, [link]), link);
+  assert.equal(resolveWorkspaceHref(`https://invented.example${link}`, []), `https://invented.example${link}`);
+  assert.equal(resolveWorkspaceHref(`https://invented.example${link}/feedback`, [link]), `https://invented.example${link}/feedback`);
+});

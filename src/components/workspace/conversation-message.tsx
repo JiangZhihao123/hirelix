@@ -51,6 +51,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
 }) {
   const t = useT();
   const metadata = message.metadata as AssistantMeta;
+  const sourceLinks = [...(metadata.sources || []).map(source => source.href), ...(metadata.recommendation_links || []).map(link => link.href)];
   const showReceipts = !isTurnRunning(activeJob);
   const parts = turnParts(activeJob?.result ?? message.metadata);
   const prose = parts.length || message.metadata.turn_status === "cancelled" || metadata.question?.question === message.content ? "" : String(activeJob?.result?.live_reply || message.content);
@@ -88,14 +89,14 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                     </div>}
                     {message.role === "user" && (Array.isArray(message.metadata.role_references) ? message.metadata.role_references : [message.metadata.role_reference]).map((reference, index) => <MessageRoleReference key={index} reference={reference} onOpen={onSource} />)}
                     {message.role === "user" && <MessageCandidateReferences references={candidateReferences(message.metadata.candidate_references)} onOpen={onSource} />}
-                    {!!parts.length && <TurnParts sourceLinks={metadata.sources?.map(source => source.href)} parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
+                    {!!parts.length && <TurnParts sourceLinks={sourceLinks} parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!viewedSourceFromHref(href)) return false;
                       onSource({title: label || source?.title || t("View result"), href});
                       return true;
                     }} />}
                     {!!prose.trim() && <div className="ws-message-prose">
-                      <AgentText sourceLinks={metadata.sources?.map(source => source.href)} content={prose} onOpenLink={(href, label) => {
+                      <AgentText sourceLinks={sourceLinks} content={prose} onOpenLink={(href, label) => {
                         const source = metadata.sources?.find(item => item.href === href);
                         if (source) { if (!source.href.startsWith("/")) return false; onSource(source); return true; }
                         // A saved document may be cited from earlier conversation
