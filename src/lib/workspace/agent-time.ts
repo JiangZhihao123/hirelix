@@ -9,8 +9,18 @@ export function localTimeEvidence(value: unknown, timezone: string) {
   });
   const times: Record<string, string> = {};
   function visit(item: unknown, path: string) {
-    if (item instanceof Date || (typeof item === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(item))) {
-      const date = new Date(item);
+    const timestamp = typeof item === "string"
+      ? /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-]\d{2}(?::?\d{2})?)$/.exec(item)
+      : null;
+    if (item instanceof Date || timestamp) {
+      // Drizzle raw rows retain PostgreSQL's space separator, microseconds and
+      // short offsets (+08); normalize those explicitly before Date parsing.
+      const offset = timestamp?.[4];
+      const normalizedOffset = offset?.length === 3 ? `${offset}:00`
+        : offset?.length === 5 ? `${offset.slice(0, 3)}:${offset.slice(3)}` : offset;
+      const date = item instanceof Date ? item : new Date(
+        `${timestamp![1]}T${timestamp![2]}${timestamp![3]?.slice(0, 4) || ""}${normalizedOffset}`,
+      );
       if (Number.isFinite(date.getTime())) times[path] = `${formatter.format(date)} (${timezone})`;
     } else if (Array.isArray(item)) {
       item.forEach((entry, index) => visit(entry, `${path}[${index}]`));

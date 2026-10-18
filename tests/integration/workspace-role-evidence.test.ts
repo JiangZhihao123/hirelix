@@ -76,6 +76,9 @@ test("real worker preserves management scope and displays feedback in the reques
   const person = await createPerson(owner, {name: "Robin Scope QA", profile: {summary: "Delivered warehouse exception workflows. Managed five product managers."}});
   await linkPerson(owner, role.id, person.id);
   await addRecord(owner, {person_id: person.id, role_id: role.id, kind: "feedback", title: "Client feedback", content: "Client requested an interview.", occurred_at: "2026-10-17T20:20:32Z", details: {}});
+  const { localTimeEvidence } = await import("../../src/lib/workspace/agent-time");
+  const saved = await rows(sql`SELECT occurred_at FROM hirelix_private_records WHERE person_id=${person.id}::uuid`);
+  assert.equal(localTimeEvidence(saved, "America/New_York")["[0].occurred_at"], "17/10/2026, 16:20:32 GMT-04:00 (America/New_York)");
   for (const timezone of ["Asia/Shanghai", "America/New_York"]) {
     const sent = await sendMessage(owner, {message: `Read candidate ${person.name} (${person.id}) and role ${role.id}. Summarize their management experience, direct-report count, fit to the management requirement, and exactly when the recorded client feedback arrived. Read only.`, locale: "en", timezone, request_key: randomUUID()});
     let job: Job | undefined;

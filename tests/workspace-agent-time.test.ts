@@ -17,3 +17,10 @@ test("agent timestamp presentation disambiguates repeated DST clock hours", () =
   assert.equal(times.b, "01/11/2026, 01:30:00 GMT-05:00 (America/New_York)");
   assert.equal(Object.keys(times).length, 2);
 });
+
+
+test("raw PostgreSQL timestamps with short offsets and microseconds are converted", () => {
+  const times = localTimeEvidence({occurred_at: "2026-10-18 04:20:32+08", created_at: "2026-10-18 16:32:38.102958+08"}, "America/New_York");
+  assert.equal(times.occurred_at, "17/10/2026, 16:20:32 GMT-04:00 (America/New_York)");
+  assert.equal(times.created_at, "18/10/2026, 04:32:38 GMT-04:00 (America/New_York)");
+});
