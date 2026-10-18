@@ -172,3 +172,20 @@ test("real PG: reserved recipient is rejected before OAuth, send reservation or 
  await assert.rejects(()=>sendConversationEmail(owner,{...snapshot,from:'sender@gmail.com'},key,async()=>{throw new Error('must not reserve');}),/reserved test or example domain/);
  assert.equal((await rows(sql`SELECT id FROM hirelix_private_email_deliveries WHERE user_id=${owner}::uuid`)).length,0);
 });
+
+test('real PG: reply identity participates in deduplication and a repeated acceptance never sends again',async()=>{
+ const owner=randomUUID();
+ const reply={message_id:'incoming-one',thread_id:'thread-one',subject:'Original',source_url:'https://outlook.live.com/mail/'};
+ const value={...snapshot,provider:'microsoft' as const,reply};
+ const key=randomUUID();
+ const first=await reserveConversationEmail(owner,value,key,'<reply-one@test>',async()=>{});
+ assert.equal(first.send,true);
+ await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='sent' WHERE id=${first.receipt.id}::uuid`);
+ const duplicate=await reserveConversationEmail(owner,{...value,reply:{source_url:reply.source_url,subject:reply.subject,thread_id:reply.thread_id,message_id:reply.message_id}},randomUUID(),'<retry@test>',async()=>{});
+ assert.equal(duplicate.send,false);
+ assert.equal(duplicate.receipt.id,first.receipt.id);
+ const other=await reserveConversationEmail(owner,{...value,reply:{...reply,message_id:'incoming-two'}},randomUUID(),'<reply-two@test>',async()=>{});
+ assert.equal(other.send,true);
+ assert.equal((await sendConversationEmail(owner,value,key,async()=>{throw Error('must not send again')})).status,'sent');
+ await assert.rejects(sendConversationEmail(owner,{...value,reply:{...reply,message_id:'incoming-two'}},key,async()=>{}),/another email/);
+});

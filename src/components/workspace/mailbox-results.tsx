@@ -2,17 +2,25 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Mail, Loader2, AlertCircle, ArrowUpRight } from "lucide-react";
-import { useT } from "@/components/LanguageProvider";
-import type { MailboxMessageView, MailboxProvider } from "@/lib/workspace/mailbox-contract";
+import { useT, useLanguage } from "@/components/LanguageProvider";
+import type { MailboxMessageView, MailboxProvider, MailboxResultView } from "@/lib/workspace/mailbox-contract";
 import { mailboxReadErrorActions } from "@/lib/workspace/mailbox-contract";
 import type { TurnPart } from "@/lib/workspace/turn-progress";
 import { api, ApiError, date, ErrorNotice } from "./client";
 
 type ToolPart = Extract<TurnPart, {type: "tool"}>;
 
-function MailboxMessageCard({message, provider}: {message: MailboxMessageView; provider: MailboxProvider}) {
-  const t = useT(), panelId = useId();
-  const [opened, setOpened] = useState(message.body !== undefined);
+function MailboxMessageCard({message, provider, nested = false, collapsed = false}: {message: MailboxMessageView; provider: MailboxProvider; nested?:boolean; collapsed?:boolean}) {
+  const t = useT(), panelId = useId(), {locale} = useLanguage();
+  const [thread,setThread] = useState<MailboxResultView | null>(null);
+  const [threadBusy,setThreadBusy] = useState(false);
+  async function openThread() {
+    setThreadBusy(true);setError("");
+    try {const result=await api<{thread:MailboxResultView}>(`/mailboxes/messages?${new URLSearchParams({provider,message_id:message.id,thread:"true"})}`);setThread(result.thread);}
+    catch(cause){setError(cause instanceof Error ? cause.message : "Could not read this thread.");}
+    finally {setThreadBusy(false);}
+  }
+  const [opened, setOpened] = useState(!collapsed && message.body !== undefined);
   const [loaded, setLoaded] = useState(message);
   const [loading, setLoading] = useState(false), [error, setError] = useState("");
   const [errorStatus, setErrorStatus] = useState<number | undefined>();
@@ -56,9 +64,12 @@ function MailboxMessageCard({message, provider}: {message: MailboxMessageView; p
       {loaded.body !== undefined && <>
         {(loaded.mailbox_folder || loaded.mailbox_labels?.length || loaded.is_draft) && <p className="ws-muted">{[loaded.mailbox_folder, ...(loaded.mailbox_labels || []), ...(loaded.is_draft ? [t("Draft")] : [])].filter(Boolean).join(" · ")}</p>}
         {(loaded.mailbox_labels?.includes("SENT") || loaded.mailbox_folder === "Sent Items") && <p className="ws-email-notice">{t("A sent copy does not confirm recipient delivery.")}</p>}
+        {!!loaded.attachments?.length && <p className="ws-muted">{t("Attachments")}: {loaded.attachments.map(a=><a key={a.id} className="ws-link" href={`/api/workspace/mailboxes/attachments?${new URLSearchParams({provider,message_id:message.id,attachment_id:a.id})}`} download>{a.name} </a>)}</p>}
         <div className="ws-mail-text">{loaded.body || t("This email has no text body.")}</div>
         {loaded.truncated && <p className="ws-muted">{t("Only part of this email is shown. Open the original for the full message.")}</p>}
       </>}
+      {!nested && loaded.body !== undefined && <button className="ws-button" disabled={threadBusy} onClick={()=>thread ? setThread(null) : void openThread()}>{locale === "zh" ? (threadBusy ? "正在读取往来…" : thread ? "收起邮件往来" : "查看邮件往来") : (threadBusy ? "Reading thread…" : thread ? "Hide email thread" : "View email thread")}</button>}
+      {thread && <div aria-label={locale === "zh" ? "邮件往来" : "Email thread"}>{thread.messages.map(item=><MailboxMessageCard key={item.id} message={item} provider={provider} nested collapsed />)}{thread.more_available && <p className="ws-muted">{locale === "zh" ? "仅显示部分往来，请打开邮箱查看全部。" : "Only part of this thread is shown. Open your mailbox for the full conversation."}</p>}</div>}
       {loaded.source_url && <a className="ws-link" href={loaded.source_url} target="_blank" rel="noopener noreferrer">{t("Open original email")}<ArrowUpRight size={13} /></a>}
     </div>}
   </article>;
@@ -74,7 +85,7 @@ export function MailboxResults({part, running}: {part: ToolPart; running: boolea
     </p>
     {part.status === "error" && part.mail_error && <ErrorNotice error={part.mail_error.message} />}
     {part.status === "error" && part.mail_error && mailboxReadErrorActions(part.mail_error.status).settings && <a className="ws-link" href="/app/settings?section=email">{t("Review email settings")}</a>}
-    {part.mail?.messages.map(message => <MailboxMessageCard key={message.id} message={message} provider={part.mail!.provider} />)}
+    {part.mail?.messages.map(message => <MailboxMessageCard key={message.id} message={message} provider={part.mail!.provider} collapsed={part.tool === "read_mail_thread"} />)}
     {part.status === "done" && (part.mail ? !part.mail.messages.length && <p>{t("No matching emails found. Try a different sender, date or subject.")}</p> : <p>{t("This older result has no saved email cards. Ask the assistant to search again.")}</p>)}
     {part.mail?.more_available && <p className="ws-muted">{t("More matching emails are available. Narrow your search to find a specific message.")}</p>}
     {part.tool === "search_mail" && part.status === "done" && part.mail && <p className="ws-muted">{t("Search results may be incomplete. No match does not prove delivery or absence of a reply.")}</p>}

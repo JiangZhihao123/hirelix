@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db/client";
 import { rows, WorkspaceError } from "./database";
 import { emailAddress } from "./email-contract";
-import { hasMailboxScope, mailboxReadUnavailableReason, mailboxSearchInput, mailboxReadInput, type MailboxConnection, type MailboxProvider } from "./mailbox-contract";
+import { hasMailboxScope, mailboxReadUnavailableReason, mailboxSearchInput, mailboxReadInput, mailboxAttachmentInput, type MailboxConnection, type MailboxProvider, type MailAttachment } from "./mailbox-contract";
 
 export function mailboxConfigured(provider: MailboxProvider) {
   return provider === "google" || !!(process.env.MICROSOFT_CLIENT_ID && process.env.MICROSOFT_CLIENT_SECRET);
@@ -78,10 +78,14 @@ export async function setDefaultMailboxProvider(userId: string, provider: Mailbo
 export async function disconnectMailbox(userId: string, provider: MailboxProvider) {
   await db.execute(sql`UPDATE account SET "accessToken"=NULL,"refreshToken"=NULL,"idToken"=NULL,"mailboxEmail"=NULL,scope=NULL,"accessTokenExpiresAt"=NULL,"updatedAt"=now() WHERE "userId"=${userId} AND "providerId"=${provider}`);
 }
-export type MailMessage = {id:string;thread_id:string;subject:string;from:string;to:string;date:string;body:string;truncated:boolean;headers:Record<string,string>;source_url:string;mailbox_labels?:string[];mailbox_folder?:string;sent_at?:string;is_draft?:boolean};
+export type MailMessage = {id:string;thread_id:string;subject:string;from:string;to:string;date:string;body:string;truncated:boolean;headers:Record<string,string>;source_url:string;attachments?:MailAttachment[];reply_to?:string[];mailbox_labels?:string[];mailbox_folder?:string;sent_at?:string;is_draft?:boolean};
+function evidenceHeaders(entries: Array<{name:string;value:string}>) {
+  const allowed = new Set(["from","to","cc","reply-to","date","subject","message-id","in-reply-to","references","return-path","authentication-results","auto-submitted","content-type"]);
+  return Object.fromEntries(entries.filter(h=>allowed.has(h.name.toLowerCase())).map(h=>[h.name.toLowerCase(),h.value.slice(0,4000)]));
+}
 type GmailPart = {mimeType?:string;filename?:string;body?:{data?:string};parts?:GmailPart[];headers?:Array<{name:string;value:string}>};
 export function gmailMessage(value: {id:string;threadId?:string;payload?:GmailPart;snippet?:string;labelIds?:string[]}): MailMessage {
-  const headers = Object.fromEntries((value.payload?.headers || []).map(h=>[h.name.toLowerCase(),h.value]));
+  const headers = evidenceHeaders(value.payload?.headers || []);
   function text(part: GmailPart, mime: string): string {
     if (part.filename) return "";
     if (part.mimeType === mime && part.body?.data) {
@@ -121,8 +125,47 @@ export async function readMailboxMessage(userId: string, value: unknown): Promis
     const email = await mailboxIdentity("google",token);
     return {...message,source_url:`https://mail.google.com/mail/?authuser=${encodeURIComponent(email)}#all/${encodeURIComponent(message.thread_id)}`};
   }
-  const message=await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}?$select=id,conversationId,subject,from,toRecipients,receivedDateTime,sentDateTime,isDraft,parentFolderId,body,internetMessageHeaders,webLink`,token);
+  const message=await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}?$select=id,conversationId,subject,from,toRecipients,receivedDateTime,sentDateTime,isDraft,parentFolderId,body,internetMessageHeaders,webLink,hasAttachments,replyTo`,token);
   const folder = message.parentFolderId ? await providerJson(`https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(message.parentFolderId)}?$select=displayName`,token) : null;
+  const attachmentPage = message.hasAttachments ? await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}/attachments?$select=id,name,size,contentType,isInline&$top=50`, token) : null;
+  const attachments: MailAttachment[] = (attachmentPage?.value || []).map((a: {id:string;name:string;size:number;contentType:string;isInline:boolean}) => ({id:a.id,name:a.name,size:a.size,content_type:a.contentType,inline:a.isInline}));
+  if (attachmentPage?.["@odata.nextLink"]) throw new WorkspaceError("This message has more than 50 attachments. Open the original mailbox to review all attachments.",422);
   const body=message.body?.contentType?.toLowerCase()==="html" ? load(message.body.content || "").text() : message.body?.content || "";
-  return {id:message.id,thread_id:message.conversationId,subject:message.subject,from:message.from?.emailAddress?.address || "",to:(message.toRecipients || []).map((r:{emailAddress:{address:string}})=>r.emailAddress.address).join(", "),date:message.receivedDateTime,sent_at:message.sentDateTime,is_draft:message.isDraft,mailbox_folder:folder?.displayName,body:body.slice(0,30000),truncated:body.length>30000,headers:Object.fromEntries((message.internetMessageHeaders || []).map((h:{name:string;value:string})=>[h.name.toLowerCase(),h.value])),source_url:message.webLink} satisfies MailMessage;
+  return {attachments,reply_to:(message.replyTo || []).map((r:{emailAddress:{address:string}})=>r.emailAddress.address),id:message.id,thread_id:message.conversationId,subject:message.subject,from:message.from?.emailAddress?.address || "",to:(message.toRecipients || []).map((r:{emailAddress:{address:string}})=>r.emailAddress.address).join(", "),date:message.receivedDateTime,sent_at:message.sentDateTime,is_draft:message.isDraft,mailbox_folder:folder?.displayName,body:body.slice(0,30000),truncated:body.length>30000,headers:evidenceHeaders(message.internetMessageHeaders || []),source_url:message.webLink} satisfies MailMessage;
+}
+
+
+// Filter by provider thread identity, never by a potentially ambiguous subject.
+export async function readMailboxThread(userId: string, value: unknown): Promise<{provider:MailboxProvider;messages:MailMessage[];more_available:boolean}> {
+  const input = mailboxReadInput.parse(value);
+  const selected = await readMailboxMessage(userId, input);
+  const token = await mailboxToken(userId, input.provider, "read");
+  if (input.provider === "google") {
+    const thread = await providerJson(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(selected.thread_id)}?format=full`, token);
+    const messages = (thread.messages || []).slice(0,20).map(gmailMessage);
+    return {provider:input.provider,messages,more_available:(thread.messages || []).length>20};
+  }
+  const params = new URLSearchParams({"$filter":`conversationId eq '${selected.thread_id.replaceAll("'", "''")}'`,"$select":"id","$top":"20"});
+  const page = await providerJson(`https://graph.microsoft.com/v1.0/me/messages?${params}`,token);
+  const messages: MailMessage[] = [];
+  for (const item of page.value || []) messages.push(item.id === selected.id ? selected : await readMailboxMessage(userId,{...input,message_id:item.id}));
+  messages.sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime());
+  return {provider:input.provider,messages,more_available:!!page["@odata.nextLink"]};
+}
+
+export async function readMailboxAttachment(userId: string, value: unknown) {
+  const input = mailboxAttachmentInput.parse(value);
+  if (input.provider !== "microsoft") throw new WorkspaceError("Reading Gmail attachments is not available yet.",409);
+  const message = await readMailboxMessage(userId,input);
+  const matches = message.attachments?.filter(a=>(!input.attachment_id || a.id===input.attachment_id) && (!input.attachment_name || a.name===input.attachment_name)) || [];
+  if(matches.length>1) throw new WorkspaceError("Multiple attachments have this name. Use the exact attachment ID from the selected email.",409);
+  const selected = matches[0];
+  if (!selected) throw new WorkspaceError("This attachment does not belong to the selected message.",404);
+  if (selected.size > 4*1024*1024) throw new WorkspaceError("This attachment exceeds the 4 MB reading limit.",422);
+  const token = await mailboxToken(userId,input.provider,"read");
+  const item = await providerJson(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(input.message_id)}/attachments/${encodeURIComponent(selected.id)}`,token);
+  if (item["@odata.type"] !== "#microsoft.graph.fileAttachment" || typeof item.contentBytes !== "string") throw new WorkspaceError("This attachment type must be opened in the original mailbox.",422);
+  const bytes = Buffer.from(item.contentBytes,"base64");
+  if (bytes.length>4*1024*1024) throw new WorkspaceError("This attachment exceeds the 4 MB reading limit.",422);
+  return {name:selected.name,bytes,source_url:message.source_url,from:message.from,date:message.date};
 }

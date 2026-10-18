@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { mailboxConnection, mailboxToken, mailboxIdentity } from "./mailbox";
+import { mailboxConnection, mailboxToken, mailboxIdentity, readMailboxMessage } from "./mailbox";
 import { getLogger } from "@/lib/logger";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
@@ -223,6 +223,12 @@ async function composeGmail(userId: string, snapshot: EmailSnapshot) {
   const accessToken = await mailboxToken(userId, provider, "send");
   const sender = await mailboxIdentity(provider, accessToken);
   if (sender.toLowerCase() !== snapshot.from.toLowerCase()) throw new WorkspaceError("The connected sender changed. Review a new email before sending.", 409);
+  if (snapshot.reply) {
+    if (provider !== "microsoft") throw new WorkspaceError("Original-thread replies are supported for Outlook only.",409);
+    const original = await readMailboxMessage(userId,{provider,message_id:snapshot.reply.message_id});
+    const recipients = original.reply_to?.length ? original.reply_to : [original.from];
+    if (original.thread_id !== snapshot.reply.thread_id || original.is_draft || recipients.length !== 1 || recipients[0].toLowerCase() !== snapshot.to.toLowerCase()) throw new WorkspaceError("The original email or reply recipient changed. Review a new reply before sending.",409);
+  }
   return {...await buildEmailMime(userId,snapshot),accessToken};
 }
 
@@ -264,7 +270,7 @@ export async function buildEmailMime(userId: string, snapshot: EmailSnapshot) {
 }
 
 export function microsoftSendBody(
-  snapshot: Pick<EmailSnapshot, "to" | "title" | "content">,
+  snapshot: Pick<EmailSnapshot, "to" | "title" | "content" | "reply">,
   attachments: Array<{ filename: string; content: Buffer; contentType: string }>,
 ) {
   const body = JSON.stringify({
@@ -272,6 +278,8 @@ export function microsoftSendBody(
       subject: snapshot.title,
       body: { contentType: "Text", content: snapshot.content },
       toRecipients: [{ emailAddress: { address: snapshot.to } }],
+      ccRecipients: [],
+      bccRecipients: [],
       attachments: attachments.map(file => ({
         "@odata.type": "#microsoft.graph.fileAttachment",
         name: file.filename,
@@ -279,7 +287,7 @@ export function microsoftSendBody(
         contentBytes: file.content.toString("base64"),
       })),
     },
-    saveToSentItems: true,
+    ...(!snapshot.reply ? {saveToSentItems: true} : {}),
   });
   // Large attachments require a draft/upload session and additional mailbox-write permission.
   if (attachments.some(file => file.content.length >= 3 * 1024 * 1024) || Buffer.byteLength(body) >= 4 * 1024 * 1024)
@@ -293,7 +301,7 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string,
   let response: Response;
   try {
     response = await fetch(
-      microsoft ? "https://graph.microsoft.com/v1.0/me/sendMail" : "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      microsoft ? (receipt.snapshot.reply ? `https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent((receipt.snapshot.reply as {message_id:string}).message_id)}/reply` : "https://graph.microsoft.com/v1.0/me/sendMail") : "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
       {
         method: "POST",
         headers: {
@@ -353,12 +361,17 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string,
   return { receipt: receipt.id, status: "sent", provider_message_id: result.id };
 }
 
+// JSONB reorders object keys. Compare the reply's semantic identity, not object serialization.
+export function emailReplyIdentity(reply: EmailSnapshot["reply"]) {
+  return reply ? JSON.stringify([reply.message_id,reply.thread_id,reply.subject,reply.source_url,reply.internet_message_id || null]) : "";
+}
+
 // Both UI and Agent sends use the same MIME, provider and uncertainty handling.
 export async function sendConversationEmail(userId: string, snapshot: EmailSnapshot, requestKey: string, guard: (tx: Runner) => Promise<void>) {
   emailSnapshotSchema.parse(snapshot);
   const [prior] = await rows<Receipt>(sql`SELECT * FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND request_key=${requestKey}`);
   if (prior) {
-    if (((prior.snapshot.provider || "google") !== (snapshot.provider || "google") || prior.snapshot.from !== snapshot.from || prior.snapshot.to !== snapshot.to || prior.snapshot.title !== snapshot.title || prior.snapshot.content !== snapshot.content || prior.deliverable_id !== snapshot.document_id)) throw new WorkspaceError("This send request belongs to another email",409);
+    if (((prior.snapshot.provider || "google") !== (snapshot.provider || "google") || prior.snapshot.from !== snapshot.from || prior.snapshot.to !== snapshot.to || prior.snapshot.title !== snapshot.title || prior.snapshot.content !== snapshot.content || emailReplyIdentity(prior.snapshot.reply as EmailSnapshot["reply"]) !== emailReplyIdentity(snapshot.reply) || prior.deliverable_id !== snapshot.document_id)) throw new WorkspaceError("This send request belongs to another email",409);
     await recordConversationSubmission(userId, snapshot, prior);
     return { receipt: prior.id, status: effectiveDeliveryStatus(prior) };
   }
@@ -398,9 +411,9 @@ export async function reserveConversationEmail(userId: string, snapshot: EmailSn
         ? await recommendationEmail(userId,document,sendRecommendationInput.parse({...snapshot.recommendation_delivery,expected_version:snapshot.document_version,to:snapshot.to,request_key:requestKey}),process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",tx)
         : clientDocument(document);
       await assertSharingAllowed(userId, document.role_id, reviewed, tx);
-      if (reviewed.title !== snapshot.title || reviewed.content !== snapshot.content || JSON.stringify(reviewed.files.map(f => [f.id, f.sha256])) !== JSON.stringify(snapshot.files.map(f => [f.id, f.sha256]))) throw new WorkspaceError("The email changed. Review it again before sending.", 409);
+      if ((!snapshot.reply && reviewed.title !== snapshot.title) || reviewed.content !== snapshot.content || JSON.stringify(reviewed.files.map(f => [f.id, f.sha256])) !== JSON.stringify(snapshot.files.map(f => [f.id, f.sha256]))) throw new WorkspaceError("The email changed. Review it again before sending.", 409);
     }
-    const fingerprint = createHash("sha256").update(JSON.stringify([snapshot.provider || "google", snapshot.from.toLowerCase(), snapshot.document_id, snapshot.to.toLowerCase(), snapshot.title, snapshot.content, snapshot.files.map(f => [f.id, f.sha256])])).digest("hex");
+    const fingerprint = createHash("sha256").update(JSON.stringify([snapshot.provider || "google", snapshot.from.toLowerCase(), snapshot.document_id, snapshot.to.toLowerCase(), snapshot.title, snapshot.content, snapshot.files.map(f => [f.id, f.sha256]), ...(snapshot.reply ? [emailReplyIdentity(snapshot.reply)] : [])])).digest("hex");
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + fingerprint},0))`);
     const [prior] = await rows<Receipt & {fingerprint:string}>(sql`SELECT * FROM hirelix_private_email_deliveries WHERE user_id=${userId}::uuid AND (request_key=${requestKey} OR (fingerprint=${fingerprint} AND status IN ('sending','sent','unknown'))) ORDER BY created_at LIMIT 1`, tx);
     if (prior) {

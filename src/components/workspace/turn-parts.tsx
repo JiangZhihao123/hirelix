@@ -2,13 +2,14 @@
 
 import { Check, Loader2, Minus, AlertCircle, ChevronRight, ArrowUpRight } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
-import { useT } from "@/components/LanguageProvider";
+import { useT, useLanguage } from "@/components/LanguageProvider";
 import { visibleTurnParts, type TurnPart } from "@/lib/workspace/turn-progress";
 import { MailboxResults } from "./mailbox-results";
 
 type ToolPart = Extract<TurnPart, {type: "tool"}>;
 
-const canGroup = (part: ToolPart) => !!(part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_"));
+const isMailbox = (part: ToolPart) => ["search_mail", "read_mail", "read_mail_thread"].includes(part.tool || "");
+const canGroup = (part: ToolPart) => !!(isMailbox(part) || part.query || part.tool?.startsWith("read_") || part.tool?.startsWith("find_"));
 
 // Only adjacent calls of the same kind are grouped; prose always ends a group.
 function groupParts(parts: TurnPart[]) {
@@ -16,7 +17,7 @@ function groupParts(parts: TurnPart[]) {
   for (const part of visibleTurnParts(parts)) {
     const last = groups.at(-1);
     if (part.type === "text") groups.push(part);
-    else if (canGroup(part) && last?.type === "tools" && (last.items[0].tool || last.items[0].label) === (part.tool || part.label)) last.items.push(part);
+    else if (canGroup(part) && last?.type === "tools" && ((isMailbox(last.items[0]) && isMailbox(part)) || (last.items[0].tool || last.items[0].label) === (part.tool || part.label))) last.items.push(part);
     else groups.push({type: "tools", items: [part]});
   }
   return groups;
@@ -28,7 +29,7 @@ export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = []
   onOpenLink?: (href: string, label: string) => boolean;
   sourceLinks?: readonly string[];
 }) {
-  const t = useT();
+  const t = useT(), {locale} = useLanguage();
   const inventoryText = (part: ToolPart) => Object.entries(part.inventory || {}).map(([key, count]) => `${t(({roles: "Roles", candidates: "Candidates", preferences: "Preferences", reminders: "Reminders"} as Record<string, string>)[key])} ${count}`).join(" · ");
   const statusText = (part: ToolPart) => t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running && part.status === "running" ? "In progress" : "Interrupted");
   const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running && part.status === "running" ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
@@ -36,7 +37,13 @@ export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = []
     {groupParts(parts).map((group, index) => {
       if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText content={group.text} onOpenLink={onOpenLink} sourceLinks={[...sourceLinks, ...parts.flatMap(part => part.type === "tool" && part.href ? [part.href] : [])]} /></div>;
       const first = group.items[0];
-      if (first.tool === "search_mail" || first.tool === "read_mail") return <div key={first.id}>{group.items.map(part => <MailboxResults key={part.id} part={part} running={running} />)}</div>;
+      if (isMailbox(first)) {
+        const latest=group.items.at(-1)!;
+        return <div key={first.id}>
+          {group.items.length>1 && <details className="ws-tool-disclosure"><summary>{locale === "zh" ? "此前邮件检索与读取" : "Earlier email searches and reads"} · {group.items.length-1}</summary>{group.items.slice(0,-1).map(part=><MailboxResults key={part.id} part={part} running={running} />)}</details>}
+          <MailboxResults part={latest} running={running} />
+        </div>;
+      }
       const active = group.items.find(part => part.status === "running");
       const failed = group.items.filter(part => part.status === "error");
       const status = active || failed[0] || first;

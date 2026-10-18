@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const emailPlanSchema = z.object({
   provider: z.enum(["google", "microsoft"]).optional().describe("Sending mailbox provider. Specify when the user selects it; never silently switch an existing preview."),
+  reply_to_message_id: z.string().min(1).max(2048).nullable().optional().describe("For a reply, the provider message ID read with read_mail/thread. Set provider explicitly. Null means a new email; do not infer a reply from subject alone."),
   intent: z.enum(["none", "status", "prepare", "confirm", "cancel"]),
   to: z.string().max(320).nullable(),
   subject: z.string().max(998).nullable().describe("Requested email subject. For document emails this overrides the saved title; null uses the saved title."),
@@ -24,6 +25,7 @@ export function recipientAddressError(address: string): string | null {
 }
 export const emailSnapshotSchema = z.object({
   provider: z.enum(["google", "microsoft"]).optional(),
+  reply: z.object({message_id:z.string().min(1).max(2048),thread_id:z.string().min(1).max(2048),subject:z.string().max(998),source_url:z.string().url(),internet_message_id:z.string().max(2048).optional()}).optional(),
   from: emailAddress,
   to: emailAddress,
   title: z.string().trim().min(1).max(998).refine(value => !/[\r\n]/.test(value)),

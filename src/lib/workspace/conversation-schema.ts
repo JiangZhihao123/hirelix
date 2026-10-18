@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { roleInput } from "./types";
+import { roleInput, recordInput } from "./types";
 
 export const recordChangesSchema = z.object({
+  source_url: recordInput.shape.source_url.nullable().default(null).describe("Preserve the exact original source URL. Null leaves it unchanged; empty string clears it."),
   title: z.string().min(1).max(300).nullable(),
   content: z.string().min(1).max(100000).nullable(),
   occurred_at: z.union([z.iso.datetime({ offset: true }), z.literal("")]).nullable(),

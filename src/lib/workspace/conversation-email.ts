@@ -7,7 +7,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { clientDocument, assertSharingAllowed } from "./document-sharing";
-import { mailboxConnection, defaultMailboxProvider } from "./mailbox";
+import { mailboxConnection, defaultMailboxProvider, readMailboxMessage } from "./mailbox";
 import { hasMailboxScope } from "./mailbox-contract";
 import { sendConversationEmail, effectiveDeliveryStatus, type Receipt } from "./gmail";
 import { emailRecipient, emailAddress, emailSnapshotSchema, type ConversationEmail, type EmailPlan } from "./email-contract";
@@ -66,7 +66,7 @@ export async function prepareEmailReply({job, conversation, question, messages, 
       answer = say("This preview is no longer valid. Ask me to prepare the email again.", "这份预览已失效，请让我重新准备邮件。");
     } else {
       // Text confirmation must not silently change any preview field.
-      if ((plan.to && plan.to !== pending.snapshot.to) || (plan.subject && plan.subject !== pending.snapshot.title) || (plan.body && plan.body !== pending.snapshot.content)) throw new WorkspaceError("The email changed. Ask me to prepare a new preview before sending.",409);
+      if ((plan.reply_to_message_id !== undefined && plan.reply_to_message_id !== (pending.snapshot.reply?.message_id || null)) || (plan.provider && plan.provider !== (pending.snapshot.provider || "google")) || (plan.to && plan.to !== pending.snapshot.to) || (plan.subject && plan.subject !== pending.snapshot.title) || (plan.body && plan.body !== pending.snapshot.content)) throw new WorkspaceError("The email changed. Ask me to prepare a new preview before sending.",409);
       try {
         const result = await sendConversationEmail(job.user_id,pending.snapshot,pending.request_key,async tx => {
           // Use the same conversation -> job lock order as queue controls.
@@ -100,7 +100,13 @@ export async function prepareEmailReply({job, conversation, question, messages, 
     const documentId = plan.use_document ? document?.id ?? null : null;
     const clientTo = plan.use_document && document
       ? await roleRecipient(job.user_id, document.role_id) : null;
-    const to = emailRecipient(plan.to, pending, documentId, clientTo);
+    const replyId = plan.reply_to_message_id === undefined && pending?.status === "review" ? pending.snapshot.reply?.message_id : plan.reply_to_message_id;
+    const original = replyId ? await readMailboxMessage(job.user_id,{provider,message_id:replyId}) : null;
+    if (original && provider !== "microsoft") throw new WorkspaceError("Original-thread replies are currently supported for Outlook only.",409);
+    const recipients = original ? (original.reply_to?.length ? original.reply_to : [original.from]) : [];
+    if (original && (original.is_draft || recipients.length !== 1 || !emailAddress.safeParse(recipients[0]).success || recipients[0].toLowerCase() === connection.email?.toLowerCase())) throw new WorkspaceError("Choose an incoming message with one reply recipient. This message cannot be safely replied to here.",409);
+    if (original && plan.to && plan.to.toLowerCase() !== recipients[0].toLowerCase()) throw new WorkspaceError("A reply must use the original message's reply recipient. Prepare a new email to change the audience.",409);
+    const to = original ? recipients[0] : emailRecipient(plan.to, pending, documentId, clientTo);
     if (!to || !emailAddress.safeParse(to).success) answer = plan.use_document && document?.role_id
       ? say("What is the client contact email for this role? I can save it on the role and continue preparing this email. For a one-time recipient, say so.", "这个职位的客户联系人邮箱是什么？补充后我会保存到职位并继续准备这封邮件；如果仅本次使用，请说明。")
       : say("What exact email address should I send this to?", "请提供准确的收件人邮箱。");
@@ -120,11 +126,11 @@ export async function prepareEmailReply({job, conversation, question, messages, 
           recommendationDelivery = {share_id:input.share_id || null,email_subject:composed.title,email_content:input.email_content ?? (plan.include_link ? recommendationCover(composed) : document.content),attach_cvs:input.attach_cvs};
         }
         if (reviewed && document) await assertSharingAllowed(job.user_id, document.role_id, reviewed);
-        const title = reviewed?.title || plan.subject;
+        const title = original ? `Re: ${original.subject.replace(/^Re:\s*/i, "")}` : reviewed?.title || plan.subject;
         const content = reviewed?.content || plan.body;
         if (!title || !content) answer = say("What subject and message should this email contain?", "这封邮件的主题和正文是什么？");
         else {
-          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({provider,from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null,...(recommendationDelivery ? {recommendation_delivery:recommendationDelivery} : {})})};
+          email = {status:"review",request_key:randomUUID(),snapshot:emailSnapshotSchema.parse({provider,...(original ? {reply:{message_id:original.id,thread_id:original.thread_id,subject:original.subject,source_url:original.source_url,internet_message_id:original.headers["message-id"]}} : {}),from:connection.email,to,title,content,files:reviewed?.files || [],document_id:reviewed ? document!.id : null,document_version:reviewed ? document!.version : null,...(recommendationDelivery ? {recommendation_delivery:recommendationDelivery} : {})})};
           answer = say("Review the recipient, subject, message and attachments below. Confirm send when they are correct; nothing has been sent yet.","请确认下方收件人、主题、正文和附件。确认无误后点击发送，或在对话中回复确认发送；目前尚未发送。");
         }
       } catch(error) {

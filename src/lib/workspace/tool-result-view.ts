@@ -17,7 +17,7 @@ function mailboxSource(value: unknown, provider: MailboxProvider) {
 // Mail content is plain display text. Never forward raw headers, provider
 // payloads or HTML into persisted turn parts or the message-reading response.
 export function toolResultMailbox(name: string, result: Record<string, unknown>): MailboxResultView | undefined {
-  if (!["search_mail", "read_mail"].includes(name) || !["google", "microsoft"].includes(String(result.provider))) return;
+  if (!["search_mail", "read_mail", "read_mail_thread"].includes(name) || !["google", "microsoft"].includes(String(result.provider))) return;
   const provider = result.provider as MailboxProvider;
   const entries = name === "read_mail" ? [result] : result.messages;
   if (!Array.isArray(entries)) return;
@@ -25,9 +25,11 @@ export function toolResultMailbox(name: string, result: Record<string, unknown>)
   const messages: MailboxMessageView[] = entries.slice(0, 20).flatMap(value => {
     const item = object(value), id = text(item.id);
     if (!id || id.length > 2048) return [];
-    const body = name === "read_mail" ? text(item.body) : undefined;
+    const body = name !== "search_mail" ? text(item.body) : undefined;
     const href = mailboxSource(item.source_url || item.webLink, provider);
     return [{
+      ...(typeof item.thread_id === "string" ? {thread_id:item.thread_id} : {}),
+      ...(Array.isArray(item.attachments) ? {attachments:item.attachments.slice(0,50).flatMap(value=>{const a=object(value);return typeof a.id === "string" && typeof a.name === "string" ? [{id:a.id.slice(0,2048),name:a.name.slice(0,250),size:typeof a.size === "number" ? a.size : 0,content_type:text(a.content_type)||"",inline:a.inline===true}] : [];})} : {}),
       id, subject: (text(item.subject) || "").slice(0, 1000), from: address(item.from).slice(0, 1000),
       to: (text(item.to) || (Array.isArray(item.toRecipients) ? item.toRecipients.map(address).join(", ") : "")).slice(0, 2000),
       date: (text(item.date) || text(item.receivedDateTime) || "").slice(0, 100),
@@ -42,7 +44,7 @@ export function toolResultMailbox(name: string, result: Record<string, unknown>)
 }
 
 export function toolResultMailboxError(name: string, output: {ok?: boolean; error?: {code?: unknown; message?: unknown}}): ToolPart["mail_error"] {
-  if (!["search_mail", "read_mail"].includes(name) || output.ok !== false) return;
+  if (!["search_mail", "read_mail", "read_mail_thread"].includes(name) || output.ok !== false) return;
   const error = output.error;
   if (typeof error?.code === "number" && error.code >= 400 && error.code <= 599 && typeof error.message === "string") {
     return {status: error.code, message: error.message.slice(0, 2000)};

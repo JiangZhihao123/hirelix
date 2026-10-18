@@ -34,9 +34,17 @@ export const mailboxSearchInput = z.object({
 });
 export const mailboxReadInput = z.object({ provider: mailboxProvider, message_id: z.string().min(1).max(2048) });
 
+export const mailboxAttachmentInput = mailboxReadInput.extend({
+  attachment_id:z.string().min(1).max(2048).optional(),
+  attachment_name:z.string().min(1).max(250).optional().describe("Exact name returned by read_mail. Prefer this when unique; duplicate names require the exact attachment_id."),
+}).refine(value=>!!(value.attachment_id || value.attachment_name),"Choose an attachment by its exact name or ID.");
+
 export type MailboxSettings = { connections: MailboxConnection[]; default_provider: MailboxProvider | null };
 
+export type MailAttachment = { id: string; name: string; size: number; content_type: string; inline: boolean };
 export type MailboxMessageView = {
+  thread_id?: string;
+  attachments?: MailAttachment[];
   id: string;
   subject: string;
   from: string;
