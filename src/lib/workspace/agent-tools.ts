@@ -1,3 +1,4 @@
+import { localTimeEvidence } from "./agent-time";
 import { recommendations } from "./recommendations";
 import { searchWeb } from "./web-search";
 import { tool } from "ai";
@@ -206,13 +207,11 @@ export function createAgentTools(ctx: AgentToolContext) {
           await ctx.progress(progressLabels[name] || "Working on your request");
           try {
             if ((job.payload.request as {resume_after_mailbox_message_id?:string})?.resume_after_mailbox_message_id && !mailboxResumeAllowsTool(name,input)) throw new WorkspaceError("Connecting a mailbox only resumes email preparation. Sending, sharing and other changes need a new user instruction.",409);
-            return {
-              ok: true,
-              result: await agentCreditContext.run(
-                { ...job, signal: ctx.signal },
-                () => execute(schema.parse(input)),
-              ),
-            };
+            const result = await agentCreditContext.run(
+              { ...job, signal: ctx.signal },
+              () => execute(schema.parse(input)),
+            );
+            return { ok: true, result, local_times: localTimeEvidence(result, ctx.timezone) };
           } catch (error) {
             if (error instanceof WorkspaceError)
               return {
@@ -616,7 +615,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     save_role: define(
       "save_role",
-      "Save a new client role with its original JD. Preserve the supplied JD or dictated brief faithfully in jd_text, without expanding it into an invented job description or adding typical responsibilities. Populate brief.priorities only from supplied requirements and brief.flexible only from explicit concessions; unspecified conditions are not concessions. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD.",
+      "Save a new client role with its original JD. Copy the supplied JD or dictated brief verbatim into jd_text (preserve wording, punctuation and formatting; exclude the surrounding save instruction), without expanding it into an invented job description or adding typical responsibilities. Populate brief.priorities only from supplied requirements and brief.flexible only from explicit concessions; unspecified conditions are not concessions. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD.",
       z.object({
         ...authorization,
         role: roleInput.extend({ brief: agentRoleBrief }),
