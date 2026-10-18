@@ -78,10 +78,10 @@ export default function Submissions() {
           >
             <option value="all">{zh ? "全部职位" : "All roles"}</option>
             <option value="recommended">
-              {zh ? "已有推荐" : "With recommendations"}
+              {zh ? "已有发送记录" : "With recorded sends"}
             </option>
             <option value="preparing">
-              {zh ? "尚未推荐" : "Not yet recommended"}
+              {zh ? "尚无发送记录" : "No recorded sends"}
             </option>
           </select>
           <select
@@ -95,10 +95,10 @@ export default function Submissions() {
             }
           >
             {[
-              ["delivery", zh ? "最近推荐" : "Last delivery"],
+              ["delivery", zh ? "最近发送" : "Last recorded send"],
               ["feedback", zh ? "最近反馈" : "Latest feedback"],
               ["title", zh ? "职位名称" : "Role title"],
-              ["count", zh ? "已推荐人数" : "Recommended count"],
+              ["count", zh ? "已记录发送人数" : "Recorded send count"],
             ].map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -135,13 +135,13 @@ export default function Submissions() {
               {zh ? "职位 / 客户" : "Role / client"}
             </SortHeading>
             <SortHeading field="count" {...{ sort, direction, onSort }}>
-              {zh ? "已推荐人选" : "Recommended"}
+              {zh ? "已记录发送" : "Recorded sends"}
             </SortHeading>
             <SortHeading field="feedback" {...{ sort, direction, onSort }}>
               {zh ? "最新反馈" : "Latest feedback"}
             </SortHeading>
             <SortHeading field="delivery" {...{ sort, direction, onSort }}>
-              {zh ? "最近推荐" : "Last delivery"}
+              {zh ? "最近发送" : "Last recorded send"}
             </SortHeading>
           </div>
           {items.map((item) => {
@@ -165,6 +165,7 @@ export default function Submissions() {
                 </div>
                 <span>
                   {item.recommended_count} {zh ? "人" : item.recommended_count === 1 ? "person" : "people"}
+                  {item.events.some(event => event.status === "published") && <small>{zh ? "有已发布链接" : "Active client link"}</small>}
                 </span>
                 <div className="ws-rec-feedback">
                   {feedback ? (

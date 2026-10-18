@@ -1,4 +1,5 @@
 "use client";
+import { FeedbackSource } from "@/components/workspace/feedback-source";
 
 import { recordLocalDate } from "@/lib/workspace/record-dates";
 import { feedbackLabels, type feedbackResponses } from "@/lib/workspace/recommendation-feedback-contract";
@@ -357,7 +358,7 @@ export default function RolePage({
                       {feedback && <div className="ws-notice mt-3">
                         <strong>{t("Latest client feedback")}{feedback.details.response && feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]] ? ` · ${t(feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]])}` : ""}</strong>
                         <p>{feedback.content}</p><small className="ws-muted">{date(feedback.occurred_at || feedback.created_at, true)}</small>
-                        {feedback.details.source === "recommendation_link" && <p className="ws-muted text-xs">{t("Recommendation-page feedback; submitted name is unverified.")}</p>}
+                        <FeedbackSource record={feedback} />
                         <button className="ws-link mt-2" onClick={() => ask(locale === "zh" ? "结合这位候选人的最新反馈，向我汇报建议的下一步和需要确认的问题。" : "Review the latest feedback for this candidate and role. Brief me on the recommended next step and any decision needed.", link.person_id)}>{t("Review feedback and next steps")}</button>
                       </div>}
                       <div className="ws-actions mt-4">
@@ -505,8 +506,8 @@ export default function RolePage({
             <h3>{t("Client material")}</h3>
             <p>
               {locale === "zh"
-                ? `已记录 ${submissions.filter((item) => item.status === "submitted").length} 次推荐`
-                : `${submissions.filter((item) => item.status === "submitted").length} submissions recorded`}
+                ? `已记录 ${submissions.filter((item) => item.status === "submitted").length} 次发送`
+                : `${submissions.filter((item) => item.status === "submitted").length} sends recorded`}
             </p>
             <Link
               className="ws-link mt-3"

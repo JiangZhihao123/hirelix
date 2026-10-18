@@ -10,6 +10,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useLanguage, useT } from "@/components/LanguageProvider";
+import { FeedbackSource } from "./feedback-source";
 import { AgentText } from "@/components/AgentText";
 import {
   api,
@@ -118,7 +119,6 @@ function EventRow({ event }: { event: RecommendationEvent }) {
 }
 function FeedbackRow({ record }: { record: SourceRecord }) {
   const t = useT();
-  const { locale } = useLanguage();
   const response = record.details
     .response as (typeof feedbackResponses)[number];
   return (
@@ -128,10 +128,9 @@ function FeedbackRow({ record }: { record: SourceRecord }) {
       </strong>
       <small>
         {date(record.occurred_at || record.created_at, true)}
-        {record.details.source === "recommendation_link"
-          ? ` · ${String(record.details.submitted_name || "")} · ${locale === "zh" ? "链接反馈，身份未验证" : "Link feedback, identity unverified"}`
-          : ""}
+
       </small>
+      <FeedbackSource record={record} />
       <p>{record.content}</p>
     </article>
   );
@@ -176,6 +175,7 @@ export function RoleRecommendations({ roleId }: { roleId: string }) {
       setBusy(false);
     }
   }
+  const publishedPeople = new Set(data?.events.filter(event => event.status === "published").flatMap(event => event.person_ids)).size;
   const ask = `/app?role=${roleId}&prompt=${encodeURIComponent(zh ? "请帮我为这个职位准备候选人推荐材料。" : "Help me prepare candidate recommendations for this role.")}`;
   return (
     <div className="ws-role-recommendations">
@@ -185,8 +185,8 @@ export function RoleRecommendations({ roleId }: { roleId: string }) {
           <p className="ws-muted">
             {data
               ? zh
-                ? `已推荐 ${data.recommended_count} 人 · ${data.materials.length} 份材料`
-                : `${data.recommended_count} ${data.recommended_count === 1 ? "person" : "people"} recommended · ${data.materials.length} ${data.materials.length === 1 ? "material" : "materials"}`
+                ? `已记录发送 ${data.recommended_count} 人 · 有效链接包含 ${publishedPeople} 人 · ${data.materials.length} 份材料`
+                : `${data.recommended_count} with recorded sends · ${publishedPeople} in active links · ${data.materials.length} saved materials`
               : ""}
           </p>
         </div>

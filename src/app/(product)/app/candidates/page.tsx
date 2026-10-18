@@ -1,4 +1,5 @@
 "use client";
+import { FeedbackSource } from "@/components/workspace/feedback-source";
 import { semanticExcerpt } from "@/lib/workspace/search-excerpt";
 
 import { recordLocalDate } from "@/lib/workspace/record-dates";
@@ -876,6 +877,7 @@ function CandidateDetails({
                   )}
                   {t("Added")} {date(item.created_at, true)}
                 </small>
+                <FeedbackSource record={item} />
                 {tab === "sources" ? (
                   <details className="ws-source-extracted">
                     <summary>{t("View extracted text")}</summary>
