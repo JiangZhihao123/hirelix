@@ -39,3 +39,30 @@ test("real worker and model preserve a supplied brief without inventing flexible
   assert.deepEqual(roles[0].brief.flexible, [], "Unspecified conditions must not become client concessions");
   assert.equal(roles[0].jd_text, jd, "Dictated source must be preserved, not expanded into an invented JD");
 });
+
+test("real worker recommendation uses the selected role's confirmed interest", { timeout: 180000 }, async () => {
+  const { createRole, linkPerson, updateRelationship } = await import("../../src/lib/workspace/roles");
+  const { createPerson } = await import("../../src/lib/workspace/people");
+  const { prepareDeliverable } = await import("../../src/lib/workspace/deliverables");
+  const role = await createRole(owner, {title: "Product Lead", client_name: "Fictional Interest QA", jd_text: "Lead warehouse software products"});
+  const person = await createPerson(owner, {name: "Fictional Morgan Evidence", headline: "Product Lead", profile: {summary: "Delivered warehouse exception workflows and managed five PMs."}});
+  const link = await linkPerson(owner, role.id, person.id);
+  await updateRelationship(owner, role.id, person.id, {...link, interest: "Confirmed interest in this role", expected_version: link.version});
+  const queued = await prepareDeliverable(owner, {
+    kind: "submission", role_id: role.id, person_ids: [person.id], record_ids: [], file_ids: [],
+    language: "en", format: "recommendation", period_start: null, period_end: null, request_key: randomUUID(),
+    instructions: "Prepare an internal recruiter review under 150 words. Include the candidate's recorded interest in this role and relevant experience. Do not send or publish.",
+  });
+  let job: Job | undefined;
+  const deadline = Date.now() + 150000;
+  while (Date.now() < deadline) {
+    [job] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE id=${queued.id}::uuid`);
+    if (job && ["done", "error", "cancelled"].includes(job.status)) break;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  assert.equal(job?.status, "done", `Independent worker did not finish: ${job?.status}; ${job?.error}`);
+  const [document] = await rows<{content: string; source_snapshot: {people: Array<{role_interest: string}>}}>(sql`SELECT content,source_snapshot FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid`);
+  assert.equal(document.source_snapshot.people[0].role_interest, "Confirmed interest in this role");
+  assert.match(document.content, /confirm[^\n.]*interest|interest[^\n.]*confirm/i);
+  assert.doesNotMatch(document.content, /interest[^\n.]*(?:unknown|unconfirmed|not confirmed)/i);
+});

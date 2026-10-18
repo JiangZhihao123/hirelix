@@ -4,7 +4,7 @@ import { after, test } from "node:test";
 import { sql } from "drizzle-orm";
 import { closeDb, db } from "../../src/db/client";
 import { createPerson } from "../../src/lib/workspace/people";
-import { createRole, linkPerson } from "../../src/lib/workspace/roles";
+import { createRole, linkPerson, updateRelationship } from "../../src/lib/workspace/roles";
 import { addRecord } from "../../src/lib/workspace/records";
 import { saveFile } from "../../src/lib/workspace/files";
 import {
@@ -38,7 +38,11 @@ test("a single submission can select multiple people and one exact CV for each",
   });
   const first = await createPerson(owner, { name: "Alex Mercer" });
   const second = await createPerson(owner, { name: "Priya Shah" });
-  await linkPerson(owner, role.id, first.id);
+  const firstLink = await linkPerson(owner, role.id, first.id);
+  await updateRelationship(owner, role.id, first.id, {...firstLink, interest: "Confirmed interest in this role", expected_version: firstLink.version});
+  const otherRole = await createRole(owner, {title: "Other role", client_name: "Other client", jd_text: "Other scope"});
+  const otherLink = await linkPerson(owner, otherRole.id, first.id);
+  await updateRelationship(owner, otherRole.id, first.id, {...otherLink, interest: "Not interested in the other role", expected_version: otherLink.version});
   await linkPerson(owner, role.id, second.id);
   async function cv(personId: string, name: string) {
     const file = await saveFile(owner, {
@@ -65,6 +69,7 @@ test("a single submission can select multiple people and one exact CV for each",
   );
   const request = {
     kind: "submission" as const,
+    format: "email" as const,
     role_id: role.id,
     person_ids: [first.id, second.id],
     record_ids: [],
@@ -78,6 +83,9 @@ test("a single submission can select multiple people and one exact CV for each",
     request_key: randomUUID(),
   };
   const job = await prepareDeliverable(owner, request);
+  const capturedPeople = (job.payload.source as {people: Array<{id: string; role_interest: string}>}).people;
+  assert.equal(capturedPeople.find(person => person.id === first.id)?.role_interest, "Confirmed interest in this role");
+  assert.equal(capturedPeople.find(person => person.id === second.id)?.role_interest, "");
   assert.deepEqual(job.payload.request, { ...request, format: "email", report_timezone: null });
   const selected = (job.payload.source as { files: SubmissionCv[] }).files;
   assert.deepEqual(
