@@ -1,5 +1,8 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Back to your email draft": "返回正在准备的邮件",
+  "Manage your account, email, subscription, and AI usage.": "管理账户、邮箱、订阅和 AI 用量。",
+  "Could not verify mailbox access. Try again; reconnect if the problem persists.": "暂时无法确认邮箱连接，请先重新检查；若仍失败，再重新连接。",
   "Review email": "确认邮件内容",
   "Accepted by Gmail": "Gmail 已接受发送",
   "Sending email…": "正在发送邮件…",

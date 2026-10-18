@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { SettingsPageSkeleton } from "@/components/ProductSkeletons";
@@ -23,6 +24,9 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const { billing, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
+  const requestedReturn = searchParams.get("returnTo") || "";
+  const returnTo = /^\/app\/submissions\/[a-f0-9-]{36}(?:#recommendation-delivery)?$/.test(requestedReturn) ? requestedReturn : null;
+  const mailboxCallback = `/app/settings?section=email${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
   const settingsHash = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("hashchange", onStoreChange);
@@ -45,7 +49,7 @@ export default function SettingsPage() {
       id: "account" as const,
       label: t("Account"),
     },
-    { id: "email" as const, label: "Email" },
+    { id: "email" as const, label: t("Email") },
     {
       id: "billing" as const,
       label: t("Subscription and usage"),
@@ -126,7 +130,7 @@ export default function SettingsPage() {
   }
 
   const selectedSection = (() => {
-    if (activeSection === "email") return <MailboxConnections oauthError={searchParams.get("error")} />;
+    if (activeSection === "email") return <MailboxConnections callbackURL={mailboxCallback} oauthError={searchParams.get("error")} />;
     if (activeSection === "billing") {
       return billing ? (
         <BillingPanel
@@ -161,7 +165,7 @@ export default function SettingsPage() {
 
   return (
     <div className="ws-settings-page">
-      <header className="ws-page-header"><div><h1>{t("Settings")}</h1><p>{t("Manage your account, email, subscription, and AI usage.")}</p></div></header>
+      <header className="ws-page-header"><div>{returnTo && <Link className="ws-link" href={returnTo}>{t("Back to your email draft")} ↗</Link>}<h1>{t("Settings")}</h1><p>{t("Manage your account, email, subscription, and AI usage.")}</p></div></header>
       <nav className="ws-tabs ws-settings-tabs" aria-label={t("Settings")}>
         {sectionNav.map((item) => (
           <button key={item.id} type="button" aria-current={activeSection === item.id ? "page" : undefined} onClick={() => selectSection(item.id)}>{item.label}</button>

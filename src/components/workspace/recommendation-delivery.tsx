@@ -282,7 +282,7 @@ export function RecommendationDelivery({
           {(
             [
               ["link", zh ? "分享链接" : "Share link", LinkIcon],
-              ["gmail", "Email", Mail],
+              ["gmail", zh ? "邮件" : "Email", Mail],
               ["copy", zh ? "复制与下载" : "Copy & download", Copy],
             ] as const
           ).map(([key, label, Icon]) => (
@@ -421,14 +421,14 @@ export function RecommendationDelivery({
                 <Field label={zh ? "发件人" : "From"}><select value={provider} disabled={busy || mailboxes.loading} onChange={event => {providerChosen.current = true; setProvider(event.target.value as MailboxProvider); sendKey.current = null;}}>
                   {(["google", "microsoft"] as const).map(value => {const mailbox = mailboxes.data?.connections.find(c => c.provider === value); return <option key={value} value={value}>{mailbox?.email || (value === "google" ? "Gmail / Google Workspace" : "Outlook / Microsoft 365")}{mailboxes.data?.default_provider === value ? (zh ? " · 默认" : " · Default") : ""}</option>;})}
                 </select></Field>
-                <p className="ws-muted" role="status">{mailboxes.loading ? (zh ? "正在检查邮箱…" : "Checking mailboxes…") : connection.data?.connected ? (zh ? "使用此邮箱发送本封邮件，不会改变默认发件人。" : "This mailbox will send this email. Your default sender stays the same.") : connection.data?.error || (zh ? "请先连接此邮箱。草稿会在当前浏览器标签页中保留。" : "Connect this mailbox to send. Your draft stays in this browser tab.")}</p>
+                <p className="ws-muted" role="status">{mailboxes.loading ? (zh ? "正在检查邮箱…" : "Checking mailboxes…") : connection.data?.connected ? (zh ? "使用此邮箱发送本封邮件，不会改变默认发件人。" : "This mailbox will send this email. Your default sender stays the same.") : (connection.data?.error ? t(connection.data.error) : "") || (zh ? "请先连接此邮箱。草稿会在当前浏览器标签页中保留。" : "Connect this mailbox to send. Your draft stays in this browser tab.")}</p>
                 <ErrorNotice error={mailboxes.error} retry={mailboxes.refresh} />
                 {!mailboxes.loading && !connection.data?.connected && (
-                  <button type="button" className="ws-button" disabled={busy || !connection.data?.configured} onClick={() => void run(async () => {
+                  <button type="button" className="ws-button" disabled={busy || !connection.data?.configured} onClick={() => connection.data?.error && !connection.data.needs_reconnect ? mailboxes.refresh() : void run(async () => {
                     await connectMailbox(provider, !!connection.data?.granted_read && !!connection.data?.read_enabled, `/app/submissions/${document.id}#recommendation-delivery`);
-                  })}>{connection.data?.email ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : provider === "google" ? t("Connect Gmail") : "Connect Outlook"}</button>
+                  })}>{connection.data?.error && !connection.data.needs_reconnect ? (zh ? "重新检查连接" : "Check connection again") : connection.data?.email ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : provider === "google" ? t("Connect Gmail") : "Connect Outlook"}</button>
                 )}
-                <Link className="ws-link" href="/app/settings?section=email">{zh ? "管理邮箱与默认发件人" : "Manage email and default sender"}</Link>
+                <Link className="ws-link" href={`/app/settings?section=email&returnTo=${encodeURIComponent(`/app/submissions/${document.id}#recommendation-delivery`)}`}>{zh ? "管理邮箱与默认发件人" : "Manage email and default sender"}</Link>
                 <Field label={zh ? "收件人" : "Recipient"}>
                   <input
                     type="email"

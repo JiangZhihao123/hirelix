@@ -48,7 +48,7 @@ export function MailboxConnections({ callbackURL = "/app/settings?section=email"
     finally { setBusy(false); }
   }
   return <section className={compact ? "ws-mailbox-compact" : "ws-mailbox-settings"} aria-label={zh ? "邮箱连接" : "Email connections"}>
-    {!compact && <header><h2>{zh ? "邮箱" : "Email"}</h2><p>{zh ? "连接你的工作邮箱，用它发送推荐，并按需让助理查阅邮件。" : "Connect your work mailbox to send recommendations and let your assistant read mail when needed."}</p></header>}
+    {!compact && <header><h2>{zh ? "邮箱" : "Email"}</h2><p>{zh ? "连接你的工作邮箱，用它发送推荐，并按需让助理查阅邮件。" : "Connect your work mailbox to send recommendations and let your assistant read mail when needed."}</p><p className="ws-muted">{zh ? "连接后，在对话里告诉助理收件人和邮件内容，或在推荐材料的“交付推荐 → 邮件”中准备。你确认后才会发送；登录 Hirelix 并不等于已授权邮箱。" : "Once connected, tell your assistant who to email and what to say, or use Deliver recommendation → Email on a saved recommendation. You confirm each send. Signing in to Hirelix does not connect your mailbox."}</p></header>}
     {compact && <p className="ws-muted">{zh ? "以下是当前连接状态。连接后可回到这段对话继续准备邮件。" : "Live connection status. Return to this conversation after connecting to continue preparing your email."}</p>}
     <MailboxReturnNotice connections={query.data?.connections} loading={query.loading} />
     {query.loading && <p role="status">{zh ? "正在检查邮箱…" : "Checking mailboxes…"}</p>}
