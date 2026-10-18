@@ -1,7 +1,39 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { auth } from "../src/lib/auth";
-import { gmailMessage, readMailboxMessage, searchMailbox } from "../src/lib/workspace/mailbox";
+import { gmailMessage, mailboxToken, readMailboxMessage, searchMailbox } from "../src/lib/workspace/mailbox";
+
+test("mailbox access distinguishes temporary failures from missing authorization without exposing details", async (t) => {
+  const readEnabled = process.env.GMAIL_READ_ENABLED;
+  process.env.GMAIL_READ_ENABLED = "true";
+  t.after(() => { if (readEnabled === undefined) delete process.env.GMAIL_READ_ENABLED; else process.env.GMAIL_READ_ENABLED = readEnabled; });
+  let result: unknown = new TypeError("private transport detail");
+  t.mock.getter(auth, "api", () => ({ getAccessToken: async () => {
+    if (result instanceof Error || (result as {body?:unknown})?.body) throw result;
+    return result;
+  } }));
+  await assert.rejects(mailboxToken("fixture-owner", "google", "read"), (error: unknown) => {
+    assert.equal((error as {status:number}).status, 502);
+    assert.match((error as Error).message, /try again/i);
+    assert.doesNotMatch((error as Error).message, /Reconnect|private transport detail/);
+    return true;
+  });
+  for (const code of ["ACCOUNT_NOT_FOUND", "REFRESH_TOKEN_NOT_FOUND", "ACCESS_TOKEN_NOT_FOUND", "INVALID_TOKEN"]) {
+    result = {body:{code,message:"private provider detail"}};
+    await assert.rejects(mailboxToken("fixture-owner", "google", "read"), (error: unknown) => {
+      assert.equal((error as {status:number}).status,409);
+      assert.match((error as Error).message,/Reconnect Google/);
+      assert.doesNotMatch((error as Error).message,/private provider detail/);
+      return true;
+    });
+  }
+  for (const token of [{accessToken:"fixture-only",scopes:[]}, {accessToken:null,scopes:["https://www.googleapis.com/auth/gmail.readonly"]}]) {
+    result = token;
+    await assert.rejects(mailboxToken("fixture-owner", "google", "read"), /Reconnect Google/);
+  }
+  result = {accessToken:"fixture-only",scopes:["https://www.googleapis.com/auth/gmail.readonly"]};
+  assert.equal(await mailboxToken("fixture-owner", "google", "read"),"fixture-only");
+});
 
 test("unavailable Gmail search and reading explain review and alternatives before accessing the provider", async (t) => {
   const previous = process.env.GMAIL_READ_ENABLED;
