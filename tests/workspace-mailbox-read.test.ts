@@ -31,6 +31,14 @@ test("mailbox access distinguishes temporary failures from missing authorization
     result = token;
     await assert.rejects(mailboxToken("fixture-owner", "google", "read"), /Reconnect Google/);
   }
+  // The SDK combines multiple refresh failure causes under this code. Do not
+  // infer a network fault or revoked authorization from this wrapper alone.
+  result = {body:{code:"FAILED_TO_GET_ACCESS_TOKEN",message:"private provider detail"}};
+  await assert.rejects(mailboxToken("fixture-owner", "google", "read"), (error: unknown) => {
+    assert.equal((error as {status:number}).status,502);
+    assert.doesNotMatch((error as Error).message,/Reconnect|private provider detail/);
+    return true;
+  });
   result = {accessToken:"fixture-only",scopes:["https://www.googleapis.com/auth/gmail.readonly"]};
   assert.equal(await mailboxToken("fixture-owner", "google", "read"),"fixture-only");
 });

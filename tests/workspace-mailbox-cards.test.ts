@@ -8,11 +8,18 @@ import { toolResultMailbox, toolResultMailboxError } from "../src/lib/workspace/
 import { turnSnapshot, type TurnPart } from "../src/lib/workspace/turn-progress";
 import { TurnParts } from "../src/components/workspace/turn-parts";
 import { GET } from "../src/app/(product)/api/workspace/mailboxes/messages/route";
+import { mailboxReadErrorActions } from "../src/lib/workspace/mailbox-contract";
 
 Object.assign(globalThis, {React});
 type ToolPart = Extract<TurnPart, {type:"tool"}>;
 const part = (overrides: Partial<ToolPart> = {}): ToolPart => ({type:"tool",id:"fixture-call",tool:"search_mail",label:"Searching your mailbox",status:"done",...overrides});
 const render = (value: ToolPart, running = false) => renderToStaticMarkup(React.createElement(TurnParts,{parts:[value],running}));
+
+test("mailbox read error actions offer settings only for authorization failures", () => {
+  for (const status of [401,403,409]) assert.deepEqual(mailboxReadErrorActions(status),{retry:false,settings:true});
+  for (const status of [400,404,422]) assert.deepEqual(mailboxReadErrorActions(status),{retry:false,settings:false});
+  for (const status of [429,500,502,undefined]) assert.deepEqual(mailboxReadErrorActions(status),{retry:true,settings:false});
+});
 
 test("Google and Microsoft search results project bounded inspectable headers without raw provider data", () => {
   const google = toolResultMailbox("search_mail",{provider:"google",messages:[{id:"g1",subject:"Client reply",from:"client@example.test",to:"owner@example.test",date:"2026-10-18T09:00:00Z",body:"not read yet",headers:{secret:"hidden"}}],more_available:true});

@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Mail, Loader2, AlertCircle, ArrowUpRight } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import type { MailboxMessageView, MailboxProvider } from "@/lib/workspace/mailbox-contract";
+import { mailboxReadErrorActions } from "@/lib/workspace/mailbox-contract";
 import type { TurnPart } from "@/lib/workspace/turn-progress";
 import { api, ApiError, date, ErrorNotice } from "./client";
 
@@ -14,7 +15,8 @@ function MailboxMessageCard({message, provider}: {message: MailboxMessageView; p
   const [opened, setOpened] = useState(message.body !== undefined);
   const [loaded, setLoaded] = useState(message);
   const [loading, setLoading] = useState(false), [error, setError] = useState("");
-  const [canRetry, setCanRetry] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<number | undefined>();
+  const errorActions = mailboxReadErrorActions(errorStatus);
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
   async function open() {
@@ -29,7 +31,7 @@ function MailboxMessageCard({message, provider}: {message: MailboxMessageView; p
     } catch (cause) {
       if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : "Could not load this email. Try again.");
-        setCanRetry(!(cause instanceof ApiError) || cause.status >= 500 || cause.status === 429);
+        setErrorStatus(cause instanceof ApiError ? cause.status : undefined);
       }
     } finally { if (!controller.signal.aborted) setLoading(false); }
   }
@@ -49,8 +51,8 @@ function MailboxMessageCard({message, provider}: {message: MailboxMessageView; p
     </dl>
     {opened && <div id={panelId} className="ws-mail-content" aria-busy={loading}>
       {loading && <p role="status"><Loader2 size={15} className="animate-spin" />{t("Loading email…")}</p>}
-      <ErrorNotice error={error} retry={canRetry ? () => void open() : undefined} />
-      {error && !canRetry && <a className="ws-link" href="/app/settings?section=email">{t("Review email settings")}</a>}
+      <ErrorNotice error={error} retry={errorActions.retry ? () => void open() : undefined} />
+      {error && errorActions.settings && <a className="ws-link" href="/app/settings?section=email">{t("Review email settings")}</a>}
       {loaded.body !== undefined && <>
         {(loaded.mailbox_folder || loaded.mailbox_labels?.length || loaded.is_draft) && <p className="ws-muted">{[loaded.mailbox_folder, ...(loaded.mailbox_labels || []), ...(loaded.is_draft ? [t("Draft")] : [])].filter(Boolean).join(" · ")}</p>}
         {(loaded.mailbox_labels?.includes("SENT") || loaded.mailbox_folder === "Sent Items") && <p className="ws-email-notice">{t("A sent copy does not confirm recipient delivery.")}</p>}
@@ -71,7 +73,7 @@ export function MailboxResults({part, running}: {part: ToolPart; running: boolea
       {t(loading ? (part.tool === "read_mail" ? "Loading email…" : "Searching your mailbox…") : part.status === "error" ? "Email request failed." : interrupted ? "Email request interrupted. Completed results are kept." : "Mailbox results")}
     </p>
     {part.status === "error" && part.mail_error && <ErrorNotice error={part.mail_error.message} />}
-    {part.status === "error" && part.mail_error && [401,403,409].includes(part.mail_error.status) && <a className="ws-link" href="/app/settings?section=email">{t("Review email settings")}</a>}
+    {part.status === "error" && part.mail_error && mailboxReadErrorActions(part.mail_error.status).settings && <a className="ws-link" href="/app/settings?section=email">{t("Review email settings")}</a>}
     {part.mail?.messages.map(message => <MailboxMessageCard key={message.id} message={message} provider={part.mail!.provider} />)}
     {part.status === "done" && (part.mail ? !part.mail.messages.length && <p>{t("No matching emails found. Try a different sender, date or subject.")}</p> : <p>{t("This older result has no saved email cards. Ask the assistant to search again.")}</p>)}
     {part.mail?.more_available && <p className="ws-muted">{t("More matching emails are available. Narrow your search to find a specific message.")}</p>}

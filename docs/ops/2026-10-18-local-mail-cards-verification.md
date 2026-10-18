@@ -39,3 +39,12 @@ checkout 没有 `.agents/skills` 或 `.codex/skills`。当前工具清单没有 
 完成真实邮箱链路的最小剩余步骤是：恢复当前任务对现有已授权 Chrome 的 CUA/浏览器控制入口，或在独立测试浏览器由所有者正常登录现有测试账号，再通过产品可见连接状态继续验证。不得复制会话或 token，不默认扩大读取授权。
 
 原凭据诊断拒绝的原始原因、命令作用和实际所需信息保存在 `tmp/local-mail-recall-20261018/credential-diagnostic-denial.txt`。该诊断没有启动，后续未重试或换路径读取凭据。以上浏览器测试使用全新无认证上下文，不是绕过该拒绝。
+
+## 独立复核后的 P3 修正与真实登录尝试
+
+- 独立复核未发现租户隔离/内容安全阻断。修正单封读取失败入口：只有 401/403/409 显示邮箱设置；404/422 保留错误和返回列表；502/429 等可重试失败提供重试。共享的错误动作策略用于读取卡片及工具错误卡片。
+- 仅重验受影响部分：错误动作策略回归、SDK 包装错误回归各 1 项通过；类型与修改文件 ESLint 通过；真实 Chromium 合成错误交互覆盖 404、422、409、502，并逐项验证返回列表。证据 `tmp/local-mail-recall-20261018/cards-browser/p3-result.json`、`p3-errors.png`。
+- better-auth 会把多种刷新失败合并成 `FAILED_TO_GET_ACCESS_TOKEN`。当前映射 502 只表示无法核实访问，不证明根因是临时网络故障，也不能据此确认授权已撤销。没有从异常文本推断根因；提供商的刷新根因未完整区分。新增回归保证该包装码不泄露原始细节、不直接声称必须重连。
+- 本轮正常打开真实 localhost 的 Google 登录入口，并输入已有授权测试账号 `noahjiang2@gmail.com`。Google 随后在 `accounts.google.com/v3/signin/rejected` 显示“此浏览器或应用可能不安全”，未取得应用登录态。没有绕过提示、填写密码、读取凭据或复制会话。已保留本轮可见 Chromium 测试窗口，供明确接手；不要将此结果当作应用 Google OAuth 完整失败的根因判断。
+- 现有 Chrome 没有发现标准调试监听入口；未开启端口或修改配置。当前仍没有该 Chrome 的 CUA/浏览器 MCP 控制接口。最小后续步骤是接入已有获准 Chrome 控制入口，优先复用其正常会话；如需本人操作，由所有者在正常 Chrome 打开 `http://localhost:3000/app/settings?section=email`，使用 `noahjiang2@gmail.com` 正常登录。不得把浏览器会话转移到自动化上下文。
+- 真实邮箱/真实 embedding 仍未完成本轮验收；`7128d87e` 仅新增 PG + 模拟 embedding 边界测试，没有修改召回实现。生产和推送保持暂停。
