@@ -1,3 +1,4 @@
+import { mailboxProviderError, microsoftSuspendedMessage } from "./mailbox-errors";
 import { sql } from "drizzle-orm";
 import { load } from "cheerio";
 import { auth } from "@/lib/auth";
@@ -34,7 +35,10 @@ async function providerJson(url: string, token: string) {
   let response: Response;
   try { response = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.body-content-type="text"' }, signal: AbortSignal.timeout(20000), cache: "no-store" }); }
   catch { throw new WorkspaceError("The email provider could not be reached. Please try again.", 502); }
-  if (!response.ok) throw new WorkspaceError(response.status === 401 || response.status === 403 ? "Email access was declined. Reconnect the mailbox or ask its administrator to allow access." : response.status === 429 ? "The email provider is temporarily rate limiting requests. Please try later." : "The email provider could not complete this request.", [401,403,404].includes(response.status) ? response.status : 502);
+  if (!response.ok) {
+    const failure = mailboxProviderError(new URL(url).hostname === "graph.microsoft.com" ? "microsoft" : "google", response.status, await response.json().catch(() => null));
+    throw new WorkspaceError(failure.message, [401,403,404,429].includes(response.status) ? response.status : 502);
+  }
   return response.json();
 }
 export async function mailboxIdentity(provider: MailboxProvider, token: string) {
@@ -46,19 +50,29 @@ export async function mailboxIdentity(provider: MailboxProvider, token: string) 
 export async function mailboxConnection(userId: string, provider: MailboxProvider): Promise<MailboxConnection> {
   const base: MailboxConnection = {provider, configured:mailboxConfigured(provider),connected:false,can_read:false,read_enabled:mailboxReadEnabled(provider),email:null};
   if (!base.read_enabled) base.read_unavailable_reason = mailboxReadUnavailableReason(provider);
-  const [account] = await rows<{scope:string|null;available:boolean;requires_reconnect:boolean;mailboxEmail:string|null}>(sql`SELECT a.scope,a."mailboxEmail",(a."accessToken" IS NOT NULL) AS available, EXISTS(SELECT 1 FROM hirelix_private_email_deliveries e WHERE e.user_id::text=a."userId" AND coalesce(e.snapshot->>'provider','google')=${provider} AND e.updated_at>a."updatedAt" AND e.status='failed' AND e.error LIKE ${`${provider === "google" ? "Gmail" : "Microsoft"} declined sending.%`}) AS requires_reconnect FROM account a WHERE a."userId"=${userId} AND a."providerId"=${provider} ORDER BY a."updatedAt" DESC LIMIT 1`);
+  const [account] = await rows<{scope:string|null;available:boolean;last_send_error:string|null;mailboxEmail:string|null}>(sql`
+    SELECT a.scope,a."mailboxEmail",(a."accessToken" IS NOT NULL) AS available,
+      (SELECT e.error FROM hirelix_private_email_deliveries e
+       WHERE e.user_id::text=a."userId" AND coalesce(e.snapshot->>'provider','google')=${provider}
+         AND e.updated_at>a."updatedAt" ORDER BY e.updated_at DESC LIMIT 1) AS last_send_error
+    FROM account a WHERE a."userId"=${userId} AND a."providerId"=${provider}
+    ORDER BY a."updatedAt" DESC LIMIT 1`);
   base.email = account?.mailboxEmail || null;
   base.granted_read = hasMailboxScope(account?.scope,provider,"read");
   if (!base.configured || !account?.available) return base;
-  if (account.requires_reconnect) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew sending access."};
+  const denied = mailboxProviderError(provider,403,null).message;
+  const sendingWarning = [microsoftSuspendedMessage, denied].includes(account.last_send_error || "")
+    ? account.last_send_error
+    : account.last_send_error?.startsWith(`${provider === "google" ? "Gmail" : "Microsoft"} declined sending.`) ? denied : undefined;
+  if (account.last_send_error === mailboxProviderError(provider,401,null).message) return {...base,needs_reconnect:true,error:account.last_send_error};
   try {
     const token = await auth.api.getAccessToken({body:{providerId:provider,userId}});
     if (!token.accessToken) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew access."};
     const email = await mailboxIdentity(provider,token.accessToken);
     if (email !== base.email) await db.execute(sql`UPDATE account SET "mailboxEmail"=${email} WHERE "userId"=${userId} AND "providerId"=${provider}`);
-    return {...base,email,connected:hasMailboxScope(token.scopes.join(" "),provider,"send"),can_read:base.read_enabled && hasMailboxScope(token.scopes.join(" "),provider,"read")};
+    return {...base,email,...(sendingWarning ? {error:sendingWarning,needs_reconnect:false} : {}),connected:hasMailboxScope(token.scopes.join(" "),provider,"send"),can_read:base.read_enabled && hasMailboxScope(token.scopes.join(" "),provider,"read")};
   } catch (error) {
-    if (error instanceof WorkspaceError) return {...base,needs_reconnect:[401,403].includes(error.status),error:error.message};
+    if (error instanceof WorkspaceError) return {...base,needs_reconnect:error.status === 401,error:error.message};
     if (mailboxAuthorizationMissing(error)) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew access."};
     return {...base,error:"Could not verify mailbox access. Try again; reconnect if the problem persists."};
   }

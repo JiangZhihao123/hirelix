@@ -1,5 +1,9 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Microsoft has suspended this mailbox. Open Outlook and complete Microsoft's account verification before trying again. Reconnecting Hirelix alone will not remove the suspension.": "Microsoft 已暂停此邮箱。请打开 Outlook，完成微软要求的账户验证后再重试。仅重新连接 Hirelix 无法解除暂停。",
+  "Mailbox authorization has expired. Reconnect this mailbox to renew access.": "邮箱授权已过期，请重新连接邮箱以恢复访问。",
+  "The email provider denied access. Check mailbox permissions and account restrictions with your provider; reconnect only if permission needs to be granted again.": "邮箱服务商拒绝了访问。请检查邮箱权限和账户限制；只有需要重新授予权限时才重新连接。",
+  "The email provider could not complete this request. Check the recipient and attachments before trying again.": "邮箱服务商未能完成请求，请检查收件人和附件后重试。",
   "Not authorized": "当前账号无权查看此内容。",
   "Choose a PNG, JPEG or WebP screenshot up to 2 MB": "请选择不超过 2 MB 的 PNG、JPEG 或 WebP 截图。",
   "This screenshot could not be opened": "无法打开这张截图，请换一张图片。",

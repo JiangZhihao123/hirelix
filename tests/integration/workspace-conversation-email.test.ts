@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { after, before, mock, test } from "node:test";
 import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
+import { mailboxConnection } from "../../src/lib/workspace/mailbox";
+import { microsoftSuspendedMessage } from "../../src/lib/workspace/mailbox-errors";
 import { rows,json } from "../../src/lib/workspace/database";
 import { reserveConversationEmail,sendConversationEmail,gmailConnection } from "../../src/lib/workspace/gmail";
 import { cancelConversationEmail,hydrateEmailReceipts,supersedeEmailReviews } from "../../src/lib/workspace/conversation-email";
@@ -14,9 +16,16 @@ const url = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.ok(["localhost","127.0.0.1"].includes(url.hostname) && url.pathname.startsWith("/hirelix_workspace_qa_"));
 after(closeDb);
 // Provider identity is mocked; these tests prove DB state, not live OAuth.
+let microsoftRejected = true;
+let microsoftSendCount = 0;
 before(() => {
  const original = globalThis.fetch;
  mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  if (String(input) === "https://graph.microsoft.com/v1.0/me/sendMail") {
+   microsoftSendCount++;
+   return microsoftRejected ? Response.json({error:{code:"ErrorAccountSuspend",message:"private provider details"}},{status:403}) : new Response(null,{status:202});
+  }
+  if (String(input).startsWith("https://graph.microsoft.com/v1.0/me?")) return Response.json({mail:"sender@example.test"});
   if (String(input) === "https://www.googleapis.com/oauth2/v2/userinfo") return Response.json({email:"sender@example.test"});
   return original(input, init);
  });
@@ -84,7 +93,7 @@ test("real PG: a rejected authorization is reported as needing reconnection unti
  await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${accountId},${accountId},'google',${owner},'db-policy-fixture','https://www.googleapis.com/auth/gmail.send',now(),now()-interval '1 minute')`);
  assert.equal((await gmailConnection(owner)).connected,true);
  const receipt=await reserveConversationEmail(owner,snapshot,randomUUID(),"<qa@test>",async()=>{});
- await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='failed',error='Gmail declined sending. Reconnect Gmail and check that the Gmail API is enabled.' WHERE id=${receipt.receipt.id}::uuid`);
+ await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='failed',error='Mailbox authorization has expired. Reconnect this mailbox to renew access.' WHERE id=${receipt.receipt.id}::uuid`);
  assert.equal((await gmailConnection(owner)).requires_reconnect,true);
  assert.equal((await gmailConnection(owner)).connected,false);
  await db.execute(sql`UPDATE account SET "updatedAt"=now() WHERE id=${accountId}`);
@@ -188,4 +197,52 @@ test('real PG: reply identity participates in deduplication and a repeated accep
  assert.equal(other.send,true);
  assert.equal((await sendConversationEmail(owner,value,key,async()=>{throw Error('must not send again')})).status,'sent');
  await assert.rejects(sendConversationEmail(owner,{...value,reply:{...reply,message_id:'incoming-two'}},key,async()=>{}),/another email/);
+});
+
+// Provider identity remains a controlled fixture. This verifies persisted recovery state, not account recovery.
+test("real PG: suspension retains its explanation and does not lock out an authorized retry",async()=>{
+ const owner=randomUUID(),accountId=randomUUID();
+ const previousId=process.env.MICROSOFT_CLIENT_ID,previousSecret=process.env.MICROSOFT_CLIENT_SECRET;
+ process.env.MICROSOFT_CLIENT_ID ||= "qa-config"; process.env.MICROSOFT_CLIENT_SECRET ||= "qa-config";
+ try {
+  await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'QA',${owner+'@example.test'},true,now(),now())`);
+  await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${accountId},${accountId},'microsoft',${owner},'db-policy-fixture','Mail.Send User.Read',now(),now()-interval '1 minute')`);
+  const reserved=await reserveConversationEmail(owner,{...snapshot,provider:"microsoft"},randomUUID(),"<qa@test>",async()=>{});
+  await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='failed',error=${microsoftSuspendedMessage} WHERE id=${reserved.receipt.id}::uuid`);
+  const connection=await mailboxConnection(owner,"microsoft");
+  assert.equal(connection.error,microsoftSuspendedMessage);
+  assert.equal(connection.needs_reconnect,false);
+  assert.equal(connection.connected,true,"An OAuth identity is distinct from provider sending restrictions");
+  await db.execute(sql`UPDATE hirelix_private_email_deliveries SET status='sent',error=NULL,updated_at=now() WHERE id=${reserved.receipt.id}::uuid`);
+  assert.equal((await mailboxConnection(owner,"microsoft")).error,undefined);
+ } finally {
+  if(previousId===undefined) delete process.env.MICROSOFT_CLIENT_ID; else process.env.MICROSOFT_CLIENT_ID=previousId;
+  if(previousSecret===undefined) delete process.env.MICROSOFT_CLIENT_SECRET; else process.env.MICROSOFT_CLIENT_SECRET=previousSecret;
+ }
+});
+
+test("real PG with controlled HTTP: provider suspension survives send receipt and later accepted retry clears it",async()=>{
+ const owner=randomUUID(),accountId=randomUUID();
+ const previousId=process.env.MICROSOFT_CLIENT_ID,previousSecret=process.env.MICROSOFT_CLIENT_SECRET;
+ process.env.MICROSOFT_CLIENT_ID ||= "qa-config"; process.env.MICROSOFT_CLIENT_SECRET ||= "qa-config";
+ try {
+  await db.execute(sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},'QA',${owner+'@example.test'},true,now(),now())`);
+  await db.execute(sql`INSERT INTO account(id,"accountId","providerId","userId","accessToken",scope,"createdAt","updatedAt") VALUES(${accountId},${accountId},'microsoft',${owner},'db-policy-fixture','Mail.Send User.Read',now(),now()-interval '1 minute')`);
+  const key=randomUUID(),email={...snapshot,to:"qa@hirelix.online",provider:"microsoft" as const};
+  const initial=await sendConversationEmail(owner,email,key,async()=>{});
+  assert.equal(initial.status,"failed"); assert.equal(microsoftSendCount,1);
+  const [receipt]=await rows<{error:string}>(sql`SELECT error FROM hirelix_private_email_deliveries WHERE id=${initial.receipt}::uuid`);
+  assert.equal(receipt.error,microsoftSuspendedMessage);
+  assert.equal((await mailboxConnection(owner,"microsoft")).needs_reconnect,false);
+  await sendConversationEmail(owner,email,key,async()=>{});
+  assert.equal(microsoftSendCount,1,"Same request never silently retries an external send");
+  microsoftRejected=false;
+  assert.equal((await sendConversationEmail(owner,email,randomUUID(),async()=>{})).status,"sent");
+  assert.equal(microsoftSendCount,2);
+  assert.equal((await mailboxConnection(owner,"microsoft")).error,undefined);
+ } finally {
+  microsoftRejected=true;
+  if(previousId===undefined) delete process.env.MICROSOFT_CLIENT_ID; else process.env.MICROSOFT_CLIENT_ID=previousId;
+  if(previousSecret===undefined) delete process.env.MICROSOFT_CLIENT_SECRET; else process.env.MICROSOFT_CLIENT_SECRET=previousSecret;
+ }
 });

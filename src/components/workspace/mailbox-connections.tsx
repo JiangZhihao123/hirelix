@@ -3,6 +3,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { authClient } from "@/lib/auth-client";
+import { microsoftSuspendedMessage } from "@/lib/workspace/mailbox-errors";
 import { mailboxCallbackURLs, mailboxScopes, type MailboxProvider, type MailboxSettings } from "@/lib/workspace/mailbox-contract";
 import { api, useQuery, ErrorNotice } from "./client";
 
@@ -57,6 +58,7 @@ export function MailboxConnections({ callbackURL = "/app/settings?section=email"
         {c.connected && !compact && <button className="ws-link" aria-expanded={manage === c.provider} onClick={() => { setManage(manage === c.provider ? null : c.provider); setDisconnect(null); }}>{zh ? "管理" : "Manage"}</button>}
       </div>
       {c.provider === "google" && !c.read_enabled && <p className="ws-muted">{zh ? "Gmail 读取功能正在等待 Google 审核，暂未开放。目前可以发送邮件；如需分析来信，可将邮件内容粘贴到对话中，或将邮件导出为 PDF、文本文件后上传。" : "Gmail reading is awaiting Google review and is not yet available. You can send email. To analyze incoming mail, paste the email content into the conversation or upload the email exported as a PDF or text file."}</p>}
+      {c.error === microsoftSuspendedMessage && <p><a href="https://outlook.live.com/mail/" target="_blank" rel="noopener noreferrer">{zh ? "打开 Outlook 验证账户" : "Open Outlook to verify your account"}</a></p>}
       {!c.configured ? <p>{zh ? "此服务暂未配置完成。" : "This provider is not configured yet."}</p> : <div className="ws-actions">
         {!c.connected && <button className="ws-button ws-button-primary" disabled={busy || query.loading} onClick={() => c.error && !c.needs_reconnect ? query.refresh() : void run(() => onConnect ? onConnect(c.provider) : connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{c.error && !c.needs_reconnect ? (zh ? "重新检查连接" : "Check connection again") : c.needs_reconnect ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : (zh ? "连接邮箱" : "Connect mailbox")}</button>}
         {!compact && manage === c.provider && c.connected && query.data?.default_provider !== c.provider && <button className="ws-button" disabled={busy} onClick={() => void run(async () => { await api("/mailboxes", { method: "PATCH", body: JSON.stringify({ provider: c.provider }) }); setNotice(zh ? "已更新默认发件人。单封邮件仍可选择其他邮箱。" : "Default sender updated. You can still choose another mailbox for an individual email."); })}>{zh ? "设为默认发件人" : "Use as default sender"}</button>}
@@ -67,7 +69,7 @@ export function MailboxConnections({ callbackURL = "/app/settings?section=email"
         {(c.email || c.error) && <div><button className="ws-link" onClick={() => setDisconnect(disconnect === c.provider ? null : c.provider)}>{zh ? "断开邮箱…" : "Disconnect mailbox…"}</button>{disconnect === c.provider && <div className="ws-email-notice"><p>{zh ? "断开后，助理无法通过此邮箱发送或读取邮件。已保存的对话、推荐及发送记录会保留。" : "Disconnecting stops sending and reading through this mailbox. Saved conversations, recommendations and delivery records remain."}</p><button className="ws-button" disabled={busy} onClick={() => void run(async () => { await api(`/mailboxes?provider=${c.provider}`, { method: "DELETE" }); setDisconnect(null); setManage(null); })}>{zh ? "确认断开" : "Confirm disconnect"}</button><button className="ws-link" onClick={() => setDisconnect(null)}>{zh ? "取消" : "Cancel"}</button></div>}</div>}
       </div>}
       {c.error && <ErrorNotice error={c.error} />}
-      {c.error && !c.needs_reconnect && !compact && <button className="ws-link" disabled={busy} onClick={() => void run(() => connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{zh ? "仍有问题？重新连接邮箱" : "Still having trouble? Reconnect mailbox"}</button>}
+      {c.error && c.error !== microsoftSuspendedMessage && !c.needs_reconnect && !compact && <button className="ws-link" disabled={busy} onClick={() => void run(() => connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{zh ? "仍有问题？重新连接邮箱" : "Still having trouble? Reconnect mailbox"}</button>}
     </article>)}
     {compact && <button className="ws-link" onClick={() => setShowOther(!showOther)}>{zh ? (showOther ? "收起其他邮箱" : "选择其他邮箱") : (showOther ? "Hide other mailboxes" : "Choose another mailbox")}</button>}
     {notice && <p role="status">{notice}</p>}

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { mailboxProviderError } from "./mailbox-errors";
 import { mailboxConnection, mailboxToken, mailboxIdentity, readMailboxMessage } from "./mailbox";
 import { getLogger } from "@/lib/logger";
 import { db } from "@/db/client";
@@ -37,7 +38,7 @@ export type Receipt = {
 };
 export async function gmailConnection(userId: string) {
   const connection = await mailboxConnection(userId, "google");
-  return {...connection, requires_reconnect: !!connection.error};
+  return {...connection, requires_reconnect: !!connection.needs_reconnect};
 }
 export async function disconnectGmail(userId: string) {
   // Keep the Google account identity for sign-in; discard provider API credentials.
@@ -326,6 +327,7 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string,
     return { receipt: receipt.id, status: "unknown" };
   }
   if (!response.ok) {
+    const rejection = mailboxProviderError(microsoft ? "microsoft" : "google", response.status, await response.json().catch(() => null));
     gmailLogger.warn({ event: "gmail_delivery_rejected", receipt_id: receipt.id, http_status: response.status });
     // A timeout or server error can follow acceptance. Never blindly resend it.
     const status =
@@ -333,9 +335,7 @@ async function deliverGmail(receipt: Receipt, mime: Buffer, accessToken: string,
     const error =
       status === "unknown"
         ? `${providerName} did not confirm acceptance. Check Sent before trying again.`
-        : response.status === 401 || response.status === 403
-          ? `${providerName} declined sending. Reconnect the mailbox and check administrator permissions.`
-          : `${providerName} rejected this email. Check the recipient and attachments before trying again.`;
+        : rejection.message;
     await db.execute(
       sql`UPDATE hirelix_private_email_deliveries SET status=${status},error=${error},updated_at=now() WHERE id=${receipt.id}::uuid`,
     );
