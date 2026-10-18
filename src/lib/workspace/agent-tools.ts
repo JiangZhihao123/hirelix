@@ -616,7 +616,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     save_role: define(
       "save_role",
-      "Save a new client role with its original JD. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD.",
+      "Save a new client role with its original JD. Preserve the supplied JD or dictated brief faithfully in jd_text, without expanding it into an invented job description or adding typical responsibilities. Populate brief.priorities only from supplied requirements and brief.flexible only from explicit concessions; unspecified conditions are not concessions. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD.",
       z.object({
         ...authorization,
         role: roleInput.extend({ brief: agentRoleBrief }),
