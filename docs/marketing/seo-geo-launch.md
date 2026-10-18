@@ -120,3 +120,11 @@ GEO 观察应把三项分开：指定 URL 能读到新事实、品牌问题能�
 - 尚无 Search Console/Bing 展示点击数据，也没有独立 AI 平台无品牌推荐实测结果。网页搜索结果不能替代 AI 自然推荐。
 
 下一动作：获得本轮生产发布授权后发布当前已验证内容，逐项回读新指南、sitemap、结构化数据及登录路径，再通过具有权限的站长平台检查索引。此轮未操作站长平台、提交 URL、修改外部目录或建立定时任务。
+
+### 注册与流量归因审计
+
+代码检查确认 `GrowthTracker` 保存当前会话的来源，`analytics.ts` 对 AI/Bing referrer 按 hostname 判定，并优先尊重显式 campaign；已有浏览器验收覆盖 Perplexity 来源在指南、定价、登录之间保留。这个证据只证明来源传递，不证明真实新用户注册落库。
+
+`ops-conversion.ts` 将 `signup_success` 按会话去重后显示为“登录成功”；`AuthProvider.tsx` 的 Google 回调还受近期注册时间与登录开始标记约束。因此不能直接将该事件数当成全部登录、独立新增用户或有效注册。SEO/GEO 的获客验收应依次区分：来源访问、登录尝试、已确认新建用户、首个真实委托成功、后续回访。后面三项尚无本轮真实获客证据，不能由点击测试推断。
+
+待修复的可复现归因风险：`analytics.ts` 普通 Google/LinkedIn/Reddit/Hacker News/Product Hunt 来源仍对完整 referrer 使用 includes；其他域名的 URL 路径或查询包含这些名称时可能误分类。AI/Bing 已有 hostname 边界，普通来源需统一边界，并保留合法区域搜索域名支持。修复前不以这部分来源的精确计数作为 SEO 成效结论。
