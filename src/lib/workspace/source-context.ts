@@ -41,3 +41,15 @@ export function viewedSourceFromHref(href: string): ViewedSource | null {
   );
   return parsed.success ? parsed.data : null;
 }
+
+
+// A generated host is not authoritative. Resolve only an exact tool-provided
+// internal resource path; unrelated external URLs and unknown IDs stay intact.
+export function resolveWorkspaceHref(href: string, sourceLinks: readonly string[]) {
+  if (!/^https?:\/\//i.test(href)) return href;
+  let url: URL;
+  try { url = new URL(href); } catch { return href; }
+  const path = `${url.pathname}${url.search}`;
+  const source = sourceLinks.find(link => link === path && link.startsWith("/") && viewedSourceFromHref(link));
+  return source ? `${source}${url.hash}` : href;
+}

@@ -6,17 +6,19 @@ import remarkGfm from "remark-gfm";
 import { ArrowUp } from "lucide-react";
 import { suggestionLayout, assistantReplies } from "@/lib/workspace/suggestion-layout";
 import { useT } from "@/components/LanguageProvider";
-import { viewedSourceFromHref } from "@/lib/workspace/source-context";
+import { resolveWorkspaceHref, viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { assistantSegments } from "@/lib/workspace/assistant-suggestions";
 
 export function AgentText({
   content,
   className = "",
   onOpenLink,
+  sourceLinks = [],
 }: {
   content: string;
   className?: string;
   onOpenLink?: (href: string, label: string) => boolean;
+  sourceLinks?: readonly string[];
 }) {
   const t = useT();
   const linkLabel = (href: string, children: React.ReactNode) => {
@@ -29,11 +31,14 @@ export function AgentText({
       <ReactMarkdown
         remarkPlugins={suggestion ? [remarkGfm, suggestionLayout] : [remarkGfm]}
         components={{
-          a: ({ href, children }) => suggestion || href === "#assistant-reply" ? null : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
+          a: ({ href: generatedHref, children }) => {
+            const href = generatedHref && resolveWorkspaceHref(generatedHref, sourceLinks);
+            return suggestion || href === "#assistant-reply" ? null : !href || !/^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? <span>{children}</span> : (
             <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => { if (href && onOpenLink?.(href, event.currentTarget.textContent || "")) event.preventDefault(); }}>
               {linkLabel(href, children)}
             </a>
-          ),
+          );
+          },
         }}
       >
         {text}
