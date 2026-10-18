@@ -8,6 +8,7 @@ import { createPerson } from "../../src/lib/workspace/people";
 import { addRecord, updateRecord } from "../../src/lib/workspace/records";
 import { saveAgentAssessments } from "../../src/lib/workspace/assessment";
 import { publishDocument, readSharedDocument, revokeDocumentShare } from "../../src/lib/workspace/document-sharing";
+import { recordEvidence } from "../../src/lib/workspace/agent-evidence";
 import { saveRecommendationFeedback } from "../../src/lib/workspace/recommendation-feedback";
 import { updateDeliverable } from "../../src/lib/workspace/deliverables";
 import { json, rows, uuidArray } from "../../src/lib/workspace/database";
@@ -71,6 +72,10 @@ test("real PG: independent page feedback, retry deduplication, fixed copies, rev
   assert.equal((await roleDetails(owner,role.id)).deliverables[0].status, "draft");
   const replacement = await publishDocument(owner, document.id, changed.version);
   assert.equal((await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE user_id=${owner}::uuid AND details->>'recommendation_id'=${document.id}`)).length, 2);
+  const replacementFeedback = await saveRecommendationFeedback(replacement.path.split("/").at(-1)!, {...request, person_id: b.id, response: "interview", request_key: randomUUID()});
+  const [latestFeedback] = await rows<SourceRecord>(sql`SELECT * FROM hirelix_private_records WHERE id=${replacementFeedback.id}::uuid`);
+  const evidence = await recordEvidence(owner, [...feedback, latestFeedback]);
+  assert.deepEqual(evidence.saved_records.map(record => [record.person_id, record.recommendation_feedback?.recommendation_version, record.recommendation_feedback?.share_id]), [[a.id, document.version, share.id], [b.id, document.version, share.id], [b.id, changed.version, replacement.id]]);
   assert.equal(await readSharedDocument(token), null);
   await assert.rejects(() => saveRecommendationFeedback(token, {...request, request_key: randomUUID()}), /unavailable/);
   await revokeDocumentShare(owner, document.id);

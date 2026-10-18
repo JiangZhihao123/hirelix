@@ -84,6 +84,7 @@ export async function recordEvidence(userId: string, records: SourceRecord[]) {
       recommendation_feedback: record.details.recommendation_id ? {
         recommendation_id: record.details.recommendation_id,
         recommendation_version: record.details.recommendation_version ?? null,
+        share_id: record.details.share_id ?? null,
         response: record.details.response,
         source: record.details.source || "recruiter_report",
         submitted_name: record.details.submitted_name ?? null,
