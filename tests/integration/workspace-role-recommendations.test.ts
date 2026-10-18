@@ -175,7 +175,9 @@ test("real PG: Gmail link and text use one snapshot; only sent receipts count an
   );
   assert.equal(reserved.filter((r) => r.send).length, 1);
   const email = reserved[0].receipt;
-  assert.match(String(email.snapshot.content), /Original copy/);
+  assert.equal(email.snapshot.document_content, doc.content);
+  assert.doesNotMatch(String(email.snapshot.content), /Original copy/);
+  assert.match(String(email.snapshot.content), /QA Alice, QA Ben/);
   assert.ok(String(email.snapshot.content).includes(share.path));
   assert.equal(
     (await recommendations(owner, role.id)).roles[0].recommended_count,
