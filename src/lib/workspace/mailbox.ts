@@ -12,14 +12,23 @@ export function mailboxConfigured(provider: MailboxProvider) {
 export function mailboxReadEnabled(provider: MailboxProvider) {
   return process.env[provider === "google" ? "GMAIL_READ_ENABLED" : "MICROSOFT_MAIL_READ_ENABLED"] === "true";
 }
+function mailboxAuthorizationMissing(error: unknown) {
+  const code = (error as {body?:{code?:string}} | null)?.body?.code;
+  return ["ACCOUNT_NOT_FOUND", "REFRESH_TOKEN_NOT_FOUND", "ACCESS_TOKEN_NOT_FOUND", "INVALID_TOKEN"].includes(code || "");
+}
 export async function mailboxToken(userId: string, provider: MailboxProvider, capability: "read" | "send") {
   if (!mailboxConfigured(provider)) throw new WorkspaceError("This email provider has not been configured yet.", 409);
   if (capability === "read" && !mailboxReadEnabled(provider)) throw new WorkspaceError(mailboxReadUnavailableReason(provider), 409);
+  const reconnect = () => new WorkspaceError(`Reconnect ${provider === "google" ? "Google" : "Microsoft"} to grant ${capability} permission.`, 409);
+  let token: Awaited<ReturnType<typeof auth.api.getAccessToken>>;
   try {
-    const token = await auth.api.getAccessToken({ body: { providerId: provider, userId } });
-    if (!token.accessToken || !hasMailboxScope(token.scopes.join(" "), provider, capability)) throw new Error("scope");
-    return token.accessToken;
-  } catch { throw new WorkspaceError(`Reconnect ${provider === "google" ? "Google" : "Microsoft"} to grant ${capability} permission.`, 409); }
+    token = await auth.api.getAccessToken({ body: { providerId: provider, userId } });
+  } catch (error) {
+    if (mailboxAuthorizationMissing(error)) throw reconnect();
+    throw new WorkspaceError("Could not verify mailbox access. Please try again.", 502);
+  }
+  if (!token.accessToken || !hasMailboxScope(token.scopes.join(" "), provider, capability)) throw reconnect();
+  return token.accessToken;
 }
 async function providerJson(url: string, token: string) {
   let response: Response;
@@ -50,8 +59,7 @@ export async function mailboxConnection(userId: string, provider: MailboxProvide
     return {...base,email,connected:hasMailboxScope(token.scopes.join(" "),provider,"send"),can_read:base.read_enabled && hasMailboxScope(token.scopes.join(" "),provider,"read")};
   } catch (error) {
     if (error instanceof WorkspaceError) return {...base,needs_reconnect:[401,403].includes(error.status),error:error.message};
-    const code = (error as {body?:{code?:string}})?.body?.code;
-    if (["REFRESH_TOKEN_NOT_FOUND", "ACCESS_TOKEN_NOT_FOUND", "INVALID_TOKEN"].includes(code || "")) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew access."};
+    if (mailboxAuthorizationMissing(error)) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew access."};
     return {...base,error:"Could not verify mailbox access. Try again; reconnect if the problem persists."};
   }
 }
