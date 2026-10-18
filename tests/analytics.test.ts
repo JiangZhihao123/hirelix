@@ -115,3 +115,23 @@ test("AI-generated UTM domains use the same source as AI referrers", () => {
   assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ utm_source: "perplexity.ai" })).traffic_source, "perplexity");
   assert.equal(getAnalyticsContextFromParams(new URLSearchParams({ traffic_source: "partner", utm_source: "chatgpt.com" })).traffic_source, "partner");
 });
+
+test("organic referrals require a supported hostname rather than a name inside the URL", () => {
+  for (const [referrer, expected] of [
+    ["https://www.google.co.uk/search?q=agent", "google_organic"],
+    ["https://www.google.com.hk/", "google_organic"],
+    ["https://www.google.com/", "google_organic"],
+    ["https://www.linkedin.com/feed/", "linkedin"],
+    ["https://old.reddit.com/r/recruiting", "reddit"],
+    ["https://example.org/?next=https://google.com/", "referral"],
+    ["https://google.com.example.org/", "referral"],
+    ["https://fakegoogle.com/", "referral"],
+    ["https://google.invalid/", "referral"],
+    ["https://example.org/linkedin.com", "referral"],
+    ["https://reddit.com.example.org/", "referral"],
+    ["https://example.org/?from=news.ycombinator.com", "referral"],
+    ["https://notproducthunt.com/", "referral"],
+  ]) {
+    assert.equal(getAnalyticsContextFromParams(new URLSearchParams(), {}, referrer).traffic_source, expected, referrer);
+  }
+});

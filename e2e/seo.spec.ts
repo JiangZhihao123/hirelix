@@ -180,3 +180,20 @@ test("current product facts and practical feedback guide are crawlable without J
   const auth = await request.get("/auth/retry");
   expect(auth.headers()["x-robots-tag"]).toContain("noindex");
 });
+
+for (const [referrer, source] of [
+  ["https://www.google.co.uk/search?q=headhunter", "google_organic"],
+  ["https://example.org/?next=https://google.com/", "referral"],
+  ["https://reddit.com.example.org/", "referral"],
+]) {
+  test(`browser source attribution: ${referrer}`, async ({ page }) => {
+    await page.goto("/product", { referer: referrer });
+    await expect.poll(() => page.evaluate(() => {
+      const stored = sessionStorage.getItem("hirelix.growth.attribution.v1");
+      return stored ? JSON.parse(stored).traffic_source : null;
+    })).toBe(source);
+    await page.getByRole("link", { name: "Revisit candidates without starting from scratch" }).click();
+    await expect(page).toHaveURL(/candidate-rediscovery$/);
+    expect(await page.evaluate(() => JSON.parse(sessionStorage.getItem("hirelix.growth.attribution.v1") || "{}").traffic_source)).toBe(source);
+  });
+}

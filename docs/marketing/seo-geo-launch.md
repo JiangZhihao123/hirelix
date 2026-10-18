@@ -128,3 +128,9 @@ GEO 观察应把三项分开：指定 URL 能读到新事实、品牌问题能�
 `ops-conversion.ts` 将 `signup_success` 按会话去重后显示为“登录成功”；`AuthProvider.tsx` 的 Google 回调还受近期注册时间与登录开始标记约束。因此不能直接将该事件数当成全部登录、独立新增用户或有效注册。SEO/GEO 的获客验收应依次区分：来源访问、登录尝试、已确认新建用户、首个真实委托成功、后续回访。后面三项尚无本轮真实获客证据，不能由点击测试推断。
 
 待修复的可复现归因风险：`analytics.ts` 普通 Google/LinkedIn/Reddit/Hacker News/Product Hunt 来源仍对完整 referrer 使用 includes；其他域名的 URL 路径或查询包含这些名称时可能误分类。AI/Bing 已有 hostname 边界，普通来源需统一边界，并保留合法区域搜索域名支持。修复前不以这部分来源的精确计数作为 SEO 成效结论。
+
+### 来源误分类修复与验证
+
+普通来源现已统一按解析后的 hostname 及子域边界判断，查询参数、路径和相似域名中的品牌文本不再被当作搜索或社交流量。Google 区域域名使用 [Google 官方 supported_domains](https://www.google.com/supported_domains) 的本地快照（2026-10-19），保留区域域名支持，不在用户页面运行时请求该列表。显式 UTM/traffic_source 优先级保持不变；它们是提交者声明的归因，不是来源身份认证。
+
+验证：8 项 analytics 单元测试通过；ESLint 与 diff 检查通过；真实 Chrome 对 Google UK、含 Google 查询文本的其他域名、Reddit 相似域名执行 3 项浏览器回归，均通过，并确认从产品页进入指南后来源保持。浏览器测试设置 referrer 来覆盖边界，不代表已有这些真实访客，也未证明新注册或激活。未部署本次修复。
