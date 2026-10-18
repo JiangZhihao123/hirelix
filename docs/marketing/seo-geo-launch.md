@@ -109,3 +109,14 @@ GEO 观察应把三项分开：指定 URL 能读到新事实、品牌问题能�
 - 生产包在 `127.0.0.1:3200` 运行，真实 Chrome 执行 `e2e/seo.spec.ts` 与 `e2e/landing.spec.ts`：11 项通过。覆盖 10 个公开页面的元信息、结构化数据、sitemap、私有路径边界、FAQ 与正文一致性，以及内容页到定价和登录的路径。
 - Chrome 目视检查新增首页首个委托区块和反馈指南：桌面布局、阅读层级与链接正常。截图保存在本地 `output/seo-geo/first-assignment.png` 与 `output/seo-geo/candidate-feedback.png`。
 - 本轮为本地生产包验收，未推送或部署，不代表新内容已被搜索引擎收录或 AI 自然引用。
+
+### 持续目标首轮外部基线（2026-10-19）
+
+- 当前本地提交为 `0b375b16`，工作分支领先已知 origin/main 两个提交；未执行推送。
+- 实时 HTTP：首页 200，标题为 `Hirelix | Your Personal AI Agent for Headhunting`；新 `/guides/candidate-feedback` 为 404，生产 sitemap 未包含该指南。证明本地新内容尚未上线，不能开始提交该 URL 促收录。
+- 本轮网页检索查询为 `"AI assistant" "independent headhunters"` 与 `"Hirelix" "personal"`。工具合并返回结果，因此不能为单条结果归因到其中一个查询，不能据此报告无品牌排名或命中率。
+- 返回的 [Hirelix 首页](https://hirelix.online/) 搜索摘要仍使用旧标题 `AI Sourcing and Screening for Technical Recruiters`，与实时首页不同；这进一步支持优先处理部署后的索引刷新，而不是继续堆积关键词页面。
+- 品牌检索还返回其他域名的同名组织。只把 `hirelix.online` 及有明确来源的产品引用计为本产品；同名组织不计为曝光、用户或推荐证据。
+- 尚无 Search Console/Bing 展示点击数据，也没有独立 AI 平台无品牌推荐实测结果。网页搜索结果不能替代 AI 自然推荐。
+
+下一动作：获得本轮生产发布授权后发布当前已验证内容，逐项回读新指南、sitemap、结构化数据及登录路径，再通过具有权限的站长平台检查索引。此轮未操作站长平台、提交 URL、修改外部目录或建立定时任务。
