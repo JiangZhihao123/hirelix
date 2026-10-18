@@ -2996,3 +2996,25 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-mailbox-compact .ws-mailbox-account { padding:10px 0; }
 
 .ws-email-card > .ws-mailbox-compact { padding: 0 20px 12px; }
+
+/* Product support stays available without interrupting the working conversation. */
+.ws-feedback-entry { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-radius:8px; background:transparent; color:var(--ws-muted, #59635d); font:inherit; font-size:13px; cursor:pointer; text-align:left; }
+.ws-feedback-entry:hover { background:#e7ece7; color:#285542; }
+.ws-feedback-form { display:grid; gap:16px; padding:20px; }
+.ws-feedback-form p { margin:0; line-height:1.6; }
+.ws-feedback-form textarea,.ws-feedback-form select,.ws-feedback-form input { width:100%; border:1px solid #dce3dc; border-radius:8px; padding:10px; background:#fff; color:#24342b; font:inherit; }
+.ws-feedback-preview { display:block; max-width:100%; max-height:180px; border:1px solid #dce3dc; border-radius:8px; margin-bottom:8px; }
+.ws-feedback-admin-link { margin:0; padding:0 20px 20px; }
+.ws-feedback-reports { display:grid; gap:16px; }
+.ws-feedback-report { padding:20px; border:1px solid #dce3dc; border-radius:12px; background:white; }
+.ws-feedback-report:target { border-color:#285542; box-shadow:0 0 0 2px #dce8df; }
+.ws-feedback-report header { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; }
+.ws-feedback-report pre { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; line-height:1.6; }
+.ws-feedback-report select { border:1px solid #dce3dc; border-radius:6px; padding:6px; background:white; }
+
+.ws-feedback-page .ws-feedback-reports,.ws-feedback-page > .ws-actions,.ws-feedback-page > p { margin:0 32px 24px; }
+.ws-feedback-report pre { margin:16px 0; }
+.ws-feedback-report .ws-muted { margin:8px 0; font-size:12px; }
+
+.ws-feedback-form { min-height:0; overflow-y:auto; }
+.ws-feedback-admin-link { flex-shrink:0; }

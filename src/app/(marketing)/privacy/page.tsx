@@ -33,6 +33,14 @@ export default function PrivacyPage() {
                 authenticate you.
               </p>
               <p>
+                Product feedback includes the text and optional screenshot you submit, your
+                account email, the page route, product version, and submission time. It is
+                available to our support administrator, and a notification containing your
+                feedback is sent to our support mailbox. We do not automatically attach your
+                CVs, candidate records, or conversation content. Screenshots are stored privately;
+                please remove information you do not wish to share before submitting them.
+              </p>
+              <p>
                 Your private workspace can contain uploaded CVs and candidate lists, candidate
                 profiles, recruiter notes, job descriptions, client requirements and feedback,
                 conversations, source records, and generated drafts with their saved versions.

@@ -1,3 +1,4 @@
+import { notifyProductFeedback } from "@/lib/product-feedback";
 import { getLogger } from "@/lib/logger";
 import { processJob, reclaimJobs, type JobHandler } from "./jobs";
 import { prepareImport } from "./imports";
@@ -54,7 +55,7 @@ export function startWorkspaceWorker() {
   const scheduleTick = async () => {
     if (scheduling) return;
     scheduling = true;
-    try { await deliverReminders(); await queueScheduledDrafts(); }
+    try { await deliverReminders(); await queueScheduledDrafts(); await notifyProductFeedback(); }
     catch (error) { logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "Scheduled draft queue failed"); }
     finally { scheduling = false; }
   };

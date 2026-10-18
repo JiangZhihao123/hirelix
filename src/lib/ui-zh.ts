@@ -1,5 +1,10 @@
 // English UI copy is the key. Candidate data, JD text, notes and user input are never translated here.
 export const uiZh: Record<string, string> = {
+  "Not authorized": "当前账号无权查看此内容。",
+  "Choose a PNG, JPEG or WebP screenshot up to 2 MB": "请选择不超过 2 MB 的 PNG、JPEG 或 WebP 截图。",
+  "This screenshot could not be opened": "无法打开这张截图，请换一张图片。",
+  "Feedback upload is too large": "反馈附件过大，请选择不超过 2 MB 的截图。",
+  "You have sent 10 reports today. Please contact support@hirelix.online for more help.": "过去 24 小时已提交 10 条反馈，如需继续补充，请联系 support@hirelix.online。",
   "Back to your email draft": "返回正在准备的邮件",
   "Manage your account, email, subscription, and AI usage.": "管理账户、邮箱、订阅和 AI 用量。",
   "Could not verify mailbox access. Try again; reconnect if the problem persists.": "暂时无法确认邮箱连接，请先重新检查；若仍失败，再重新连接。",

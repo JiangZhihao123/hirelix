@@ -1,4 +1,5 @@
 "use client";
+import { ProductFeedbackEntry } from "./product-feedback";
 import { formatCredits } from "@/lib/agent-plan";
 
 import {
@@ -360,6 +361,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
           </section>}
         </div>
         <div className="ws-sidebar-bottom">
+          <ProductFeedbackEntry />
           <button
             type="button"
             className="ws-account-trigger"
@@ -418,7 +420,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/mail" ? t("Email activity") : t("Workspace"))}
+                : nav.find((item) => item.active)?.label || (pathname === "/app/feedback" ? (locale === "zh" ? "用户反馈" : "User feedback") : pathname === "/app/settings" ? t("Settings") : pathname === "/app/mail" ? t("Email activity") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">
