@@ -14,7 +14,7 @@ import { prepareEmailReply } from "./conversation-email";
 import { json, rows, WorkspaceError } from "./database";
 import { liveReplyWriter, LostLease, type JobHandler } from "./jobs";
 import { getLogger } from "@/lib/logger";
-import { toolResultList } from "./tool-result-view";
+import { toolResultList, toolResultMailbox, toolResultMailboxError } from "./tool-result-view";
 import { continuationSuffix, turnParts, type TurnPart } from "./turn-progress";
 import type { Message } from "./types";
 
@@ -371,10 +371,12 @@ export const assistantReply: JobHandler = async (job, progress) => {
           if (output.ok && output.result?.sources) entry.sources = output.result.sources.map(({title, href}) => ({title, href}));
         }
         if (entry?.type === "tool" && part.type === "tool-result") {
-          const output = part.output as {ok?: boolean; result?: Record<string, unknown>};
+          const output = part.output as {ok?: boolean; result?: Record<string, unknown>; error?: {code?: unknown; message?: unknown}};
+          entry.mail_error = toolResultMailboxError(part.toolName, output);
           if (output.ok && output.result) {
             const result = output.result;
             entry.list = toolResultList(part.toolName, result);
+            entry.mail = toolResultMailbox(part.toolName, result);
             // Project only display fields; never expose complete tool inputs or records.
             const record = (result.person || result.role || result.document || result.record || result) as Record<string, unknown>;
             const title = record.title || record.name;

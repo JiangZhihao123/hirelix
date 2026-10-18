@@ -2963,6 +2963,21 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-email-help, .ws-email-receipt { font-size: 12px; color: #69776f; } .ws-email-receipt { margin: 12px 20px; overflow-wrap: anywhere; }
 .ws-email-card footer { display: flex; gap: 10px; padding: 4px 20px 18px; } .ws-email-card > .ws-link { display: inline-block; font-size: 13px; }
 
+.ws-mail-results { margin: 14px 0; max-width: 720px; min-width: 0; }
+.ws-mail-results-status { display: flex; align-items: center; gap: 8px; color: var(--ws-muted); font-size: 13px; }
+.ws-mail-message > header { padding: 12px 20px; font-size: 12px; flex-wrap: wrap; }
+.ws-mail-message time { margin-left: auto; color: var(--ws-muted); }
+.ws-mail-message .ws-email-envelope > div { grid-template-columns: 116px minmax(0, 1fr); }
+.ws-mail-open { width: 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; text-align: left; padding: 16px 20px 0; cursor: pointer; }
+.ws-mail-open strong { min-width: 0; overflow-wrap: anywhere; font-size: 15px; line-height: 1.5; }
+.ws-mail-open > span { flex-shrink: 0; color: var(--ws-green); font-size: 12px; }
+.ws-mail-open:focus-visible { outline: 2px solid var(--ws-green); outline-offset: -3px; border-radius: 6px; }
+.ws-mail-content { padding: 0 20px 20px; }
+.ws-mail-content > p[role="status"] { display: flex; align-items: center; gap: 8px; }
+.ws-mail-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 440px; overflow-y: auto; font-size: 14px; line-height: 1.7; }
+.ws-mail-content > .ws-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 13px; }
+.ws-mail-content .ws-email-notice { margin: 0 0 12px; }
+
 /* One composer-anchored picker for both typed mentions and context buttons. */
 .ws-reference-picker { position:absolute; bottom:calc(100% + 8px); left:0; width:min(480px,100%); height:min(400px,60vh); display:flex; flex-direction:column; padding:12px; border:1px solid var(--ws-line); border-radius:14px; background:var(--ws-surface,#fff); box-shadow:0 8px 28px #1f47351a; z-index:20; }
 .ws-reference-picker header, .ws-reference-picker footer { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; padding:2px 4px 8px; }

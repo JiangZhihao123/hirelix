@@ -4,6 +4,7 @@ import { Check, Loader2, Minus, AlertCircle, ChevronRight, ArrowUpRight } from "
 import { AgentText } from "@/components/AgentText";
 import { useT } from "@/components/LanguageProvider";
 import { visibleTurnParts, type TurnPart } from "@/lib/workspace/turn-progress";
+import { MailboxResults } from "./mailbox-results";
 
 type ToolPart = Extract<TurnPart, {type: "tool"}>;
 
@@ -35,6 +36,7 @@ export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = []
     {groupParts(parts).map((group, index) => {
       if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText content={group.text} onOpenLink={onOpenLink} sourceLinks={[...sourceLinks, ...parts.flatMap(part => part.type === "tool" && part.href ? [part.href] : [])]} /></div>;
       const first = group.items[0];
+      if (first.tool === "search_mail" || first.tool === "read_mail") return <div key={first.id}>{group.items.map(part => <MailboxResults key={part.id} part={part} running={running} />)}</div>;
       const active = group.items.find(part => part.status === "running");
       const failed = group.items.filter(part => part.status === "error");
       const status = active || failed[0] || first;

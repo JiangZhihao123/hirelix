@@ -36,6 +36,21 @@ export const mailboxReadInput = z.object({ provider: mailboxProvider, message_id
 
 export type MailboxSettings = { connections: MailboxConnection[]; default_provider: MailboxProvider | null };
 
+export type MailboxMessageView = {
+  id: string;
+  subject: string;
+  from: string;
+  to: string;
+  date: string;
+  body?: string;
+  truncated?: boolean;
+  source_url?: string;
+  mailbox_folder?: string;
+  mailbox_labels?: string[];
+  is_draft?: boolean;
+};
+export type MailboxResultView = { provider: MailboxProvider; messages: MailboxMessageView[]; more_available: boolean };
+
 // OAuth return authorizes preparation only, never delivery or other business mutations.
 export function mailboxResumeAllowsTool(name: string, input: unknown) {
   if (name === "email") return ["status", "prepare", "none"].includes((input as {intent?:string})?.intent || "");

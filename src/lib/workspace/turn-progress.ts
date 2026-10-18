@@ -1,10 +1,11 @@
 import type { Job } from "./types";
+import type { MailboxResultView } from "./mailbox-contract";
 
 export type TurnPhase = "thinking" | "responding" | "tools" | "complete";
 
 export type TurnPart =
   | { type: "text"; text: string }
-  | { type: "tool"; id: string; tool?: string; list?: {returned: number; total?: number; has_more: boolean; items: Array<{title: string; detail?: string; href?: string}>}; inventory?: {roles?: number; candidates?: number; preferences?: number; reminders?: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error" | "interrupted"; query?: string; sources?: Array<{title: string; href: string}> };
+  | { type: "tool"; id: string; tool?: string; mail?: MailboxResultView; mail_error?: {status: number; message: string}; list?: {returned: number; total?: number; has_more: boolean; items: Array<{title: string; detail?: string; href?: string}>}; inventory?: {roles?: number; candidates?: number; preferences?: number; reminders?: number}; warning?: string; target?: string; href?: string; label: string; status: "running" | "done" | "error" | "interrupted"; query?: string; sources?: Array<{title: string; href: string}> };
 
 export function turnParts(result: Record<string, unknown> | null | undefined): TurnPart[] {
   const parts = result?.parts ?? result?.previous_parts;
