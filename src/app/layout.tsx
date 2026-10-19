@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { SITE_URL, SITE_TITLE, SITE_DESCRIPTION } from "@/lib/seo";
 import localFont from "next/font/local";
-import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { LanguageProvider } from "@/components/LanguageProvider";
@@ -44,21 +43,6 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${inter.variable} antialiased`}>
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-17R1B6K2BK"
-          strategy="afterInteractive"
-        />
-        <Script id="google-analytics" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            if (!window.location.pathname.startsWith('/ops/')) {
-              gtag('js', new Date());
-              gtag('config', 'G-17R1B6K2BK');
-              gtag('config', 'AW-16927084361');
-            }
-          `}
-        </Script>
         <AuthProvider>
           <LanguageProvider>
             <GrowthTracker />

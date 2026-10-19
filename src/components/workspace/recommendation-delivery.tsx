@@ -1,4 +1,5 @@
 "use client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import { useEffect, useRef, useState } from "react";
 import {
   Copy,
@@ -186,6 +187,7 @@ export function RecommendationDelivery({
           }),
         ]);
       } else await navigator.clipboard.writeText(value);
+      void trackGrowthEvent("document_copy",{action:rich?"rich_text":"plain_text"});
       setCopied(label);
     });
   }

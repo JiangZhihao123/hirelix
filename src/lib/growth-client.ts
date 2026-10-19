@@ -2,6 +2,11 @@
 
 type GrowthMetadataValue = string | number | boolean | null;
 
+const pending: Array<() => void> = [];
+export function flushGrowthEvents() {
+  pending.splice(0).forEach((send) => send());
+}
+
 const GOOGLE_SIGNIN_STARTED_KEY = "hirelix.growth.google_signin_started_at";
 const GOOGLE_SIGNIN_WINDOW_MS = 10 * 60 * 1000;
 
@@ -26,7 +31,29 @@ export function trackGrowthEvent(
 ) {
   if (typeof window === "undefined") return Promise.resolve(false);
   if (isOpsRoute()) return Promise.resolve(false);
-  return window.__hirelixGrowthTrack?.(eventType, metadata, options) ?? Promise.resolve(false);
+  const deliver = () => {
+    try {
+      return Promise.resolve(
+        window.__hirelixGrowthTrack?.(eventType, metadata, options) ?? false,
+      ).catch(() => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  };
+  if (window.__hirelixGrowthTrack) return deliver();
+  if (pending.length >= 20) return Promise.resolve(false);
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      const index = pending.indexOf(send);
+      if (index >= 0) pending.splice(index, 1);
+      resolve(false);
+    }, 1000);
+    const send = () => {
+      clearTimeout(timeout);
+      resolve(deliver());
+    };
+    pending.push(send);
+  });
 }
 
 export function getGrowthIdentity() {

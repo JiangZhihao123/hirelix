@@ -1,4 +1,5 @@
 "use client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 
 import { downloadDocument } from "./document-download";
 import { DocumentAttachments } from "./document-attachments";
@@ -44,6 +45,7 @@ export function DocumentPage({ id }: { id: string }) {
   return <DocumentEditor key={id} initial={query.data.deliverable} />;
 }
 function DocumentEditor({ initial }: { initial: Deliverable }) {
+  useEffect(() => { const timer=setTimeout(()=>void trackGrowthEvent("document_view", {action:"document_page"}),0); return ()=>clearTimeout(timer); }, []);
   const t = useT();
   const { locale } = useLanguage();
   const [document, setDocument] = useState(initial),
@@ -176,6 +178,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
   ) {
     try {
       await navigator.clipboard.writeText(value);
+      void trackGrowthEvent("document_copy",{action:part});
       setCopied(part);
     } catch {
       setError("Could not access the clipboard. Select and copy the text.");

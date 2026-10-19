@@ -9,7 +9,7 @@ export default function PrivacyPage() {
       eyebrow="Privacy"
       title="Privacy Policy"
       description="This policy explains what information Hirelix, a product operated by YieldMirror, collects, how we use it, which service providers help us operate the product, and how to contact us with privacy questions."
-      effectiveDate="October 3, 2026"
+      effectiveDate="October 19, 2026"
       sections={[
         {
           title: "Who operates Hirelix",
@@ -50,6 +50,10 @@ export default function PrivacyPage() {
               </p>
             </>
           ),
+        },
+        {
+          title: "Website and product analytics",
+          body: (<><p>We use first-party analytics to understand visits, referral sources, page engagement, product actions, document views and exports, and technical failures. A random browser identifier and a session identifier help count visits. We also record request IP addresses, browser user agents, and approximate country information for traffic quality and diagnostics. When you sign in, server-verified account identifiers link usage to your account so we can understand activation and return visits.</p><p>Analytics events do not include your conversation text, CV contents, candidate names, email bodies, form input values, or private sharing tokens. We use saved business records to calculate aggregate outcomes and account creation counts. Browser blocking or missing referral information can limit these measurements. Analytics access is restricted to operators.</p><p>Website and private workspace interaction events are recorded by our own service; the application does not load Google Analytics or Google Ads tracking scripts. You can ask us about your analytics data or request account deletion using the contact details below.</p></>),
         },
         {
           title: "How we use information",

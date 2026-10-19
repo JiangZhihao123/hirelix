@@ -26,7 +26,6 @@ import {
   trackEvent,
   ANALYTICS_EVENTS,
 } from "@/lib/analytics";
-import { LandingAnalytics } from "./_components/LandingAnalytics";
 import "./landing.css";
 import { BrandMark as AgentMark } from "@/components/BrandMark";
 import { AGENT_PLAN } from "@/lib/agent-plan";
@@ -151,7 +150,6 @@ export default function Home() {
 
   return (
     <div className="ha-landing">
-      <LandingAnalytics />
       <a className="ha-skip" href="#main">
         Skip to content
       </a>

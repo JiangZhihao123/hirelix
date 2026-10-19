@@ -462,6 +462,8 @@ export function trackEvent(
     void window.__hirelixGrowthTrack?.(eventName, safePayload);
   }
 
+  if (/^\/(app|auth|ops|recommendation)(\/|$)/.test(window.location.pathname)) return;
+
   if (typeof window.gtag === "function") {
     window.gtag("event", eventName, safePayload);
     return;

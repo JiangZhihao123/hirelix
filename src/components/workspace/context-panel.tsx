@@ -1,4 +1,5 @@
 "use client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import { X, ArrowUpRight } from "lucide-react";
 import { useEffect, useRef, useEffectEvent, useState } from "react";
 import { useT } from "@/components/LanguageProvider";
@@ -70,6 +71,8 @@ export function ContextPanel({ source, onClose, onTitle }: { source: { title: st
   const recordId = url.searchParams.get("record");
   const path = person ? `/people/${person}` : role ? `/roles/${role}` : documentId ? `/deliverables/${documentId}` : null;
   const query = useQuery<{ deliverable?: Deliverable; person?: Person; role?: Role; records?: SourceRecord[]; name?: string; content?: string; truncated?: boolean; preview_type?: string | null }>(path);
+  const viewedDocument=query.data?.deliverable?.id;
+  useEffect(()=>{if(viewedDocument) void trackGrowthEvent("document_view",{action:"context_panel"});},[viewedDocument]);
   const refresh = query.refresh;
   useEffect(() => {
     window.addEventListener("hirelix:work-changed", refresh);

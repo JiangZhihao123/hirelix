@@ -1,4 +1,5 @@
 "use client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/LanguageProvider";
@@ -9,6 +10,7 @@ import type { Deliverable } from "@/lib/workspace/types";
 export async function downloadDocument(document: Pick<Deliverable, "id" | "version" | "title">, format: "pdf" | "docx" | "zip") {
   const response = await fetch(format === "zip" ? `/api/workspace/deliverables/${document.id}/package?version=${document.version}` : `/api/workspace/deliverables/${document.id}/export?format=${format}&version=${document.version}`);
   if (!response.ok) {
+    void trackGrowthEvent("product_action_failed",{action:"document_export",format,status:response.status});
     const body = await response.json();
     throw new Error(body.error || "Could not export this document");
   }
@@ -17,6 +19,7 @@ export async function downloadDocument(document: Pick<Deliverable, "id" | "versi
   link.href = url;
   link.download = `${document.title}.${format}`;
   link.click();
+  void trackGrowthEvent("document_export",{format,outcome:"download_started"});
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 export function DocumentDownloads({ document, onRefresh, formats = ["pdf", "docx"] }: { document: Deliverable; onRefresh: () => void; formats?: Array<"pdf" | "docx"> }) {

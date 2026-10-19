@@ -1,6 +1,8 @@
+import { TELEMETRY_EVENTS } from "./telemetry";
 import { getEngagementThreshold, hasReachedEngagementThreshold } from "@/lib/growth-engagement";
 
 export const ALLOWED_LANDING_EVENTS = new Set([
+  ...TELEMETRY_EVENTS,
   "page_view",
   "personal_agent_cta_click",
   "session_summary",
@@ -83,7 +85,7 @@ function getMetadataText(metadata: Record<string, unknown>, key: string, maxLeng
 function isOpsPage(value: string | null) {
   if (!value) return false;
   try {
-    return new URL(value).pathname.startsWith("/ops/");
+    return /^\/ops(?:\/|$)/.test(new URL(value).pathname);
   } catch {
     return value.includes("/ops/");
   }
