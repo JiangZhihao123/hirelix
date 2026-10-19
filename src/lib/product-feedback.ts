@@ -10,20 +10,12 @@ import {
   type ProductFeedback,
 } from "./product-feedback-contract";
 import { getLogger } from "./logger";
-const logger = getLogger({ component: "product_feedback" });
-export async function feedbackAdmin(user: ApiAuthUser) {
-  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (!email || user.email?.toLowerCase() !== email) return false;
-  return !!(
-    await rows(
-      sql`SELECT id FROM "user" WHERE id=${user.id} AND lower(email)=${email} AND "emailVerified"=true`,
-    )
-  ).length;
-}
-export async function requireFeedbackAdmin(user: ApiAuthUser) {
-  if (!(await feedbackAdmin(user)))
+import { readAdminSession } from "./admin-auth";
+async function requireAdmin(token: string | undefined) {
+  if (!(await readAdminSession(token)))
     throw new WorkspaceError("Not authorized", 403);
 }
+const logger = getLogger({ component: "product_feedback" });
 export async function saveFeedback(
   user: ApiAuthUser,
   input: unknown,
@@ -92,19 +84,22 @@ export async function saveFeedback(
   });
 }
 export async function listFeedback(
-  user: ApiAuthUser,
+  token: string | undefined,
   before?: string | null,
   report?: string | null,
 ) {
-  await requireFeedbackAdmin(user);
+  await requireAdmin(token);
   const selected = report ? feedbackUpdate.shape.id.parse(report) : null;
   const cursor = before ? feedbackUpdate.shape.id.parse(before) : null;
   return rows<ProductFeedback>(
     sql`SELECT id,email,category,message,page_path,app_version,status,created_at,screenshot IS NOT NULL AS has_screenshot,notification_status,notification_attempts FROM hirelix_product_feedback WHERE (${selected}::uuid IS NULL OR id=${selected}::uuid) AND (${cursor}::uuid IS NULL OR (created_at,id)<(SELECT created_at,id FROM hirelix_product_feedback WHERE id=${cursor}::uuid)) ORDER BY created_at DESC,id DESC LIMIT 50`,
   );
 }
-export async function updateFeedback(user: ApiAuthUser, input: unknown) {
-  await requireFeedbackAdmin(user);
+export async function updateFeedback(
+  token: string | undefined,
+  input: unknown,
+) {
+  await requireAdmin(token);
   const data = feedbackUpdate.parse(input);
   const [item] = await rows(
     sql`UPDATE hirelix_product_feedback SET status=${data.status},updated_at=now() WHERE id=${data.id}::uuid RETURNING id`,
@@ -139,7 +134,7 @@ export async function notifyProductFeedback() {
         to: ["support@hirelix.online"],
         reply_to: item.email,
         subject: `[Hirelix feedback] ${item.category} · ${item.id.slice(0, 8)}`,
-        text: `From: ${item.email}\nCategory: ${item.category}\nPage: ${item.page_path}\nVersion: ${item.app_version}\n\n${item.message}\n\nView and manage feedback (including any screenshot): ${(process.env.APP_BASE_URL || "https://hirelix.online").replace(/\/$/, "")}/app/feedback?report=${item.id}\nReply to this email to contact the user.`,
+        text: `From: ${item.email}\nCategory: ${item.category}\nPage: ${item.page_path}\nVersion: ${item.app_version}\n\n${item.message}\n\nView and manage feedback (including any screenshot): ${(process.env.APP_BASE_URL || "https://hirelix.online").replace(/\/$/, "")}/admin/feedback?report=${item.id}\nReply to this email to contact the user.`,
       }),
     });
     if (!response.ok) throw new Error("Notification provider rejected request");

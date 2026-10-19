@@ -1,7 +1,7 @@
 # Product feedback
 
-Users open **Help & feedback** at the bottom of the workspace sidebar. They can
-submit text, an optional category and one PNG/JPEG/WebP screenshot up to 2 MB.
+Users open **Feedback** at the bottom of the workspace sidebar. They can
+submit text and one optional PNG/JPEG/WebP screenshot up to 2 MB.
 The receipt confirms database persistence, not email delivery or a response SLA.
 Closing the form preserves the draft within the mounted workspace; reloading
 an unsent form does not promise draft recovery.
@@ -18,13 +18,19 @@ resized to at most 2000×2000 and re-encoded as PNG without original metadata.
   to `support@hirelix.online`; `Reply-To` is the submitting user's email.
 - `APP_BASE_URL` must refer to the same environment as the feedback database.
   Use the localhost port for local verification and `https://hirelix.online` in production.
-- The server-only `ADMIN_EMAIL` identifies the single support administrator.
-  Access also requires that the authenticated account's stored email matches and
-  is verified. An unset administrator grants no access.
-- `/app/feedback` lists reports; notification links can open one report directly.
-  The administrator can view private screenshots and mark New / In progress /
-  Replied. The email-reply link opens the operator's mail client; it does not send
-  a reply or change the status. Mark Replied only after responding.
+- Management lives at `/admin/feedback`, reached from the independent `/admin` dashboard.
+  It reuses the existing administrator username/password login and database-backed
+  admin session. Product Google sessions and `ADMIN_EMAIL` never grant access.
+  See [administrator configuration](product-analytics.md).
+- Apply `supabase/migrations/20261019_admin_login.sql` before enabling the admin login.
+  No additional role table, product-user grant or deployment is required for feedback.
+- Management APIs live under `/api/admin/feedback`; screenshots require the same
+  admin session. Status changes recheck authorization and same-origin requests.
+  The old product list page and management endpoints are removed. The product
+  `POST /api/workspace/feedback` remains submission-only, with no management link.
+- The administrator can view private screenshots and mark pending / in progress /
+  replied. The email link opens the operator's mail client; it does not send a reply
+  or change status. Mark replied only after responding.
 - Ordinary users cannot list reports, retrieve screenshots or update status.
   Feedback does not consume AI credits or require a connected user mailbox.
 
@@ -49,6 +55,7 @@ report directly. Provider acceptance is labelled as such, not recipient receipt.
 - `npx tsx --test tests/product-feedback.test.ts`
 - Against an isolated local `hirelix_workspace_qa_*` database with the migration:
   `FEEDBACK_INTEGRATION=true node --env-file=.env.local --import tsx --test tests/product-feedback.integration.test.ts`
+- `node --env-file=.env.local --import tsx scripts/qa/verify-admin-feedback.ts`: real local database, HTTP and Chrome; creates a temporary admin session, verifies screenshots, status persistence, cross-origin rejection and revocation, then deletes its fixtures. This does not retest the password-entry flow.
 - Real Chrome: submit fictional text and screenshot, observe receipt, open the
   administrator list, read back screenshot, change status and reload.
 - Real notification: verify the matching subject and body in the support inbox;

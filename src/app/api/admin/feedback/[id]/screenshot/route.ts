@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
-import { workspaceApi } from "@/lib/workspace/http";
+import { adminApi } from "@/lib/admin-http";
 import { rows, WorkspaceError } from "@/lib/workspace/database";
-import { requireFeedbackAdmin } from "@/lib/product-feedback";
+
 export function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
-  return workspaceApi(req, async (user) => {
-    await requireFeedbackAdmin(user);
+  return adminApi(req, async () => {
     const id = z
       .string()
       .uuid()

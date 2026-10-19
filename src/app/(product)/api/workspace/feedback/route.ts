@@ -1,28 +1,12 @@
 import { after, NextRequest } from "next/server";
-import { workspaceApi, readBody } from "@/lib/workspace/http";
+import { workspaceApi } from "@/lib/workspace/http";
 import {
-  feedbackAdmin,
   saveFeedback,
-  listFeedback,
-  updateFeedback,
   notifyProductFeedback,
 } from "@/lib/product-feedback";
 import { WorkspaceError } from "@/lib/workspace/database";
 import { getLogger } from "@/lib/logger";
 export const runtime = "nodejs";
-export function GET(req: NextRequest) {
-  return workspaceApi(req, async (user) =>
-    req.nextUrl.searchParams.get("access") === "1"
-      ? { admin: await feedbackAdmin(user) }
-      : {
-          items: await listFeedback(
-            user,
-            req.nextUrl.searchParams.get("before"),
-            req.nextUrl.searchParams.get("report"),
-          ),
-        },
-  );
-}
 export function POST(req: NextRequest) {
   return workspaceApi(req, async (user) => {
     // Bound streamed bodies as well as declared lengths before parsing multipart.
@@ -65,9 +49,4 @@ export function POST(req: NextRequest) {
     });
     return result;
   });
-}
-export function PATCH(req: NextRequest) {
-  return workspaceApi(req, async (user) =>
-    updateFeedback(user, await readBody(req)),
-  );
 }

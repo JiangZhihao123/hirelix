@@ -56,6 +56,7 @@ export function AdminClient({ initialUsername }: { initialUsername: string }) {
       <span className="font-semibold text-emerald-900">Hirelix 管理后台</span>
       <nav aria-label="管理导航" className="flex items-center gap-5">
         <button onClick={() => setLegacy(!legacy)} className="text-slate-600">{legacy ? "流量与产品分析" : "历史运营看板"}</button>
+        <Link href="/admin/feedback" className="text-slate-600">用户反馈</Link>
         <span className="text-slate-500">{account}</span>
         <button disabled={busy} onClick={logout} className="flex items-center gap-1.5 text-slate-700"><LogOut className="h-4 w-4" aria-hidden />退出登录</button>
       </nav>

@@ -1,10 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MessageSquare, CheckCircle2, Paperclip, X } from "lucide-react";
 import { useLanguage, useT } from "@/components/LanguageProvider";
-import { api, ApiError, Dialog, useQuery } from "./client";
+import { api, ApiError, Dialog } from "./client";
 import { feedbackPagePath } from "@/lib/product-feedback-contract";
 
 export function ProductFeedbackEntry() {
@@ -22,7 +21,6 @@ export function ProductFeedbackEntry() {
   const [saved, setSaved] = useState(false);
   const [requestKey, setRequestKey] = useState("");
   const [sourcePage, setSourcePage] = useState("");
-  const access = useQuery<{ admin: boolean }>(open ? "/feedback?access=1" : null);
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
@@ -108,7 +106,6 @@ export function ProductFeedbackEntry() {
             <details>
               <summary>{zh ? "会附带哪些信息？" : "What is included?"}</summary>
               <p>{zh ? "将附带当前页面、产品版本、时间和账号邮箱，以便排查和回复。不会自动附带简历、候选人资料或对话；截图仅在你选择后上传。" : "Includes the page, product version, time and your account email so we can investigate and reply. CVs, candidate records and conversations are not attached. A screenshot is included only if you choose one."}</p>
-              {access.data?.admin && <Link className="ws-link" href="/app/feedback" onClick={() => setOpen(false)}>{zh ? "管理用户反馈" : "Manage user feedback"}</Link>}
             </details>
           </div>
           {error && <p role="alert" className="ws-error">{error}</p>}

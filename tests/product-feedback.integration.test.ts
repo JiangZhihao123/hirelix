@@ -7,8 +7,9 @@ import {
   saveFeedback,
   listFeedback,
   updateFeedback,
-  feedbackAdmin,
 } from "../src/lib/product-feedback";
+import { createAdminSession, revokeAdminSession } from "../src/lib/admin-auth";
+import { hashAdminPassword } from "../src/lib/admin-password";
 test(
   "real PG feedback: atomic deduplication, limits, screenshot validation and admin isolation",
   { skip: process.env.FEEDBACK_INTEGRATION !== "true" },
@@ -26,13 +27,21 @@ test(
       id: randomUUID(),
       email: `admin-${randomUUID()}@example.test`,
     };
-    const previous = process.env.ADMIN_EMAIL;
-    process.env.ADMIN_EMAIL = admin.email;
+    const previous = {
+      username: process.env.ADMIN_USERNAME,
+      hash: process.env.ADMIN_PASSWORD_HASH,
+    };
+    process.env.ADMIN_USERNAME = "feedback-qa";
+    process.env.ADMIN_PASSWORD_HASH = await hashAdminPassword(
+      "feedback-qa-password",
+    );
+    let token: string | undefined;
     try {
       for (const user of [owner, admin])
         await db.execute(
           sql`INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${user.id},'Feedback QA',${user.email},true,now(),now())`,
         );
+      token = await createAdminSession();
       const input = {
         request_key: randomUUID(),
         message: "Fictional feedback privacy test",
@@ -47,22 +56,17 @@ test(
         saveFeedback(owner, { ...input, message: "Changed content" }),
         /different feedback/,
       );
-      await assert.rejects(listFeedback(owner), /Not authorized/);
+      await assert.rejects(listFeedback(undefined), /Not authorized/);
       await assert.rejects(
-        updateFeedback(owner, { id: results[0].id, status: "replied" }),
+        updateFeedback(undefined, { id: results[0].id, status: "replied" }),
         /Not authorized/,
       );
-      assert.equal(
-        await feedbackAdmin({ ...owner, email: admin.email }),
-        false,
-        "a claimed email cannot bypass stored verified identity",
-      );
-      const list = await listFeedback(admin, null, results[0].id);
+      const list = await listFeedback(token, null, results[0].id);
       assert.equal(list.length, 1);
       assert.equal(list[0].notification_status, "pending");
-      await updateFeedback(admin, { id: results[0].id, status: "in_progress" });
+      await updateFeedback(token, { id: results[0].id, status: "in_progress" });
       assert.equal(
-        (await listFeedback(admin, null, results[0].id))[0].status,
+        (await listFeedback(token, null, results[0].id))[0].status,
         "in_progress",
       );
       await assert.rejects(
@@ -95,8 +99,8 @@ test(
       await db.execute(
         sql`INSERT INTO hirelix_product_feedback(user_id,request_key,email,category,message,page_path,app_version,created_at) SELECT ${admin.id},gen_random_uuid(),${admin.email},'other','Pagination fixture '||i,'/app','test',now() FROM generate_series(1,55) i`,
       );
-      const first = await listFeedback(admin);
-      const second = await listFeedback(admin, first.at(-1)!.id);
+      const first = await listFeedback(token);
+      const second = await listFeedback(token, first.at(-1)!.id);
       const fixtureIds = [...first, ...second]
         .filter((item) => item.message.startsWith("Pagination fixture "))
         .map((item) => item.id);
@@ -109,7 +113,11 @@ test(
     } finally {
       for (const user of [owner, admin])
         await db.execute(sql`DELETE FROM "user" WHERE id=${user.id}`);
-      process.env.ADMIN_EMAIL = previous;
+      await revokeAdminSession(token);
+      if (previous.username === undefined) delete process.env.ADMIN_USERNAME;
+      else process.env.ADMIN_USERNAME = previous.username;
+      if (previous.hash === undefined) delete process.env.ADMIN_PASSWORD_HASH;
+      else process.env.ADMIN_PASSWORD_HASH = previous.hash;
       await closeDb();
     }
   },
