@@ -30,3 +30,11 @@ No product code was changed or deployed during this acceptance. Findings are ope
 
 Browser PDF: `/Users/noah/Downloads/English acceptance QA — fictional candidates.pdf`.
 Screenshots and supplementary evidence: local `tmp/whole-product-audit/english-acceptance-*`.
+
+## Follow-up: local polish fixes
+
+- English counts now distinguish `1 role`, `1 send recorded`, and `1 saved material`; preparation buttons use `Prepare recommendation`, and the document page uses recommendation terminology. The real local Chrome role page confirmed one saved material and the corrected action label; the list confirmed `1 role`.
+- PDF export now omits an identical opening heading when the export title already supplies it, preserving different opening headings and later repeated headings. Reduced heading/paragraph spacing keeps the unchanged 434-word acceptance draft on two pages rather than three. Both pages were rendered and visually inspected; extracted body text matches the previous PDF after excluding titles, running headers and pagination.
+- The local authenticated recommendation page also exported a real saved document through its PDF button; the downloaded two-page file was rendered and checked. No document content, client link, email or delivery status was changed.
+- Validation: 5 PDF regression tests passed, including mixed-language content, long tables/text, page bounds, heading retention and short-section pagination; TypeScript and changed-file ESLint passed. The pagination fixture was lengthened to continue reaching the page boundary after the spacing reduction; it still asserts that the evidence section remains intact.
+- These changes are local, not deployed. The latest user clarification treats the prior mailbox verification as accepted and Gmail review as an expected availability boundary. Historical account-specific failures above are not a newly reproduced mailbox bug; no new mailbox test or configuration change was performed.

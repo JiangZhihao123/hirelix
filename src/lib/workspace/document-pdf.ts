@@ -144,9 +144,9 @@ export async function renderPdfDocument(title: string, content: string) {
     return {
       majorHeading,
       size: isTitle ? 22 : block.heading ? (majorHeading ? 16 : 12) : 11,
-      leading: isTitle ? 31 : block.heading ? (majorHeading ? 25 : 20) : 18.5,
-      before: block.heading && !isTitle ? (majorHeading ? 19 : 12) : 0,
-      after: isTitle ? 20 : block.heading ? (majorHeading ? 12 : 6) : block.marker ? 5 : 12,
+      leading: isTitle ? 28 : block.heading ? (majorHeading ? 22 : 17) : 16.5,
+      before: block.heading && !isTitle ? (majorHeading ? 14 : 8) : 0,
+      after: isTitle ? 16 : block.heading ? (majorHeading ? 8 : 4) : block.marker ? 4 : 8,
       indent: Math.min(block.indent || 0, available / 3),
       spans: block.heading || isTitle ? block.spans.map(span => ({ ...span, bold: true })) : block.spans,
     };
@@ -226,6 +226,14 @@ export async function renderPdfDocument(title: string, content: string) {
     y -= 12;
   }
   const body = blocks(parser.parse(content).children);
+  // The export already renders its title. Suppress only an identical opening
+  // heading; retain different headings and every later occurrence in the body.
+  const first = body[0];
+  const normalizedTitle = title.trim().replace(/\s+/g, " ");
+  if (first?.kind === "text" && first.heading &&
+      first.spans.map(span => span.text).join("").trim().replace(/\s+/g, " ") === normalizedTitle) {
+    body.shift();
+  }
   for (const [index, block] of body.entries()) {
     if (block.kind === "text" && block.heading) {
       // Keep a short evidence section intact. A parent heading travels with its

@@ -50,7 +50,7 @@ test("Latin-only documents avoid embedding the large CJK font", async () => {
 });
 
 test("a short evidence section stays together instead of leaving its last bullet on the next page", async () => {
-  const content = Array.from({ length: 29 }, (_, i) => `Context line ${i}`).join("  \n") +
+  const content = Array.from({ length: 35 }, (_, i) => `Context line ${i}`).join("  \n") +
     "\n\n### Evidence section\n\n- First evidence\n- Second evidence\n- Last evidence";
   const task = getDocument({ data: await renderPdfDocument("Recommendation", content), useSystemFonts: true });
   const pdf = await task.promise;
@@ -61,4 +61,21 @@ test("a short evidence section stays together instead of leaving its last bullet
     assert.ok(!first.includes("Evidence section"));
     for (const text of ["Evidence section", "First evidence", "Second evidence", "Last evidence"]) assert.ok(second.includes(text));
   } finally { await task.destroy(); }
+});
+
+test("PDF renders the title once without removing distinct or repeated body headings", async () => {
+  for (const [content, expected] of [
+    ["# Recommendation\n\nBody evidence.\n\n## Recommendation\n\nLater discussion.", 2],
+    ["# Different section\n\nBody evidence.", 1],
+  ] as const) {
+    const task = getDocument({data: await renderPdfDocument("Recommendation", content), useSystemFonts: true});
+    const pdf = await task.promise;
+    try {
+      const text = (await (await pdf.getPage(1)).getTextContent()).items.filter(item => "str" in item).map(item => item.str).join(" ");
+      assert.equal((text.match(/Recommendation/g) || []).length, expected);
+      assert.ok(text.includes("Body evidence."));
+      if (content.includes("Different section")) assert.ok(text.includes("Different section"));
+      if (content.includes("Later discussion")) assert.ok(text.includes("Later discussion"));
+    } finally { await task.destroy(); }
+  }
 });
