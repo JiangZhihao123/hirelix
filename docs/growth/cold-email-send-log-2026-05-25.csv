@@ -7,3 +7,22 @@ date,email_id,to,company,status,resend_id,error,notes
 2026-05-25T04:43:56.191Z,2026-05-25-sonny-sarna,sonny@recruityear.com,Recruit Year,sent,c7994e4a-4a38-49c9-8e0f-e53eba755c30,,
 2026-05-25T04:43:56.967Z,2026-05-25-lexi-lewtan,lexi@leopard.fyi,Leopard.FYI,sent,766ebd7d-851d-42eb-ac94-c29087d08d0c,,
 2026-05-25T04:43:57.325Z,2026-05-25-drew-koloski,drew@fonzi.ai,Fonzi AI,sent,9d6e5ee8-bbe7-42eb-9ff4-e9fc577448f8,,
+2026-08-01T15:20:07.056Z,neil_scaleability_20260730,neil@scale-ability.ai,Scale-Ability,sent,,,provider=zoho_smtp message_id=<52416f0b-3bb4-9f05-1e29-cf376810c0ac@hirelix.online>
+2026-08-01T15:20:15.715Z,steve_scalrr_20260730,steve@scalrr.com,SCALRR,sent,,,provider=zoho_smtp message_id=<93028f10-ae23-afb0-c4cc-a0b7a704bf7f@hirelix.online>
+2026-08-01T15:20:22.789Z,george_kofi_20260730,george@kofi-group.com,Kofi Group,sent,,,provider=zoho_smtp message_id=<3328375f-ab39-d338-16e3-d7b3c3eb0e2b@hirelix.online>
+2026-08-01T15:20:38.222Z,trista_sprout_20260730,trista@sproutalent.com,Sprout Talent,error,,Unexpected socket close,
+2026-08-01T15:20:45.085Z,darren_recruitslab_20260730,darren@recruitslab.com,Recruits Lab,sent,,,provider=zoho_smtp message_id=<40877062-1583-8001-1171-71a8651f6ea2@hirelix.online>
+2026-08-01T15:20:52.669Z,ron_tekrecruiter_20260730,rsmith@tekrecruiter.com,TekRecruiter,sent,,,provider=zoho_smtp message_id=<699339a2-8b96-0075-0555-95cf9dac086a@hirelix.online>
+2026-08-01T15:20:58.209Z,joe_180engineering_20260730,joe@180engineering.com,180 Engineering,sent,,,provider=zoho_smtp message_id=<79b4dae3-1c67-f02f-e453-89be3336d65a@hirelix.online>
+2026-08-01T15:21:17.968Z,trista_sprout_20260730,trista@sproutalent.com,Sprout Talent,sent,,,provider=zoho_smtp message_id=<80ebf3ee-890b-793a-f336-a2743711064b@hirelix.online>
+2026-08-01T15:46:30.363Z,matt_openselect_20260801,matt@osrecruit.com,Open Select,sent,,,provider=zoho_smtp message_id=<3a343530-a27f-2f5c-df70-2cb637c27d4c@hirelix.online>
+2026-08-01T15:46:49.153Z,marissa_siliconbeach_20260801,marissa@siliconbeachtalent.com,Silicon Beach Talent,sent,,,provider=zoho_smtp message_id=<7c977719-9f5d-3109-5495-293face8bdce@hirelix.online>
+2026-08-01T15:47:04.342Z,john_staffingscience_20260801,john@staffingscience.com,Staffing Science,sent,,,provider=zoho_smtp message_id=<4fa63f93-c314-04c0-5775-55b86784f3ac@hirelix.online>
+2026-08-01T15:47:18.867Z,lori_jenningsprosearch_20260801,lori@jenningsprosearch.com,JENNINGS ProSearch,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T15:47:25.485Z,zach_rethinkrecruit_20260801,zach@rethinkrecruit.io,Rethink Recruit,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T15:47:31.091Z,colleen_cybertalent_20260801,colleen@cybertalentsearch.com,Cyber Talent Search,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T15:47:36.087Z,jovena_clutchtalent_20260801,jovena@clutchtalent.com,Clutch Talent,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T15:47:50.446Z,jake_acceler8_20260801,jwhitcomb@acceler8talent.com,Acceler8 Talent,error,,Client network socket disconnected before secure TLS connection was established,
+2026-08-01T15:47:59.657Z,ihor_distantjob_20260801,ihor@distantjob.com,DistantJob,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T15:48:05.628Z,matt_viqu_20260801,matt.collingwood@viqu.co.uk,VIQU IT,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
+2026-08-01T16:28:32.134Z,lori_jenningsprosearch_20260801,lori@jenningsprosearch.com,JENNINGS ProSearch,error,,Message failed: 550 5.4.6 Unusual sending activity detected. Please try after sometime. <a href=https://www.zoho.com/mail/help/usage-policy.html target=_blank>Learn more.</a>,
