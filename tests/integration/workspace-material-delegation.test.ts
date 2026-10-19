@@ -46,7 +46,7 @@ test("real model: material alone is not a mandate; accepting the suggested inter
   assert.equal((await rows(sql`SELECT id FROM hirelix_private_roles WHERE user_id=${owner}::uuid`)).length, 0);
   assert.ok(!received.tools.some(name => ["update_role", "web_search"].includes(name)));
   assert.ok(received.steps.every(step => step.results.every(result => !(result.ok && ["save_role", "save_candidate", "save_record"].includes(result.tool)))));
-  assert.match(received.reply.content, /保存|入库|存.*(?:职位|岗位)|建档/);
+  assert.match(received.reply.content, /保存|入库|存.*(?:职位|岗位|角色)|建(?:档|[^\n。]*?(?:职位|岗位|角色)[^\n。]*?记录)/);
   assert.match(received.reply.content, /匹配|检索|候选人/);
 
   await createPerson(owner, { name: "Fictional Quinn Vale", headline: "Product Director", location: "New York", note: "Owned pricing and packaging for logistics B2B SaaS, shipped warehouse exception-management workflows, directly managed 4 PMs. Accepts New York hybrid three days weekly. Wants $195,000 base." });

@@ -39,7 +39,7 @@ export const assessmentOutput = z.object({
     "worth_discussing",
     "needs_more_information",
     "not_aligned",
-  ]),
+  ]).describe("Judge this candidate against the current role. Use not_aligned for evidenced conflicts with its requirements; needs_more_information when evidence of a mandatory professional experience or qualification is unconfirmed; worth_discussing when professional must-haves have supporting evidence. Keep unconfirmed practical conditions and permission explicit rather than inferring them."),
   summary: z.string(),
   strengths: z.array(observation).describe("Supported strengths. Use [] when none, never null."),
   gaps: z.array(observation).describe("Evidence gaps or mismatches. Use [] when none, never null."),
@@ -59,7 +59,7 @@ export const savedAssessmentsInput = z.object({
     person_id: idSchema,
     expected_person_version: z.number().int().positive(),
     expected_relationship_version: z.number().int().positive().nullable(),
-    source_records: z.array(z.object({id: idSchema, version: z.number().int().positive()})).max(100),
+    source_records: z.array(z.object({id: idSchema, version: z.number().int().positive()})).max(100).describe("Observed saved source-record IDs and versions for this candidate and role. Message IDs, profile IDs and role IDs are not source-record IDs."),
     assessment: assessmentOutput,
   })).min(1).max(30),
 });

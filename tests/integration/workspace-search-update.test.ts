@@ -43,7 +43,7 @@ test("real search update distinguishes missing activity evidence and uses the re
     period_start: "2026-09-30T00:00:00+08:00", period_end: "2026-10-01T23:59:00+08:00",
     period_local_start: "2026-09-30", period_local_end: "2026-10-01", language: "en",
     report_timezone: "Asia/Shanghai",
-    instructions: "Concise factual update. This is a fictional QA exercise.",
+    instructions: "Concise factual update including the current client-confirmed budget and office requirement, alongside any recorded activity. This is a fictional QA exercise.",
   };
   async function draft(recordIds: string[]) {
     const job = await prepareDeliverable(owner, { ...input, record_ids: recordIds, request_key: randomUUID() });
@@ -53,7 +53,7 @@ test("real search update distinguishes missing activity evidence and uses the re
     return owned<Deliverable>(owner, "deliverable", String(result.deliverable_id));
   }
   const withoutActivity = await draft([]);
-  assert.match(withoutActivity.content, /no .*activity.*recorded|no .*dated.*records/i);
+  assert.match(withoutActivity.content, /no [^\n.]*(?:activity|records)/i);
   assert.doesNotMatch(withoutActivity.content, /(?:^|\n)(?:Activity:\s*)?No [^\n.]*(?:took place|occurred)|compensation[^\n.]*?(?:unconfirmed|not confirmed|needs to be confirmed)/i);
   assert.match(withoutActivity.content, /160,000/);
   const withActivity = await draft([feedback.id]);

@@ -317,16 +317,9 @@ export const assistantReply: JobHandler = async (job, progress) => {
           inputRepairs.push({ tool: toolCall.toolName, repaired });
         }
       },
-      prepareStep: async ({ stepNumber }) => {
+      prepareStep: async () => {
         stepStarted = Date.now();
-        // Queued follow-ups must not change which message started the conversation.
-        // Resumes and retries may already have performed model/tool work.
-        const firstConversationCall = stepNumber === 0 &&
-          details.messages.find(message => message.role === "user" && message.metadata.delivery !== "removed")?.id === question.id &&
-          !job.payload.resuming && !job.payload.continuation_job_id &&
-          job.attempts === 1 && !persisted.result?.agent_steps &&
-          !persisted.result?.tool_receipts;
-        return { providerOptions: agentProviderOptions(firstConversationCall) };
+        return {};
       },
       onStepFinish: async (step) => {
         trace.push({
