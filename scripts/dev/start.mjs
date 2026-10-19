@@ -1,9 +1,13 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { watchFile, unwatchFile } from 'node:fs';
-import dotenv from 'dotenv';
+import nextEnv from '@next/env';
 
-dotenv.config({ path: ['.env.local', '.env'], quiet: true });
+// Use the same precedence and variable expansion as Next.js. Inherited settings
+// (for example an explicitly selected QA database) always take precedence.
+process.env.NODE_ENV ??= 'development';
+const { loadEnvConfig } = nextEnv;
+loadEnvConfig(process.cwd(), true);
 const dbUrl = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL) : null;
 const needsTunnel = dbUrl && ['localhost', '127.0.0.1'].includes(dbUrl.hostname) && dbUrl.port === '15432';
 let tunnel;
@@ -11,8 +15,8 @@ let next;
 let worker;
 let retry;
 let stopping = false;
-let restartingWorker = false;
-const envFiles = ['.env.local', '.env'];
+let restarting = false;
+const envFiles = ['.env.development.local', '.env.local', '.env.development', '.env'];
 
 function portReady() {
   return new Promise(resolve => {
@@ -73,31 +77,39 @@ if (needsTunnel && !(await portReady())) {
   monitor.unref();
 }
 
-function startWorker() {
-  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--tsconfig', 'scheduler/tsconfig.json', 'scripts/dev/worker.mjs'], {
-    stdio: 'inherit',
-    env: { ...process.env, SEARCH_JOB_SCHEDULER_ENABLED: 'false' },
+function childClosed(kind, code) {
+  if (kind === 'worker') worker = undefined;
+  else next = undefined;
+  if (stopping) return;
+  if (!restarting) return stop(code || 1);
+  // Wait for both old processes to release their ports and database pools.
+  if (!worker && !next) {
+    restarting = false;
+    startProcesses();
+  }
+}
+
+function startProcesses() {
+  const env = { ...loadEnvConfig(process.cwd(), true, undefined, true).combinedEnv,
+    SEARCH_JOB_SCHEDULER_ENABLED: 'false' };
+  worker = spawn(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'watch', '--tsconfig', 'scheduler/tsconfig.json', 'scheduler/index.ts'], {
+    stdio: 'inherit', env,
   });
   worker.on('error', error => { console.error('[dev] Agent worker could not start:', error.message); stop(1); });
-  worker.once('close', code => {
-    if (stopping) return;
-    if (restartingWorker) {
-      restartingWorker = false;
-      startWorker();
-    } else stop(code || 1);
-  });
+  worker.once('close', code => childClosed('worker', code));
+  next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', ...process.argv.slice(2)], { stdio: 'inherit', env });
+  next.on('error', error => { console.error('[dev] Next.js could not start:', error.message); stop(1); });
+  next.once('close', code => childClosed('web', code));
 }
 
 if (!stopping) {
-  startWorker();
+  startProcesses();
   // tsx ignores dotfiles even with --include; explicitly watch local env files.
   envFiles.forEach(file => watchFile(file, { interval: 500 }, (current, previous) => {
-    if (stopping || restartingWorker || current.mtimeMs === previous.mtimeMs) return;
-    console.info('[dev] Environment changed; restarting Agent worker');
-    restartingWorker = true;
+    if (stopping || restarting || current.mtimeMs === previous.mtimeMs) return;
+    console.info('[dev] Environment changed; restarting web and Agent worker');
+    restarting = true;
     worker?.kill('SIGTERM');
+    next?.kill('SIGTERM');
   }));
-  next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', ...process.argv.slice(2)], { stdio: 'inherit' });
-  next.on('error', error => { console.error('[dev] Next.js could not start:', error.message); stop(1); });
-  next.once('close', code => stop(code ?? 1));
 }
