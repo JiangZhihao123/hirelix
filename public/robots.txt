@@ -4,6 +4,7 @@ Disallow: /app$
 Disallow: /app/
 Disallow: /auth/
 Disallow: /api/
+Disallow: /admin
 Disallow: /ops/
 Disallow: /recommendation/
 Disallow: /share/

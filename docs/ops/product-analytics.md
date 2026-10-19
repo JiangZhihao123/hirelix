@@ -1,12 +1,16 @@
 # 网站流量与产品使用分析
 
-更新：2026-10-19。状态：实现与本地验收；本轮尚未发布生产。
+更新：2026-10-19。第一方分析已于 `854d4dcb` 发布并通过生产复验；本次管理员登录变更的发布状态以部署记录为准。
 
 ## 入口与访问
 
-运营查看页为 `/ops/ceo`。输入服务端 `OPS_DASHBOARD_SECRET` 后，通过 Authorization 请求 `/api/ops/analytics`；凭据不写入 localStorage、不进入请求 URL。已有 hash 入口继续兼容。错误凭据返回 404，页面有切换凭据入口。生产要求至少 32 字符的随机凭据。页面 noindex、no-referrer，接口 no-store。普通产品菜单不暴露全站数据。
+运营入口为 `/admin`，使用服务端配置的 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD_HASH` 登录。密码哈希格式为 `scrypt:<32 位十六进制盐>:<128 位十六进制派生密钥>`，N=16384、r=8、p=1；不要将明文密码写入 Git、前端环境变量或日志。
 
-默认显示新看板，可切换历史运营看板。历史数据仍保留在原表中，新页面的浏览器统计只使用 telemetry_version=2，避免旧首页重复采集与不同口径混用。
+登录后发放随机会话 token，数据库只保存 SHA-256 摘要；有效期 8 小时，生产 Cookie 为 `__Host-hirelix-admin`，启用 Secure、HttpOnly、SameSite=Strict、Path=/。退出在服务端删除会话；过期、修改用户名或密码哈希后，原会话立即无效。无自动续期。所有登录和退出写请求校验同源 Origin。
+
+独立 PostgreSQL 表保存会话和登录尝试窗口，避免 serverless 实例间限流失效。每个可信来源 15 分钟最多 8 次登录尝试，全局最多 60 次，超限返回 429 和 Retry-After。Vercel 使用平台覆盖的 x-vercel-forwarded-for；非 Vercel 环境共用 local 限流桶。此处的管理员身份与产品 Google 登录账号分离，不给普通产品账号授予管理员权限。
+
+`/api/ops/analytics` 和历史 `/api/ops/conversion` 均要求管理员会话；未登录返回 404，分析响应 no-store。旧 `/ops/ceo` 和 `/ops/[secret]` 跳转 `/admin`，旧 Bearer/hash 不再授予看板权限。`OPS_DASHBOARD_SECRET` 仅保留给原有邮件事件写入端点，不用于管理员登录。管理员页 noindex、no-referrer，不进入 sitemap，也不采集流量。登录后可切换历史运营看板，原始数据保持不变。
 
 ## 五个查看视图
 
@@ -78,12 +82,17 @@ SQL/HTTP 合约脚本只接受 loopback QA/test 库，应用索引；生成并�
 
 真实 Chrome 已走首页→指南→产品→推荐材料，登录身份由服务端关联，文档查看/复制/PDF 下载事件有数据库回读；实际 PDF 已下载到本机。Chrome 自动化不 mock 采集端点，通过真实分析 API 回读验证恰好两次页面浏览、来源延续、运营页面不自计流量、全部视图、导出及无效凭据提示。看板截图和 JSON 验收文件位于 `output/analytics/`，均为本地 QA 数据。
 
-## 发布步骤
+## 管理员登录验证与发布
 
-本轮不自动发布。确认后：
+先在隔离 QA 库应用 `supabase/migrations/20261019_admin_login.sql`，配置 `.env.local` 的 `ADMIN_USERNAME`、`ADMIN_PASSWORD_HASH`；自动验收另从忽略文件中读取 `ADMIN_TEST_PASSWORD`，该变量不配置到生产。
 
-1. 检查生产 `OPS_DASHBOARD_SECRET` 长度至少 32，配置明确的内部账号 ID/email；不要把值输出到日志或提交 Git。环境变量在 Vercel 服务端配置，本地配置不证明线上配置。
-2. 将 `supabase/migrations/20261019_product_analytics_indexes.sql` 应用于生产；只新增现有表索引，无历史数据重写。大表应在维护窗口评估建索引锁影响。
-3. 合并、推送、确认 Vercel 与 worker 的部署 SHA 一致；虽未改 worker 执行逻辑，仍按项目正常发布检查。
-4. 真 Chrome 访问公开页和已登录产品，核对脱敏事件入库、默认排除内部账号、运营权限、来源筛选与成果使用计数。
-5. 生产未配置内部账号时，看板明确告警，不把 QA 计数称为真实客户。
+```bash
+npx tsx --test tests/admin-auth.test.ts
+npx dotenv -e .env.local -- npx tsx scripts/qa/verify-admin-login.ts
+npx dotenv -e .env.local -- npx tsx scripts/qa/verify-product-analytics.ts
+PLAYWRIGHT_BASE_URL=http://localhost:3000 PLAYWRIGHT_REUSE_SERVER=1 PLAYWRIGHT_CHANNEL=chrome npx dotenv -e .env.local -- npx playwright test e2e/product-analytics.spec.ts --project=chromium --workers=1
+```
+
+真实 SQL/HTTP 验证错误密码、跨源登录与退出、无登录访问、旧密钥不再授权、Cookie 属性、会话摘要、退出后 token 重放、过期和凭据轮换撤销，以及并发限流。浏览器验证登录、刷新保持登录、旧入口跳转、分析筛选导出和退出。本轮本地真实 SQL/HTTP、Chrome 流程均通过；全量单测 486 通过 / 9 跳过，TypeScript、ESLint 和生产构建通过。
+
+生产发布前先应用管理员表迁移，再将用户名与密码哈希配置到 Vercel 服务端。发布后以真实浏览器验证登录、刷新、默认内部排除、退出和未登录 API，确认前端和 worker 的 SHA。不要把明文密码或会话 token 写入验收记录。

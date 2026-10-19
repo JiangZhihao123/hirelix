@@ -53,7 +53,7 @@ function Table({
     </section>
   );
 }
-export function ProductAnalyticsDashboard({ secret }: { secret: string }) {
+export function ProductAnalyticsDashboard() {
   const [days, setDays] = useState("7"),
     [timezone, setTimezone] = useState("Asia/Shanghai"),
     [source, setSource] = useState("all"),
@@ -87,11 +87,12 @@ export function ProductAnalyticsDashboard({ secret }: { secret: string }) {
       internal: internal ? "1" : "0",
     });
     fetch(`/api/ops/analytics?${params}`, {
-      headers: { Authorization: `Bearer ${secret}` },
+      credentials: "same-origin",
       cache: "no-store",
       signal: controller.signal,
     })
       .then(async (r) => {
+        if (r.status === 404) { window.location.assign("/admin"); throw Error("登录已过期，请重新登录"); }
         if (!r.ok)
           throw Error(
             r.status === 404 ? "访问凭据无效" : "数据加载失败，请重试",
@@ -108,7 +109,7 @@ export function ProductAnalyticsDashboard({ secret }: { secret: string }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [secret, applied, revision]);
+  }, [applied, revision]);
   const exportData = () => {
     if (!data) return;
     const blob = new Blob([JSON.stringify(data, null, 2)], {

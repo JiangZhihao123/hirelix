@@ -4,15 +4,11 @@ import {
   parseAnalyticsFilters,
 } from "@/lib/product-analytics";
 import { getLogger } from "@/lib/logger";
+import { adminRequestAuthorized } from "@/lib/admin-auth";
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
-  const secret = process.env.OPS_DASHBOARD_SECRET;
-  if (
-    !secret ||
-    (process.env.NODE_ENV === "production" && secret.length < 32) ||
-    req.headers.get("authorization") !== `Bearer ${secret}`
-  )
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!await adminRequestAuthorized(req))
+    return NextResponse.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
   let filters;
   try {
     filters = parseAnalyticsFilters(req.nextUrl.searchParams);

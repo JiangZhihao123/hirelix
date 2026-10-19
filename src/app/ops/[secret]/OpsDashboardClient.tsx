@@ -31,7 +31,7 @@ const ranges: Array<{ key: OpsRange; label: string }> = [
 
 const numberFormatter = new Intl.NumberFormat("zh-CN");
 
-export function OpsDashboardClient({ secret }: { secret: string }) {
+export function OpsDashboardClient() {
   const [range, setRange] = useState<OpsRange>("today");
   const [data, setData] = useState<OpsConversionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,9 +45,10 @@ export function OpsDashboardClient({ secret }: { secret: string }) {
         `/api/ops/conversion?range=${selectedRange}`,
         {
           cache: "no-store",
-          headers: { Authorization: `Bearer ${secret}` },
+          credentials: "same-origin",
         },
       );
+      if (response.status === 404) { window.location.assign("/admin"); return; }
       if (!response.ok) throw new Error("看板数据加载失败");
       setData((await response.json()) as OpsConversionData);
     } catch (err) {

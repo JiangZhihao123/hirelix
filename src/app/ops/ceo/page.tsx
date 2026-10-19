@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { CeoDashboardAccessClient } from "./CeoDashboardAccessClient";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function CeoDashboardPage() {
-  return <CeoDashboardAccessClient />;
+  redirect("/admin");
 }

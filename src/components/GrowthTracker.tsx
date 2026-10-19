@@ -30,6 +30,7 @@ export function GrowthTracker() {
     if (
       !pathname ||
       pathname.startsWith("/ops") ||
+      pathname.startsWith("/admin") ||
       pathname.startsWith("/recommendation/")
     )
       return;

@@ -1,3 +1,4 @@
+import { adminRequestAuthorized } from "@/lib/admin-auth";
 import { and, desc, gte, lt, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -21,13 +22,6 @@ import {
 } from "@/lib/ops-conversion";
 
 export const dynamic = "force-dynamic";
-
-function isAuthorized(req: NextRequest) {
-  const secret = process.env.OPS_DASHBOARD_SECRET;
-  if (!secret) return false;
-  const authorization = req.headers.get("authorization");
-  return authorization === `Bearer ${secret}`;
-}
 
 type IpWhoResponse = {
   success?: boolean;
@@ -488,7 +482,7 @@ async function getOperationsSnapshot(
 }
 
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!await adminRequestAuthorized(req)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -537,5 +531,5 @@ export async function GET(req: NextRequest) {
     operations,
   });
 
-  return NextResponse.json(data);
+  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }

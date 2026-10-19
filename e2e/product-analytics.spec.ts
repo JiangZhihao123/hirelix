@@ -9,13 +9,17 @@ test("real local collector records public navigation once, strips query data, an
     !baseURL || !["localhost", "127.0.0.1"].includes(new URL(baseURL).hostname),
     "Only run against isolated local QA",
   );
-  const secret = process.env.OPS_DASHBOARD_SECRET;
-  test.skip(!secret, "Local operator credential required");
+  const password = process.env.ADMIN_TEST_PASSWORD;
+  test.skip(!password, "Local admin credential required");
+  const login = await request.post("/api/admin/session", {
+    headers: { Origin: baseURL! },
+    data: { username: process.env.ADMIN_USERNAME, password },
+  });
+  expect(login.status()).toBe(200);
   const source = `browser_analytics_${Date.now()}`;
   const read = async () => {
     const response = await request.get(
       `/api/ops/analytics?internal=1&source=${source}`,
-      { headers: { Authorization: `Bearer ${secret}` } },
     );
     expect(response.status()).toBe(200);
     return response.json();
@@ -37,11 +41,16 @@ test("real local collector records public navigation once, strips query data, an
     saved.recent.some((event: { route: string }) => event.route.includes("?")),
   ).toBe(false);
   await page.goto("/ops/ceo");
-  await page.getByLabel("访问凭据", { exact: true }).fill(secret!);
-  await page.getByRole("button", { name: "打开看板", exact: true }).click();
+  await page.getByLabel("用户名", { exact: true }).fill(process.env.ADMIN_USERNAME!);
+  await page.getByLabel("密码", { exact: true }).fill(password!);
+  await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "网站流量与产品使用", exact: true }),
   ).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "网站流量与产品使用", exact: true })).toBeVisible();
+  const session = await page.request.get("/api/admin/session");
+  expect(session.status()).toBe(200);
   await page.getByLabel("包含内部 / 本地测试", { exact: true }).check();
   await page.getByLabel("来源", { exact: true }).fill(source);
   await page.getByRole("button", { name: "应用筛选", exact: true }).click();
@@ -75,12 +84,10 @@ test("real local collector records public navigation once, strips query data, an
   await page.getByRole("button", { name: "导出当前数据", exact: true }).click();
   const download = await downloadPromise;
   await download.saveAs("output/analytics/dashboard-export.json");
-  await page.getByRole("button", { name: "切换访问凭据", exact: true }).click();
-  await page
-    .getByLabel("访问凭据", { exact: true })
-    .fill("invalid-operator-credential");
-  await page.getByRole("button", { name: "打开看板", exact: true }).click();
-  await expect(
-    page.getByRole("alert").filter({ hasText: "访问凭据无效" }),
-  ).toHaveText("访问凭据无效");
+  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "管理员登录" })).toBeVisible();
+  await page.getByLabel("用户名", { exact: true }).fill(process.env.ADMIN_USERNAME!);
+  await page.getByLabel("密码", { exact: true }).fill("invalid-test-password");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "用户名或密码错误" })).toHaveText("用户名或密码错误");
 });

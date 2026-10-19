@@ -111,11 +111,15 @@ async function main() {
       page: "/not-visited",
     });
     assert.equal(unrelated.traffic.page_views, 0);
-    const auth = process.env.OPS_DASHBOARD_SECRET!;
-    assert.ok(auth);
+    const login = await fetch(base + "/api/admin/session", {
+      method: "POST", headers: { Origin: base, "Content-Type": "application/json" },
+      body: JSON.stringify({ username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_TEST_PASSWORD }),
+    });
+    assert.equal(login.status, 200);
+    const auth = login.headers.get("set-cookie")!.split(";")[0];
     const response = await fetch(
       base + "/api/ops/analytics?internal=1&source=" + source,
-      { headers: { Authorization: `Bearer ${auth}` } },
+      { headers: { Cookie: auth } },
     );
     assert.equal(response.status, 200);
     assert.equal((await response.json()).traffic.page_views, 1);
