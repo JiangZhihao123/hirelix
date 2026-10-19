@@ -12,7 +12,7 @@ export const agentSkills = [
   {
     name: "recruiting-records",
     description:
-      "Professional methods for recruiting evidence, role-specific candidate comparison, decision briefings, retained assessments and dated communications.",
+      "Professional methods for candidate intake from profile links and supplied material, recruiting evidence, role-specific candidate comparison, decision briefings, retained assessments and dated communications.",
   },
   {
     name: "client-delivery",
