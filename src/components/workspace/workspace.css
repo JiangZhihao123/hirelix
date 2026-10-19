@@ -3015,11 +3015,22 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 /* Product support stays available without interrupting the working conversation. */
 .ws-feedback-entry { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-radius:8px; background:transparent; color:var(--ws-muted, #59635d); font:inherit; font-size:13px; cursor:pointer; text-align:left; }
 .ws-feedback-entry:hover { background:#e7ece7; color:#285542; }
-.ws-feedback-form { display:grid; gap:16px; padding:20px; }
-.ws-feedback-form p { margin:0; line-height:1.6; }
-.ws-feedback-form textarea,.ws-feedback-form select,.ws-feedback-form input { width:100%; border:1px solid #dce3dc; border-radius:8px; padding:10px; background:#fff; color:#24342b; font:inherit; }
-.ws-feedback-preview { display:block; max-width:100%; max-height:180px; border:1px solid #dce3dc; border-radius:8px; margin-bottom:8px; }
-.ws-feedback-admin-link { margin:0; padding:0 20px 20px; }
+.ws-dialog:has(.ws-feedback-form), .ws-dialog:has(.ws-feedback-success) { width:min(480px, calc(100vw - 32px)); }
+.ws-feedback-form { display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+.ws-feedback-body { display:grid; gap:14px; padding:20px 24px; overflow-y:auto; min-height:0; }
+.ws-feedback-body textarea { width:100%; min-height:112px; resize:vertical; border:1px solid #dce3dc; border-radius:8px; padding:12px; background:white; color:#24342b; font:inherit; }
+.ws-feedback-body p { margin:0; }
+.ws-feedback-attach { display:flex; flex-wrap:wrap; align-items:center; gap:6px; justify-self:start; border:0; padding:0; background:transparent; color:#285542; font:inherit; font-size:13px; cursor:pointer; }
+.ws-feedback-attach span { color:var(--ws-muted); font-size:11px; }
+.ws-feedback-attachment { display:flex; align-items:center; gap:10px; min-width:0; }
+.ws-feedback-attachment img { width:56px; height:44px; object-fit:contain; border:1px solid var(--ws-line); border-radius:6px; }
+.ws-feedback-attachment span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+.ws-feedback-privacy { color:var(--ws-muted); font-size:12px; line-height:1.6; }
+.ws-feedback-privacy summary { cursor:pointer; width:fit-content; margin-top:3px; }
+.ws-feedback-privacy details p { margin-top:8px; }
+.ws-feedback-footer { display:flex; justify-content:flex-end; flex-shrink:0; border-top:1px solid var(--ws-line); padding:12px 24px; background:white; }
+.ws-feedback-success { display:grid; justify-items:center; gap:16px; padding:28px 24px; overflow-y:auto; text-align:center; }
+.ws-feedback-success p { margin:0; }
 .ws-feedback-reports { display:grid; gap:16px; }
 .ws-feedback-report { padding:20px; border:1px solid #dce3dc; border-radius:12px; background:white; }
 .ws-feedback-report:target { border-color:#285542; box-shadow:0 0 0 2px #dce8df; }
@@ -3030,6 +3041,3 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-feedback-page .ws-feedback-reports,.ws-feedback-page > .ws-actions,.ws-feedback-page > p { margin:0 32px 24px; }
 .ws-feedback-report pre { margin:16px 0; }
 .ws-feedback-report .ws-muted { margin:8px 0; font-size:12px; }
-
-.ws-feedback-form { min-height:0; overflow-y:auto; }
-.ws-feedback-admin-link { flex-shrink:0; }

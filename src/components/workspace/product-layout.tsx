@@ -393,6 +393,9 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             )}
           </nav>
             <nav className="ws-nav">
+              <a href="mailto:support@hirelix.online" onClick={() => accountMenuRef.current?.hidePopover()}>
+                <MessageSquare size={16} />{locale === "zh" ? "帮助与支持" : "Help & support"}
+              </a>
               <Link href="/app/settings?section=account" onClick={() => { accountMenuRef.current?.hidePopover(); navigate(); }}>
                 <Settings size={16} />{t("Settings")}
               </Link>
