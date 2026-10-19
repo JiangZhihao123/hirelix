@@ -10,7 +10,7 @@
 
 独立 PostgreSQL 表保存会话和登录尝试窗口，避免 serverless 实例间限流失效。每个可信来源 15 分钟最多 8 次登录尝试，全局最多 60 次，超限返回 429 和 Retry-After。Vercel 使用平台覆盖的 x-vercel-forwarded-for；非 Vercel 环境共用 local 限流桶。此处的管理员身份与产品 Google 登录账号分离，不给普通产品账号授予管理员权限。
 
-`/api/ops/analytics` 和历史 `/api/ops/conversion` 均要求管理员会话；未登录返回 404，分析响应 no-store。旧 `/ops/ceo` 和 `/ops/[secret]` 跳转 `/admin`，旧 Bearer/hash 不再授予看板权限。`OPS_DASHBOARD_SECRET` 仅保留给原有邮件事件写入端点，不用于管理员登录。管理员页 noindex、no-referrer，不进入 sitemap，也不采集流量。登录后可切换历史运营看板，原始数据保持不变。
+`/api/ops/analytics` 要求独立管理员会话；未登录返回 404，分析响应 no-store。旧运营看板、专属 conversion API、旧 /ops 页面及跳转均已删除。后台只保留当前数据概览与用户反馈。管理员页 noindex、no-referrer，不进入 sitemap，也不采集流量。
 
 ## 五个查看视图
 
@@ -71,7 +71,7 @@
 在 `hirelix_workspace_qa_release_20261019` 隔离库、localhost:3000 和本地独立 worker 上验收；未连接生产库做写入测试。
 
 ```bash
-npx tsx --test tests/telemetry.test.ts tests/client-auth-telemetry.test.ts tests/analytics.test.ts tests/growth-landing-event.test.ts tests/ops-conversion.test.ts
+npx tsx --test tests/telemetry.test.ts tests/client-auth-telemetry.test.ts tests/analytics.test.ts tests/growth-landing-event.test.ts tests/growth-traffic.test.ts
 npx dotenv -e .env.local -- npx tsx scripts/qa/verify-product-analytics.ts
 PLAYWRIGHT_BASE_URL=http://localhost:3000 PLAYWRIGHT_REUSE_SERVER=1 PLAYWRIGHT_CHANNEL=chrome npx dotenv -e .env.local -- npx playwright test e2e/product-analytics.spec.ts e2e/seo.spec.ts --project=chromium --workers=1
 npx tsc --noEmit

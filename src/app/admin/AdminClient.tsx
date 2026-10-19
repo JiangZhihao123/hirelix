@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { LockKeyhole, Loader2, LogOut } from "lucide-react";
-import { ProductAnalyticsDashboard } from "../ops/ceo/ProductAnalyticsDashboard";
-import { OpsDashboardClient } from "../ops/[secret]/OpsDashboardClient";
+import { ProductAnalyticsDashboard } from "./ProductAnalyticsDashboard";
 
 export function AdminClient({ initialUsername }: { initialUsername: string }) {
   const [account, setAccount] = useState(initialUsername);
@@ -12,7 +11,6 @@ export function AdminClient({ initialUsername }: { initialUsername: string }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [legacy, setLegacy] = useState(false);
   async function login(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setError("");
@@ -29,7 +27,7 @@ export function AdminClient({ initialUsername }: { initialUsername: string }) {
     try {
       const response = await fetch("/api/admin/session", { method: "DELETE" });
       if (!response.ok) throw Error("退出失败，请重试");
-      setAccount(""); setPassword(""); setLegacy(false);
+      setAccount(""); setPassword("");
     } catch (e) { setError(e instanceof Error ? e.message : "退出失败，请重试"); }
     finally { setBusy(false); }
   }
@@ -55,13 +53,12 @@ export function AdminClient({ initialUsername }: { initialUsername: string }) {
     <header className="flex items-center justify-between gap-4 border-b bg-white px-6 py-3 text-sm">
       <span className="font-semibold text-emerald-900">Hirelix 管理后台</span>
       <nav aria-label="管理导航" className="flex items-center gap-5">
-        <button onClick={() => setLegacy(!legacy)} className="text-slate-600">{legacy ? "流量与产品分析" : "历史运营看板"}</button>
         <Link href="/admin/feedback" className="text-slate-600">用户反馈</Link>
         <span className="text-slate-500">{account}</span>
         <button disabled={busy} onClick={logout} className="flex items-center gap-1.5 text-slate-700"><LogOut className="h-4 w-4" aria-hidden />退出登录</button>
       </nav>
     </header>
     {error && <p role="alert" className="bg-red-50 p-3 text-center text-sm text-red-700">{error}</p>}
-    {legacy ? <OpsDashboardClient /> : <ProductAnalyticsDashboard />}
+    <ProductAnalyticsDashboard />
   </div>;
 }

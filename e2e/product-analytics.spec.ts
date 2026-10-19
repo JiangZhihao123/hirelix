@@ -40,7 +40,7 @@ test("real local collector records public navigation once, strips query data, an
   expect(
     saved.recent.some((event: { route: string }) => event.route.includes("?")),
   ).toBe(false);
-  await page.goto("/ops/ceo");
+  await page.goto("/admin");
   await page.getByLabel("用户名", { exact: true }).fill(process.env.ADMIN_USERNAME!);
   await page.getByLabel("密码", { exact: true }).fill(password!);
   await page.getByRole("button", { name: "登录", exact: true }).click();

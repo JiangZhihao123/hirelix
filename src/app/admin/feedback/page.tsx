@@ -14,7 +14,7 @@ export default async function FeedbackPage({
     <div className="admin-shell" lang="zh-CN">
       <header className="admin-header">
         <Link href="/admin">Hirelix 管理后台</Link>
-        <Link href="/admin">返回流量与运营看板</Link>
+        <Link href="/admin">返回数据概览</Link>
       </header>
       <div className="admin-body">
         <nav aria-label="后台导航">

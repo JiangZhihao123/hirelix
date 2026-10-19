@@ -14,7 +14,7 @@ import {
 import { db } from "@/db/client";
 import { hirelix_growth_landing_events } from "@/db/schema";
 import { getLogger } from "@/lib/logger";
-import { isLocalOrPrivateIp, classifyTraffic } from "@/lib/ops-conversion";
+import { isLocalOrPrivateIp, classifyTraffic } from "@/lib/growth-traffic";
 import { validateLandingEventForRecording } from "@/lib/growth-landing-validation";
 
 const DEFAULT_PREVIEW_REQUEST_RECIPIENT = "jzh_spring@163.com";

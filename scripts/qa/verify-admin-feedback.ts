@@ -36,6 +36,10 @@ async function main() {
     );
     token = await createAdminSession();
     const cookie = adminCookieName() + "=" + token;
+    for (const path of ["/ops/ceo", "/ops/retired-dashboard", "/api/ops/conversion"]) {
+      assert.equal((await fetch(base + path, {headers:{Cookie:cookie}})).status,404);
+    }
+
     for (const path of [
       "/api/admin/feedback",
       "/api/admin/feedback/" + id + "/screenshot",
@@ -81,6 +85,9 @@ async function main() {
       },
     ]);
     const page = await context.newPage();
+    await page.goto(base + "/admin");
+    await page.getByRole("heading", {name:"网站流量与产品使用",exact:true}).waitFor();
+    assert.equal(await page.getByText("历史运营看板",{exact:true}).count(),0);
     await page.goto(base + "/admin/feedback?report=" + id);
     await page.getByRole("heading", { name: "用户反馈" }).waitFor();
     assert.equal(
