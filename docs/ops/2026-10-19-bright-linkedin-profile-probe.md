@@ -1,6 +1,6 @@
 # Bright Data 普通候选人链接小批验证
 
-日期：2026-10-19（Asia/Shanghai）。结论：现有 LinkedIn people profiles Scraper API 能返回部分公开资料，但本轮没有返回任何工作经历，暂不满足可靠的 JD 匹配资料要求。未接入产品，未写候选人库。
+日期：2026-10-19（Asia/Shanghai）。结论：现有 LinkedIn people profiles Scraper API 能返回部分公开资料，但本轮没有返回任何工作经历，暂不满足可靠的 JD 匹配资料要求。后续只读核查找到官方专项说明：职位、工作经历、教育受到 LinkedIn 公开访问限制，主要依赖历史缓存，并非遗漏请求参数。未接入产品，未写候选人库。
 
 ## 范围与真实请求
 
@@ -62,11 +62,46 @@
 
 ## 判断与下一步
 
-本轮只有“供应商交付成功”，没有“履历读取充分”。数据不足在原始响应中已经存在，不是 Hirelix 建档或解析环节丢失。采集器为何没有返回经历仍未得到供应商解释，不能归因为单个候选人隐私设置或本机网络。
+本轮只有“供应商交付成功”，没有“履历读取充分”。数据不足在原始响应中已经存在，不是 Hirelix 建档或解析环节丢失。后续发现官方已公开说明这一限制，具体证据见下一节；无需继续用同类付费请求重复验证已知边界。
 
 暂不把当前结果包装为“完整 LinkedIn 读取”tool。若后续验证改善，应至少分别返回身份与链接、原始内容、来源时间、缺失字段、明确的 partial 状态及成本证据，并由 Agent 结合实际资料判断是否足以用于特定 JD。
 
-下一步先核对现有采集器的字段覆盖/访问范围或向供应商提供本次 snapshot 核查；不要先增加 LLM 推断或用更多付费样本掩盖共同缺失的字段。
+若需要追查这 6 个具体人选为何没有历史缓存回填，需要供应商按 snapshot 检查缓存匹配及字段处理日志；客户端结果没有 cache-hit 或逐字段最后更新时间，不能进一步断定是“从未缓存”还是“缓存匹配失败”。不要先增加 LLM 推断或用更多付费样本掩盖共同缺失的字段。
+
+## 后续原因排查：官方说明与接口核对
+
+本节为同日只读排查，没有新增 Bright Data 抓取请求、任务或费用；未发送支持消息，未修改账号设置或产品。
+
+### 接口用法
+
+官方 `https://docs.brightdata.com/scrapers/gd_l1viktl72bvl7bjuj0.json` 的 `collect_by_url.input_schema` 只有一个必填字段 `url`。本轮使用正确的采集器 ID、Bearer 鉴权与 6 个 URL；没有传 `custom_output_fields` 截断字段。官方异步请求文档明确接受裸数组，请求不必包成 `{input: [...]}`。`/trigger` 和 `/scrape` 是同类请求的异步/同步交付方式，文档没有说明换成同步能恢复字段。
+
+该机器可读 schema 直接给 `position`、`experience`、`education` 加了“2025-11-13 起受 LinkedIn 限制，通常为空”的说明。`about` 的说明也明确指出，只显示带省略号的公开简介时，采集器返回的就是该截断版本。这与本轮 5/6 简介截断一致。
+
+### 账号权限
+
+现有凭据已成功创建任务、取得 6 条结果并产生待计费记录，证明账号有该采集器的执行与下载能力。本轮不是 401/403/余额不足错误。官方输入 schema 没有“开启工作经历”“附加登录 Cookie”等选项，也未找到按账号套餐解锁这三个字段的说明。
+
+因此没有证据表明当前问题由我们的 token scope 或少开一个字段权限造成。不过没有审计供应商内部权限系统，也没有向供应商确认任何未公开定制合同，不能声称排除了所有隐藏的账号差异。
+
+### 上游公开访问限制与 Bright Data 的缓存模式
+
+Bright Data 官方专项页 [LinkedIn data policy change](https://docs.brightdata.com/products/scrapers/linkedin/data-policy-change) 说明：
+
+- 它在 2025-11-13 观察到 LinkedIn 把职位、工作经历、教育详细资料置于登录后访问范围；这三个字段的填充率由此前约 50–64% 降到约 2%。这些时间与比例是 Bright Data 的监测口径，非本轮六人测试统计，也非 LinkedIn 官方变更公告。
+- 它仅采集公开资料，因此三个受影响字段主要返回历史缓存，最后刷新时间可能停留在 2025-11-13 或更早。
+- 影响同时覆盖 Profiles Dataset、Enrich Employee Dataset 与实时 Scrapers；该说明明确表示，切换这几类 Bright Data 产品不能解决三个字段的填充率问题。
+- 其他公开字段仍可刷新。因此“当前采集时间 + 姓名/地区/公司有值 + 工作经历为空”可以同时出现；返回教育记录也可能只是历史缓存，不证明教育信息实时。
+
+官方把它描述为广泛影响公开资料供应商的限制；我们没有横测其他供应商，不能把这句话作为所有其他服务实际能力的独立验证。
+
+### 可下的结论
+
+本次 0/6 工作经历与官方已知限制高度一致，已足以判断当前标准采集器不能作为稳定获取普通候选人完整履历的依赖。没有必要通过更换同步端点、补一个未文档化参数、升级套餐或重复付费重抓来猜测解决方案。
+
+未来选择其他方案时，必须区分当前公开数据、历史缓存、正式授权的招聘系统导入与用户提供的资料；不能因为返回了非空数组就认定履历完整且最新。
+
+证据副本保存在上述私有证据目录的 `diagnosis/` 下：官方专项说明、简介、请求规范、机器可读 schema 与来源/获取时间记录。
 
 ## 可复现与证据位置
 
@@ -82,3 +117,7 @@
 - https://docs.brightdata.com/api-reference/scrapers/management-apis/monitor-progress
 - https://docs.brightdata.com/products/scrapers/scrapers-library/faqs
 - https://brightdata.com/pricing/web-scraper
+- https://docs.brightdata.com/products/scrapers/linkedin/data-policy-change
+- https://docs.brightdata.com/products/scrapers/linkedin/introduction
+- https://docs.brightdata.com/products/scrapers/linkedin/send-first-request
+- https://docs.brightdata.com/scrapers/gd_l1viktl72bvl7bjuj0.json
