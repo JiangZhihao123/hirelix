@@ -1,24 +1,17 @@
 "use client";
 
-import { useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   ArrowRight,
-  ArrowUp,
-  Check,
+  Play,
   Plus,
-  Paperclip,
   FileText,
-  Users,
-  BriefcaseBusiness,
-  MessageSquare,
-  PanelLeft,
   ShieldCheck,
   Download,
-  Send,
-  Bell,
+  MessageSquare,
 } from "lucide-react";
 import {
   buildAttributionQuery,
@@ -31,57 +24,6 @@ import { BrandMark as AgentMark } from "@/components/BrandMark";
 import { AGENT_PLAN } from "@/lib/agent-plan";
 import { landingFaqs as faqs } from "@/lib/landing-content";
 
-const scenarios = [
-  {
-    label: "Find the right people",
-    title: "Start with the people you already know.",
-    description:
-      "Ask about the candidates in your own pool. Bring their experience, your past conversations, and the role requirements into the same view.",
-    prompt:
-      "Who in my candidates should I revisit for Northstar’s VP Product role?",
-    answer:
-      "Priya is worth another conversation. Your notes mention the team-building experience Northstar is looking for.",
-    result: "Priya Shah",
-    subtitle: "Product leader · In your candidates",
-    note: "Built a product team from 4 to 18. Location was the concern in your last conversation; this role offers hybrid working.",
-    footnote: "Confirm her current interest and location preferences.",
-    source: "Your call notes · Saved CV",
-    kind: "person",
-  },
-  {
-    label: "Keep a role moving",
-    title: "Pick up where the conversation left off.",
-    description:
-      "Bring in a client message or a call note. Prepare an update to the role requirements, with the original brief and feedback kept in view.",
-    prompt:
-      "Northstar now cares more about team building than exact industry experience. Prepare a revised brief for me to review.",
-    answer:
-      "I’ve prepared a change to the role brief for you to review. The original JD will be kept.",
-    result: "Northstar · VP Product",
-    subtitle: "Proposed change · Awaiting your review",
-    note: "Prioritize evidence of hiring and developing a product team. Consider adjacent industries when the leadership experience is relevant.",
-    footnote: "Review the proposal before saving it to the role.",
-    source: "Client feedback · Original role brief",
-    kind: "role",
-  },
-  {
-    label: "Prepare client work",
-    title: "Turn your assessment into a client draft.",
-    description:
-      "Prepare a candidate submission around the role, choose the supporting CVs, and refine the draft before you share it with your client.",
-    prompt:
-      "Draft a recommendation for Priya for Northstar. Focus on her team-building experience.",
-    answer:
-      "Here’s a client email draft based on the role and your saved records. Please review the details before sharing.",
-    result: "Candidate introduction: Priya Shah",
-    subtitle: "Client email · Draft",
-    note: "Hi Alex, I’d like to introduce Priya for the VP Product role. Her experience building a product team from 4 to 18 is particularly relevant to Northstar’s next stage.",
-    footnote: "Edit, copy, or export your draft. You decide when to share.",
-    source: "Role requirements · Candidate records",
-    kind: "draft",
-  },
-];
-
 // Keep server-rendered buttons inactive until their handlers are attached.
 const subscribeToHydration = () => () => {};
 
@@ -92,8 +34,9 @@ export default function Home() {
     () => false,
   );
   const router = useRouter();
-  const [active, setActive] = useState(0);
-  const scene = scenarios[active];
+  const film = useRef<HTMLVideoElement>(null);
+  const [filmStarted, setFilmStarted] = useState(false);
+  const [filmError, setFilmError] = useState(false);
 
   function enter(source: string, signIn = false, plan?: string) {
     const context = getAnalyticsContextFromBrowser({
@@ -127,25 +70,18 @@ export default function Home() {
     router.push(`/app?${query.toString()}`);
   }
 
-  function selectScenario(index: number) {
-    setActive(index);
-    void window.__hirelixGrowthTrack?.("sample_view", {
-      sample_type: "personal_agent",
-      scenario: scenarios[index].kind,
-    });
-  }
-
-  function tabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    let next = index;
-    if (event.key === "ArrowRight") next = (index + 1) % scenarios.length;
-    else if (event.key === "ArrowLeft")
-      next = (index + scenarios.length - 1) % scenarios.length;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = scenarios.length - 1;
-    else return;
-    event.preventDefault();
-    selectScenario(next);
-    document.getElementById(`scenario-tab-${next}`)?.focus();
+  async function playFilm() {
+    const video = film.current;
+    if (!video) return;
+    setFilmError(false);
+    video.scrollIntoView({ block: "center", behavior: "instant" });
+    try {
+      await video.play();
+      setFilmStarted(true);
+      video.focus();
+    } catch {
+      setFilmError(true);
+    }
   }
 
   return (
@@ -165,8 +101,8 @@ export default function Home() {
             Hirelix
           </Link>
           <div className="ha-nav-links">
-            <a href="#how-it-works">How it works</a>
-            <a href="#your-work">Your workspace</a>
+            <a href="#how-it-works">The work you get</a>
+            <a href="#first-assignment">Try it with your work</a>
             <a href="#pricing">Pricing</a>
             <a href="#questions">FAQs</a>
           </div>
@@ -192,18 +128,16 @@ export default function Home() {
       <main id="main">
         <section className="ha-hero ha-wrap" data-growth-section="hero">
           <div className="ha-hero-copy">
-            <p className="ha-eyebrow">
-              <span className="ha-status-dot" /> BUILT AROUND YOUR WORK
-            </p>
+            <p className="ha-eyebrow">WITH YOU FOR THE LONG TERM</p>
             <h1>
-              Your personal AI agent
-              <br className="ha-desktop-break" /> for <span>headhunting.</span>
+              Your Personal Agent.
+              <br />
+              <span>Built for headhunters.</span>
             </h1>
             <p className="ha-lead">
-              Compare your candidates against a JD, prepare client
-              recommendations, and pick up the next conversation with the
-              context already saved. Your AI recruiting assistant works with the
-              people and records you bring.
+              Work with your candidates, client briefs, and conversation notes —
+              <br className="ha-desktop-break" /> and pick up where you left
+              off.
             </p>
             <div className="ha-hero-actions">
               <button
@@ -214,367 +148,368 @@ export default function Home() {
               >
                 Start free trial <ArrowUpRight size={18} />
               </button>
-              <a className="ha-text-link" href="#how-it-works">
-                See it at work <ArrowRight size={16} />
-              </a>
+              <button
+                disabled={!hydrated}
+                className="ha-text-link ha-watch"
+                onClick={playFilm}
+              >
+                <Play size={15} /> Watch the 31-second story
+              </button>
             </div>
             <p className="ha-hero-caption">
               {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits
               · No card required
             </p>
           </div>
-          <div className="ha-preview" aria-label="Illustrative agent workspace">
-            <div className="ha-preview-top">
+          <figure className="ha-film" id="story">
+            <div className="ha-film-player">
+              <video
+                ref={film}
+                poster="/landing/video/hirelix-headhunters-v3.3.jpg"
+                src="/landing/video/hirelix-headhunters-v3.3.mp4"
+                preload="none"
+                playsInline
+                controls={filmStarted}
+                tabIndex={0}
+                aria-label="Hirelix: a Personal Agent built for headhunters"
+                aria-describedby="film-description"
+                onPlay={() => setFilmStarted(true)}
+                onError={() => setFilmError(true)}
+              />
+              {!filmStarted && (
+                <button
+                  disabled={!hydrated}
+                  className="ha-film-play"
+                  onClick={playFilm}
+                  aria-label="Play the Hirelix story with sound"
+                >
+                  <span>
+                    <Play size={20} fill="currentColor" />
+                  </span>{" "}
+                  Watch the story <small>0:31 · Sound on</small>
+                </button>
+              )}
+            </div>
+            {filmError && (
+              <p role="alert">
+                The video could not play.{" "}
+                <a href="/landing/video/hirelix-headhunters-v3.3.mp4">
+                  Open the video directly
+                </a>
+                , or read the story below.
+              </p>
+            )}
+            <figcaption>
               <span>
-                <AgentMark small /> My assistant
+                A relationship. A new role. The context that connects them.
               </span>
-              <span className="ha-example-label">
-                PRODUCT WALKTHROUGH · FICTIONAL EXAMPLE
-              </span>
-              <PanelLeft size={16} />
-            </div>
-            <div className="ha-preview-body">
-              <aside
-                className="ha-preview-sidebar"
-                aria-label="Example workspace context"
-              >
-                <p className="ha-mini-label">YOUR WORKSPACE</p>
-                <div className="ha-sidebar-item">
-                  <MessageSquare size={15} /> New conversation
-                </div>
-                <div className="ha-sidebar-item">
-                  <Users size={15} /> <span>Candidates &amp; CVs</span>
-                </div>
-                <div className="ha-sidebar-item">
-                  <BriefcaseBusiness size={15} /> <span>Roles &amp; JDs</span>
-                </div>
-                <div className="ha-sidebar-item">
-                  <Send size={15} /> Recommendations
-                </div>
-                <div className="ha-sidebar-item">
-                  <Bell size={15} /> Reminders
-                </div>
-                <div className="ha-sidebar-rule" />
-                <p className="ha-mini-label">CONVERSATIONS</p>
-                <div className="ha-sidebar-item ha-selected">
-                  Northstar · VP Product
-                </div>
-                <div className="ha-sidebar-bottom">
-                  <span className="ha-tiny-dot" /> Your work, connected.
-                </div>
-              </aside>
-              <div className="ha-preview-chat">
-                <div className="ha-user-message">
-                  Who in my candidates should I revisit for Northstar’s VP
-                  Product role?
-                  <div className="ha-message-reference">
-                    <BriefcaseBusiness size={13} /> Northstar · VP Product
-                  </div>
-                </div>
-                <div className="ha-agent-response">
-                  <AgentMark small />
-                  <div>
-                    <p>
-                      Start with Priya. Your previous conversations point to the
-                      team-building experience Northstar needs.
-                    </p>
-                    <div className="ha-person-card">
-                      <div className="ha-person-heading">
-                        <span className="ha-avatar">PS</span>
-                        <div>
-                          <strong>Priya Shah</strong>
-                          <span>Product leader · In your candidates</span>
-                        </div>
-                        <ArrowUpRight size={16} />
-                      </div>
-                      <p>
-                        Built a product team from 4 to 18. Your last call
-                        focused on her interest in a broader leadership role.
-                      </p>
-                      <div className="ha-source">
-                        <FileText size={12} /> Your call notes <span>·</span>{" "}
-                        Saved CV
-                      </div>
-                    </div>
-                    <p className="ha-response-note">
-                      Her current interest still needs confirming.
-                    </p>
-                  </div>
-                </div>
-                <div className="ha-example-composer">
-                  <span>Ask about your people or your work…</span>
-                  <div>
-                    <Paperclip size={16} />
-                    <span className="ha-send">
-                      <ArrowUp size={15} />
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="ha-audience">
-            <span>MADE FOR THE WAY YOU WORK</span>
-            <p>
-              Independent headhunters <span>·</span> Boutique search consultants{" "}
-              <span>·</span> Your own recruiting desk
-            </p>
-          </div>
+              <span>Illustrative story · Fictional people &amp; client</span>
+            </figcaption>
+            <details className="ha-film-transcript">
+              <summary>Read the story</summary>
+              <p id="film-description">
+                In September, a headhunter saves notes about Mira Chen: she
+                built a product team from 6 to 28 and may consider a move in
+                November. Six weeks later, a new Head of Product brief arrives.
+                The agent brings Mira back into view using those saved notes,
+                then helps prepare a recommendation, a selected resume, and
+                questions for the next conversation. Her current availability
+                still needs confirming. Your Personal Agent. Built for
+                headhunters. With you for the long term.
+              </p>
+            </details>
+          </figure>
+          <p className="ha-audience">
+            For independent headhunters and boutique search consultants.
+          </p>
         </section>
 
         <section
           id="how-it-works"
-          className="ha-section ha-work-section"
+          className="ha-section ha-delivery"
           data-growth-section="how-it-works"
         >
-          <div className="ha-wrap">
-            <div className="ha-section-heading">
-              <p className="ha-eyebrow">AN AGENT FOR YOUR EVERYDAY WORK</p>
-              <h2>What’s on your desk?</h2>
+          <div className="ha-wrap ha-delivery-grid">
+            <div className="ha-delivery-copy">
+              <p className="ha-eyebrow">FROM CONTEXT TO CLIENT WORK</p>
+              <h2>A recommendation you can put in front of a client.</h2>
               <p>
-                A new brief. A familiar candidate. A client waiting for an
-                update.
-                <br /> Bring it to your agent and keep the work moving.
+                The reasoning, the selected resumes, and the questions still
+                worth asking. Prepared around the role, using the materials you
+                bring.
+              </p>
+              <ul className="ha-delivery-points">
+                <li>
+                  <span>01</span>
+                  <div>
+                    <strong>The case for each person</strong>
+                    <p>
+                      Relevant experience, supporting evidence, and clear
+                      trade-offs.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <strong>The materials together</strong>
+                    <p>
+                      A recommendation page and the resumes you choose to
+                      include.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <strong>A way to keep moving</strong>
+                    <p>
+                      Open questions and client feedback tied to each candidate.
+                    </p>
+                  </div>
+                </li>
+              </ul>
+              <p className="ha-delivery-note">
+                Edit the work. Share a link or export the materials. You decide
+                what goes to your client.
               </p>
             </div>
-            <div
-              className="ha-tabs"
-              role="tablist"
-              aria-label="Explore agent workflows"
+            <article
+              className="ha-sample"
+              aria-label="Illustrative client recommendation"
             >
-              {scenarios.map((item, index) => (
-                <button
-                  disabled={!hydrated}
-                  key={item.kind}
-                  id={`scenario-tab-${index}`}
-                  role="tab"
-                  aria-selected={active === index}
-                  aria-controls="scenario-panel"
-                  tabIndex={active === index ? 0 : -1}
-                  onKeyDown={(event) => tabKey(event, index)}
-                  onClick={() => selectScenario(index)}
-                >
-                  <span>0{index + 1}</span>
-                  {item.label}
-                  <ArrowUpRight size={16} />
-                </button>
-              ))}
+              <div className="ha-sample-top">
+                <AgentMark small />
+                <span>CLIENT RECOMMENDATION</span>
+                <span>EXAMPLE</span>
+              </div>
+              <p className="ha-mini-label">NORTHSTAR · HEAD OF PRODUCT</p>
+              <h3>A team builder for your next stage.</h3>
+              <div className="ha-sample-person">
+                <span className="ha-avatar">MC</span>
+                <div>
+                  <strong>Mira Chen</strong>
+                  <span>Product leader · B2B software</span>
+                </div>
+              </div>
+              <p>
+                Mira is worth a conversation for Northstar’s Head of Product
+                role. Her experience growing a product team speaks directly to
+                your need for a leader who can build the organization.
+              </p>
+              <blockquote>
+                Built the product team from 6 to 28.
+                <cite>Source: September conversation notes</cite>
+              </blockquote>
+              <p className="ha-sample-caution">
+                To confirm: current interest, availability, and the scope of her
+                leadership.
+              </p>
+              <details
+                className="ha-sample-details"
+                onToggle={(event) => {
+                  if (event.currentTarget.open)
+                    void window.__hirelixGrowthTrack?.("sample_view", {
+                      sample_type: "client_recommendation",
+                    });
+                }}
+              >
+                <summary>
+                  Read the complete example <Plus size={17} />
+                </summary>
+                <div className="ha-sample-expanded">
+                  <h4>Why this role</h4>
+                  <p>
+                    Northstar needs someone who can develop its product team as
+                    the business grows. Mira’s B2B software background and
+                    team-building experience make her relevant to that brief.
+                  </p>
+                  <h4>Evidence and limits</h4>
+                  <p>
+                    In the September conversation, Mira described growing the
+                    team from 6 to 28. That is a useful starting point, but it
+                    does not by itself establish her impact on retention,
+                    product quality, or business results. Those outcomes need
+                    checking.
+                  </p>
+                  <h4>Questions for the next conversation</h4>
+                  <ul>
+                    <li>
+                      Which hiring and team-development decisions did she own?
+                    </li>
+                    <li>
+                      What changed in the team’s delivery and business results
+                      as it grew?
+                    </li>
+                    <li>
+                      Is she still open to a move, and does Northstar’s scope
+                      fit what she wants next?
+                    </li>
+                  </ul>
+                  <details className="ha-resume">
+                    <summary>
+                      <FileText size={16} /> Selected resume · Mira Chen{" "}
+                      <Plus size={15} />
+                    </summary>
+                    <div>
+                      <p className="ha-mini-label">FICTIONAL RESUME EXCERPT</p>
+                      <h4>Mira Chen · Product leader</h4>
+                      <p>
+                        B2B software product leadership. Experience building a
+                        product organization and developing its team.
+                      </p>
+                      <p>
+                        This shortened sample illustrates where a selected
+                        resume appears. In a shared recommendation, clients can
+                        download the original resume you include.
+                      </p>
+                    </div>
+                  </details>
+                  <h4>Feedback on Mira</h4>
+                  <p>
+                    Clients can respond to each candidate separately on a shared
+                    recommendation. Feedback is private to the recruiter; an
+                    interview request does not book an interview.
+                  </p>
+                  <p className="ha-sample-caution">
+                    This public example does not collect or send feedback.
+                  </p>
+                  <Link
+                    className="ha-text-link"
+                    href="/guides/candidate-feedback"
+                  >
+                    How client feedback works <ArrowRight size={14} />
+                  </Link>
+                </div>
+              </details>
+              <p className="ha-sample-disclaimer">
+                Illustrative content, not a live client submission.
+                <br />
+                Mira and Northstar are fictional.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section
+          id="first-assignment"
+          className="ha-section ha-first"
+          data-growth-section="get-started"
+        >
+          <div className="ha-wrap ha-first-grid">
+            <div>
+              <p className="ha-eyebrow">YOUR FIRST ASSIGNMENT</p>
+              <h2>
+                One role.
+                <br />
+                Two or three resumes.
+                <br />
+                <span>Start there.</span>
+              </h2>
+              <p>
+                No need to organize your entire candidate pool first. Bring a
+                real piece of work and see how your agent helps.
+              </p>
+              <button
+                className="ha-button"
+                disabled={!hydrated}
+                onClick={() => enter("first_assignment")}
+              >
+                Start free trial <ArrowUpRight size={18} />
+              </button>
+              <p className="ha-hero-caption">
+                {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI
+                credits · No card required
+              </p>
             </div>
-            <div
-              id="scenario-panel"
-              role="tabpanel"
-              aria-labelledby={`scenario-tab-${active}`}
-              className="ha-scenario"
-              tabIndex={0}
-            >
-              <div className="ha-scenario-copy">
-                <span className="ha-step">
-                  0{active + 1} / YOUR AGENT AT WORK
+            <div className="ha-assignment">
+              <p className="ha-mini-label">BRING YOUR OWN MATERIALS</p>
+              <div className="ha-attachments">
+                <span>
+                  <FileText size={16} /> Role brief
                 </span>
-                <h3>{scene.title}</h3>
-                <p>{scene.description}</p>
-                <div className="ha-work-note">
-                  <Check size={16} />
-                  <span>Grounded in the records you save.</span>
-                </div>
+                <span>
+                  <FileText size={16} /> 2–3 resumes
+                </span>
               </div>
-              <div className="ha-scenario-demo" key={scene.kind}>
-                <p className="ha-mini-label">ILLUSTRATIVE EXAMPLE</p>
-                <div className="ha-user-message">{scene.prompt}</div>
-                <div className="ha-demo-answer">
-                  <AgentMark small />
-                  <p>{scene.answer}</p>
-                </div>
-                <div className="ha-result">
-                  <span className="ha-result-type">{scene.subtitle}</span>
-                  <h4>{scene.result}</h4>
-                  <p>{scene.note}</p>
-                  <div className="ha-source">
-                    <FileText size={12} />
-                    {scene.source}
-                  </div>
-                </div>
-                <p className="ha-demo-footnote">{scene.footnote}</p>
+              <blockquote>
+                “Compare these candidates against this role. Explain who I
+                should put forward and what I still need to confirm.”
+              </blockquote>
+              <div className="ha-assignment-result">
+                <AgentMark small />
+                <p>
+                  Start with an evidence-based comparison. Then ask your agent
+                  to prepare a recommendation for the people you choose.
+                </p>
               </div>
+              <Link
+                href="/guides/candidate-submissions"
+                className="ha-text-link"
+              >
+                How recommendations work <ArrowRight size={15} />
+              </Link>
             </div>
           </div>
         </section>
 
         <section
           id="your-work"
-          className="ha-section ha-memory-section"
+          className="ha-section ha-continuity"
           data-growth-section="your-work"
         >
-          <div className="ha-wrap ha-memory-grid">
-            <div className="ha-memory-copy">
-              <p className="ha-eyebrow">YOUR WORK, OVER TIME</p>
+          <div className="ha-wrap ha-continuity-grid">
+            <div>
+              <p className="ha-eyebrow">WITH YOU BEYOND THIS ROLE</p>
               <h2>
-                Ten years of relationships.
+                The next conversation
                 <br />
-                <span>Ready for what’s next.</span>
+                starts with context.
               </h2>
-              <p>
-                Your candidate pool has a history. Bring in the CVs, lists, and
-                notes you’ve collected, then keep adding to them as you work.
-              </p>
-              <p>
-                When the next role comes in, your agent can work with those
-                saved records. Ask it to remember your preferences, then update
-                or forget them as your way of working changes.
-              </p>
-              <a className="ha-text-link" href="#get-started">
-                Bring your work to Hirelix <ArrowRight size={16} />
-              </a>
             </div>
-            <div className="ha-history">
-              <div className="ha-history-heading">
-                <span className="ha-avatar">PS</span>
-                <div>
-                  <strong>Priya Shah</strong>
-                  <span>A relationship beyond a single role</span>
-                </div>
-              </div>
-              <div className="ha-timeline">
-                <div>
-                  <span className="ha-timeline-dot" />
-                  <p className="ha-mini-label">THE FIRST CONVERSATION</p>
-                  <h4>More than a CV.</h4>
-                  <p>
-                    Save her experience alongside your call notes and
-                    observations.
-                  </p>
-                  <span className="ha-record-chip">
-                    <FileText size={12} /> CV + conversation notes
-                  </span>
-                </div>
-                <div>
-                  <span className="ha-timeline-dot" />
-                  <p className="ha-mini-label">AS THINGS CHANGE</p>
-                  <h4>Keep the relationship up to date.</h4>
-                  <p>
-                    Add a new conversation. Keep the earlier context and its
-                    source.
-                  </p>
-                  <span className="ha-record-chip">
-                    <MessageSquare size={12} /> A new note, with its history
-                  </span>
-                </div>
-                <div>
-                  <span className="ha-timeline-dot ha-timeline-active" />
-                  <p className="ha-mini-label">THE NEXT OPPORTUNITY</p>
-                  <h4>A new role. A familiar person.</h4>
-                  <p>
-                    Revisit her experience against the new brief, with past
-                    conversations at hand.
-                  </p>
-                  <span className="ha-record-chip">
-                    <BriefcaseBusiness size={12} /> Northstar · VP Product
-                  </span>
-                </div>
-              </div>
-              <p className="ha-example-disclaimer">
-                Illustrative timeline. Candidate and company are fictional.
+            <div>
+              <p>
+                Your saved resumes, call notes, role requirements, and client
+                feedback stay available for the next piece of work.
+              </p>
+              <p>
+                When a new brief arrives or a client changes direction, your
+                agent can use those records. You can keep working without
+                starting the story over.
               </p>
             </div>
           </div>
         </section>
 
-        <section
-          className="ha-control ha-section"
-          data-growth-section="control"
-        >
-          <div className="ha-wrap">
-            <div className="ha-section-heading">
-              <p className="ha-eyebrow">YOUR AGENT. YOUR CALL.</p>
-              <h2>
-                Help with the work.
-                <br />
-                Control over the decisions.
-              </h2>
-            </div>
-            <div className="ha-control-grid">
-              <article>
-                <ShieldCheck />
-                <h3>You set the direction.</h3>
-                <p>
-                  Your agent acts on clear instructions and asks you to resolve
-                  ambiguous identities or conflicting facts. Review
-                  client-facing work before sharing.
-                </p>
-              </article>
-              <article>
-                <FileText />
-                <h3>Choose what clients see.</h3>
-                <p>
-                  Review the recommendation, edit the wording, and choose the
-                  CVs. Client drafts are yours to share.
-                </p>
-              </article>
-              <article>
-                <Download />
-                <h3>Keep hold of your records.</h3>
-                <p>
-                  Export candidate profiles and records, or delete a candidate
-                  from your workspace.
-                </p>
-                <Link href="/privacy">
-                  Read our privacy policy <ArrowUpRight size={13} />
-                </Link>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <section
-          className="ha-control ha-section"
-          aria-labelledby="first-assignment"
-        >
-          <div className="ha-wrap">
-            <div className="ha-section-heading">
-              <p className="ha-eyebrow">A PRACTICAL FIRST ASSIGNMENT</p>
-              <h2 id="first-assignment">
-                One role. Your candidates. A clear next step.
-              </h2>
+        <section className="ha-control" data-growth-section="control">
+          <div className="ha-wrap ha-control-grid">
+            <article>
+              <ShieldCheck />
+              <h3>You decide what gets shared.</h3>
               <p>
-                Bring a JD and two or three CVs. Ask for a comparison, then
-                choose what to take forward.
+                Preparing a recommendation does not send it. Sending through a
+                connected mailbox requires your explicit authorization.
               </p>
-            </div>
-            <div className="ha-control-grid">
-              <article>
-                <Users />
-                <h3>Compare with evidence</h3>
-                <p>
-                  See how each candidate fits this role and which requirements
-                  still need checking.
-                </p>
-                <Link href="/guides/candidate-rediscovery">
-                  Compare your saved candidates <ArrowUpRight size={13} />
-                </Link>
-              </article>
-              <article>
-                <FileText />
-                <h3>Prepare the recommendation</h3>
-                <p>
-                  Select the people and evidence to include. Review the draft
-                  and chosen CVs before sharing.
-                </p>
-                <Link href="/guides/candidate-submissions">
-                  Prepare a client recommendation <ArrowUpRight size={13} />
-                </Link>
-              </article>
-              <article>
-                <MessageSquare />
-                <h3>Continue after client feedback</h3>
-                <p>
-                  Keep each person’s feedback separate. Come back in a new
-                  conversation and pick up the same assignment.
-                </p>
-                <Link href="/guides/candidate-feedback">
-                  Follow up on each candidate <ArrowUpRight size={13} />
-                </Link>
-              </article>
-            </div>
+            </article>
+            <article>
+              <MessageSquare />
+              <h3>Your judgment stays in the work.</h3>
+              <p>
+                Add context, correct a detail, or change direction. Keep the
+                evidence and unanswered questions in view.
+              </p>
+            </article>
+            <article>
+              <Download />
+              <h3>Your records stay yours.</h3>
+              <p>
+                Export saved candidate profiles and records, or delete a
+                candidate from your workspace.
+              </p>
+              <Link href="/privacy">
+                Read our privacy policy <ArrowUpRight size={13} />
+              </Link>
+            </article>
           </div>
         </section>
 
@@ -616,7 +551,7 @@ export default function Home() {
                     subscription period
                   </li>
                   <li>Your candidates, roles, and conversation history</li>
-                  <li>CV and CSV imports, client drafts, and exports</li>
+                  <li>Resume and CSV imports, recommendations, and exports</li>
                 </ul>
                 <button
                   className="ha-button ha-button-primary"
@@ -695,12 +630,12 @@ export default function Home() {
             <h2>
               Your next role.
               <br />
-              An assistant that stays with you.
+              Your Personal Agent.
             </h2>
             <p>
-              Start with a candidate, a client brief, or a question.
+              Built for headhunters. With you for the long term.
               <br />
-              Keep building from there.
+              Start with the work on your desk today.
             </p>
             <button
               disabled={!hydrated}

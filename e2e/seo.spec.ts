@@ -166,7 +166,7 @@ test("a reader can follow the assistant story to a guide, pricing, and the real 
 
 test("current product facts and practical feedback guide are crawlable without JavaScript", async ({ request }) => {
   const $ = load(await (await request.get("/")).text());
-  expect($("#first-assignment").text()).toContain("One role. Your candidates.");
+  expect($("#first-assignment").text()).toContain("Two or three resumes.");
   expect($('a[href="/guides/candidate-feedback"]').length).toBeGreaterThan(0);
   expect($("details").text()).toContain("Gmail inbox reading is not currently available");
   const guide = await request.get("/guides/candidate-feedback");

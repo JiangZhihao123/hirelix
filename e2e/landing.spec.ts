@@ -9,17 +9,17 @@ test.describe("Personal agent landing", () => {
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your personal AI agent for headhunting.",
+      "Your Personal Agent.Built for headhunters.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(
-      page.getByRole("heading", { name: /Ten years of relationships/ }),
+      page.getByRole("heading", { name: /The next conversation/ }),
     ).toBeVisible();
     await expect(page.getByRole("main")).not.toContainText(
       /profile scan|ranked shortlist|Start Starter|Start Pro|AI sourcing/i,
     );
     await expect(
-      page.getByText("PRODUCT WALKTHROUGH · FICTIONAL EXAMPLE"),
+      page.getByText("Illustrative story · Fictional people & client"),
     ).toBeVisible();
     await expect(page.locator('a[href*="search/new"]')).toHaveCount(0);
   });
@@ -37,30 +37,88 @@ test.describe("Personal agent landing", () => {
       "Hirelix | Your Personal AI Agent for Headhunting",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your personal AI agent for headhunting.",
+      "Your Personal Agent.Built for headhunters.",
     );
   });
 
-  test("switches complete workflow examples with clicks and keyboard", async ({
+  test("reads the complete recommendation and selected resume without signing in", async ({
     page,
   }) => {
-    const roleTab = page.getByRole("tab", { name: /Keep a role moving/ });
-    await roleTab.click();
-    await expect(roleTab).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("tabpanel")).toContainText(
-      "Awaiting your review",
-    );
-    await roleTab.press("ArrowRight");
+    const summary = page.getByText("Read the complete example", {
+      exact: true,
+    });
+    await summary.focus();
+    await page.keyboard.press("Enter");
     await expect(
-      page.getByRole("tab", { name: /Prepare client work/ }),
-    ).toBeFocused();
-    await expect(page.getByRole("tabpanel")).toContainText(
-      "Client email · Draft",
+      page.getByRole("heading", { name: "Evidence and limits" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Questions for the next conversation",
+      }),
+    ).toBeVisible();
+    await page
+      .getByText("Selected resume · Mira Chen", { exact: true })
+      .click();
+    await expect(
+      page.getByText("FICTIONAL RESUME EXCERPT", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("This public example does not collect or send feedback."),
+    ).toBeVisible();
+    await summary.click();
+    await expect(
+      page.getByRole("heading", { name: "Evidence and limits" }),
+    ).not.toBeVisible();
+  });
+
+  test("loads the film only on request and supports playback and seeking", async ({
+    page,
+  }) => {
+    const video = page.locator("video");
+    await expect(video).toHaveAttribute("preload", "none");
+    expect(await video.evaluate((node: HTMLVideoElement) => node.paused)).toBe(
+      true,
     );
-    await page.getByRole("tab", { name: /Prepare client work/ }).press("Home");
-    await expect(page.getByRole("tabpanel")).toContainText(
-      "Confirm her current interest",
+    expect(
+      await video.evaluate((node: HTMLVideoElement) => node.networkState),
+    ).toBe(1);
+    await page
+      .getByRole("button", { name: "Watch the 31-second story", exact: true })
+      .click();
+    await expect
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime))
+      .toBeGreaterThan(0);
+    expect(await video.evaluate((node: HTMLVideoElement) => node.muted)).toBe(
+      false,
     );
+    await expect(video).toHaveAttribute("controls", "");
+    expect(
+      await video.evaluate((node: HTMLVideoElement) => node.duration),
+    ).toBeCloseTo(31.2, 1);
+    await video.evaluate((node: HTMLVideoElement) => {
+      node.pause();
+      node.currentTime = 21;
+    });
+    await expect
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.readyState))
+      .toBeGreaterThanOrEqual(2);
+    expect(
+      await video.evaluate((node: HTMLVideoElement) => node.currentTime),
+    ).toBeCloseTo(21, 1);
+    await video.evaluate((node: HTMLVideoElement) => {
+      node.currentTime = 30.9;
+      return node.play();
+    });
+    await expect
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.ended))
+      .toBe(true);
+    await page
+      .getByRole("button", { name: "Watch the 31-second story", exact: true })
+      .click();
+    await expect
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime))
+      .toBeLessThan(5);
   });
 
   test("FAQ opens and closes with the real privacy link", async ({ page }) => {
@@ -91,7 +149,9 @@ test.describe("Personal agent landing", () => {
     expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
     expect(url.searchParams.get("entry")).toBe("free_trial");
     await expect(
-      page.getByRole("heading", { name: "Start with your private AI assistant" }),
+      page.getByRole("heading", {
+        name: "Start with your private AI assistant",
+      }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Continue with Google/ }),
@@ -107,13 +167,10 @@ test.describe("Personal agent landing", () => {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
       ).toBeLessThanOrEqual(width);
-      await page.getByRole("tab", { name: /Prepare client work/ }).click();
-      await expect(page.getByRole("tabpanel")).toContainText(
-        "Client email · Draft",
-      );
+      await expect(page.locator(".ha-film-player")).toBeVisible();
       expect(
         await page
-          .getByRole("tabpanel")
+          .locator(".ha-film-player")
           .evaluate((el) => el.scrollWidth <= el.clientWidth),
       ).toBeTruthy();
       await page

@@ -40,8 +40,8 @@ const structuredData = {
       description: SITE_DESCRIPTION,
       featureList: [
         "Search your saved candidate records",
-        "Review updates to role requirements",
-        "Prepare candidate recommendation drafts",
+        "Update saved role requirements",
+        "Prepare client recommendations with selected resumes",
         "Keep client feedback separate for each candidate",
         "Continue saved assignments across conversations",
         "Import CSV, PDF and DOCX candidate materials",

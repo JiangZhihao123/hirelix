@@ -6,7 +6,7 @@ export const mailboxAvailability =
 export const landingFaqs = [
   [
     "What is Hirelix?",
-    "Hirelix is a personal AI agent for headhunters, designed to work with you over time. It builds on the candidate records, CVs, notes, client briefs, and preferences you save, helping you continue your work from one conversation and role to the next.",
+    "Hirelix is a personal AI agent for headhunters, designed to work with you over time. It builds on the candidate records, resumes, notes, client briefs, and preferences you save, helping you continue your work from one conversation and role to the next.",
   ],
   [
     "Does Hirelix find new candidates from external databases?",
@@ -22,7 +22,7 @@ export const landingFaqs = [
   ],
   [
     "Can I bring my existing candidates?",
-    "Yes. Upload candidate lists in CSV format or CVs in PDF and DOCX. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
+    "Yes. Upload candidate lists in CSV format or resumes in PDF and DOCX. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
   ],
   [
     "Can my assistant remember how I like to work?",
@@ -39,7 +39,7 @@ export const landingFaqs = [
   ["Can Hirelix read my Gmail or Outlook inbox?", mailboxAvailability],
   [
     "How do I start with one role and several candidates?",
-    "Upload a job description and candidate CVs or a CSV list. Ask Hirelix to save them, compare the candidates against the role, and prepare a recommendation for the people you select. Review the evidence and unresolved questions before sharing. Record client feedback separately for each person, then continue the assignment in the same or a new conversation.",
+    "Upload a job description and candidate resumes or a CSV list. Ask Hirelix to save them, compare the candidates against the role, and prepare a recommendation for the people you select. Review the evidence and unresolved questions before sharing. Record client feedback separately for each person, then continue the assignment in the same or a new conversation.",
   ],
   [
     "Is Hirelix an ATS or a candidate database?",
