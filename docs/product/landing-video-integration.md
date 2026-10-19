@@ -32,3 +32,11 @@ ffmpeg -ss 21.6 -i MASTER.mp4 -frames:v 1 -q:v 2 hirelix-headhunters-v3.3.jpg
 - ffprobe 确认视频和音频均 31.2 秒；FFmpeg 完整解码无报错，解码音频 hash 与母版相同。
 
 仅本地落地页验收；没有重新执行付费 AI 任务、发信、生产部署或 Google OAuth 完整登录。实际产品生成推荐材料的能力验收不由本营销示例代替。
+
+## 三处局部优化（2026-10-19）
+
+保留居中首屏、视频位置及主次层级。首屏辅助文字改为 `7-day free trial · No card required`，credits 继续在首次任务和价格区说明。展开的推荐示例补齐虚构职位简报、重新联系原因、角色相关判断、建议动作、完整样例简历（经历、教育、能力）和客户反馈/跟进示例；注明编辑制作的虚构内容，不声称真实 Agent 生成。简历与 September notes 来源分开，不把待核实事项改成已确认事实。
+
+价格区默认保留税费、试用不自动付费和付费续订条件；额度计算、月度重置、余额不结转及访问结束规则移入原生 details，支持键盘展开，保留退款政策链接。
+
+验证：Chrome 人工检查展开内容与价格规则；landing + SEO 共 16 项通过，TypeScript、改动文件 ESLint、diff whitespace 检查通过。无生产部署或业务后台变更。

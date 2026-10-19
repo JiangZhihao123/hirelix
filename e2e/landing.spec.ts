@@ -61,15 +61,51 @@ test.describe("Personal agent landing", () => {
       .getByText("Selected resume · Mira Chen", { exact: true })
       .click();
     await expect(
-      page.getByText("FICTIONAL RESUME EXCERPT", { exact: true }),
+      page.getByText("FICTIONAL SAMPLE RESUME", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText("This public example does not collect or send feedback."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Professional experience",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("2020–present · B2B workflow software", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Why revisit Mira now", exact: true }),
     ).toBeVisible();
     await summary.click();
     await expect(
       page.getByRole("heading", { name: "Evidence and limits" }),
     ).not.toBeVisible();
+  });
+
+  test("keeps trial terms clear and expands detailed billing rules", async ({
+    page,
+  }) => {
+    await expect(page.locator(".ha-hero-copy")).not.toContainText("credits");
+    await expect(page.locator(".ha-hero-copy")).toContainText(
+      "7-day free trial · No card required",
+    );
+    await expect(page.locator(".ha-pricing-summary")).toContainText(
+      "Paid subscriptions renew until canceled",
+    );
+    const rules = page.locator(".ha-pricing-details");
+    await expect(rules).not.toHaveAttribute("open", "");
+    await rules.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      rules.getByRole("heading", { name: "Monthly allowances" }),
+    ).toBeVisible();
+    await expect(
+      rules.getByRole("link", { name: "refund policy" }),
+    ).toHaveAttribute("href", "/refund-policy");
+    await rules.locator("summary").press("Enter");
+    await expect(rules).not.toHaveAttribute("open", "");
   });
 
   test("loads the film only on request and supports playback and seeking", async ({

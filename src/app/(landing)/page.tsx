@@ -157,8 +157,7 @@ export default function Home() {
               </button>
             </div>
             <p className="ha-hero-caption">
-              {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits
-              · No card required
+              {AGENT_PLAN.trialDays}-day free trial · No card required
             </p>
           </div>
           <figure className="ha-film" id="story">
@@ -318,11 +317,40 @@ export default function Home() {
                   Read the complete example <Plus size={17} />
                 </summary>
                 <div className="ha-sample-expanded">
+                  <p className="ha-sample-caution">
+                    Complete fictional example. The brief, resume, notes, and
+                    feedback below were written to illustrate the work; they are
+                    not a live Agent result.
+                  </p>
+                  <h4>The client brief</h4>
+                  <p>
+                    Northstar is a growth-stage B2B software company hiring a
+                    hands-on Head of Product. The brief calls for someone who
+                    can develop product managers, establish clearer priorities,
+                    and work with enterprise customers.
+                  </p>
+                  <h4>Why revisit Mira now</h4>
+                  <p>
+                    In September, Mira said she would consider a move in
+                    November. That timing made an immediate approach premature.
+                    A November brief now gives the recruiter a reason to
+                    reconnect, using the earlier conversation rather than
+                    starting again. It does not establish that she is currently
+                    available.
+                  </p>
                   <h4>Why this role</h4>
                   <p>
                     Northstar needs someone who can develop its product team as
                     the business grows. Mira’s B2B software background and
                     team-building experience make her relevant to that brief.
+                  </p>
+                  <p>
+                    Her resume describes managing product managers and
+                    introducing planning and coaching routines. Combined with
+                    the team-growth discussion, this supports exploring
+                    Northstar’s team-building requirement. Enterprise-customer
+                    exposure is relevant, but the materials do not establish the
+                    scale of accounts she personally owned.
                   </p>
                   <h4>Evidence and limits</h4>
                   <p>
@@ -331,6 +359,13 @@ export default function Home() {
                     does not by itself establish her impact on retention,
                     product quality, or business results. Those outcomes need
                     checking.
+                  </p>
+                  <h4>Recommended next step</h4>
+                  <p>
+                    Reconnect with Mira to confirm her interest, then explore a
+                    client conversation if the scope fits. Position her as a
+                    team-building candidate worth investigating, with enterprise
+                    depth and business outcomes still to verify.
                   </p>
                   <h4>Questions for the next conversation</h4>
                   <ul>
@@ -352,20 +387,89 @@ export default function Home() {
                       <Plus size={15} />
                     </summary>
                     <div>
-                      <p className="ha-mini-label">FICTIONAL RESUME EXCERPT</p>
-                      <h4>Mira Chen · Product leader</h4>
+                      <p className="ha-mini-label">FICTIONAL SAMPLE RESUME</p>
+                      <h4>Mira Chen</h4>
                       <p>
-                        B2B software product leadership. Experience building a
-                        product organization and developing its team.
+                        Product leader · B2B software · San Francisco Bay Area
                       </p>
+                      <h4>Profile</h4>
                       <p>
-                        This shortened sample illustrates where a selected
-                        resume appears. In a shared recommendation, clients can
-                        download the original resume you include.
+                        Product leader with experience developing product
+                        managers, organizing cross-functional planning, and
+                        translating customer needs into priorities for B2B
+                        software teams.
+                      </p>
+                      <h4>Professional experience</h4>
+                      <p>
+                        <strong>
+                          Harborlane Software · Director of Product
+                        </strong>
+                        <br />
+                        2020–present · B2B workflow software
+                      </p>
+                      <ul>
+                        <li>
+                          Lead product managers working with engineering and
+                          design on workflow and reporting products.
+                        </li>
+                        <li>
+                          Introduced regular product reviews, manager coaching,
+                          and a shared quarterly planning process as the
+                          organization grew.
+                        </li>
+                        <li>
+                          Partner with sales and customer success on enterprise
+                          discovery, separating individual account requests from
+                          broader product needs.
+                        </li>
+                      </ul>
+                      <p>
+                        <strong>Westbridge Cloud · Product Manager</strong>
+                        <br />
+                        2015–2020 · Business collaboration software
+                      </p>
+                      <ul>
+                        <li>
+                          Owned discovery and delivery for team collaboration
+                          features, working with engineering and design.
+                        </li>
+                        <li>
+                          Conducted customer interviews and used support themes
+                          and product usage to inform roadmap decisions.
+                        </li>
+                        <li>
+                          Coordinated launches with customer success and
+                          documented product decisions for internal teams.
+                        </li>
+                      </ul>
+                      <h4>Education</h4>
+                      <p>BS, Information Systems · 2014</p>
+                      <h4>Areas of experience</h4>
+                      <p>
+                        Product strategy · Team development · Customer discovery
+                        · Roadmap planning · Cross-functional leadership
+                      </p>
+                      <p className="ha-sample-caution">
+                        All details in this sample are fictional. The “6 to 28”
+                        figure and November timing come from the separate
+                        September conversation notes, not this resume. Neither
+                        has been independently verified.
                       </p>
                     </div>
                   </details>
                   <h4>Feedback on Mira</h4>
+                  <blockquote>
+                    “The team-building experience is relevant. Before we meet,
+                    could you clarify her direct responsibility for enterprise
+                    customers?”
+                    <cite>Illustrative client feedback · Mira / Northstar</cite>
+                  </blockquote>
+                  <p>
+                    <strong>Follow-up:</strong> Ask Mira for a specific
+                    enterprise-customer example and her role in the decision.
+                    Keep that answer attached to this role’s assessment; the
+                    client’s interest is not an interview booking.
+                  </p>
                   <p>
                     Clients can respond to each candidate separately on a shared
                     recommendation. Feedback is private to the recruiter; an
@@ -563,19 +667,37 @@ export default function Home() {
               </article>
             ))}
           </div>
-          <p className="ha-pricing-terms">
-            USD, plus applicable tax. Subscribe when you’re ready; your trial
-            does not automatically become a paid plan. Subscriptions renew until
-            canceled. AI work uses credits based on the services consumed.
-            Longer or more complex work may use more credits. Only completed
-            work is charged. System retries, automatic indexing and follow-on
-            imports are included. Monthly credits reset after a successful
-            renewal. Annual plans receive a new allowance each month on the
-            subscription anniversary. Shorter months use their last day, and
-            unused credits do not roll over. Your saved work stays available
-            when AI access ends.{" "}
-            <Link href="/refund-policy">Refund policy</Link>.
+          <p className="ha-pricing-summary">
+            USD, plus applicable tax. Your trial does not automatically become a
+            paid plan. Paid subscriptions renew until canceled.
           </p>
+          <details className="ha-pricing-details">
+            <summary>
+              How credits and billing work <Plus size={16} />
+            </summary>
+            <div className="ha-pricing-terms">
+              <h3>Using credits</h3>
+              <p>
+                AI work uses credits based on the services consumed. Longer or
+                more complex work may use more credits. Only completed work is
+                charged. System retries, automatic indexing and follow-on
+                imports are included.
+              </p>
+              <h3>Monthly allowances</h3>
+              <p>
+                Monthly credits reset after a successful renewal. Annual plans
+                receive a new allowance each month on the subscription
+                anniversary. Shorter months use their last day, and unused
+                credits do not roll over.
+              </p>
+              <h3>After your AI access ends</h3>
+              <p>
+                Your saved work stays available. Subscribe when you’re ready.
+                See our <Link href="/refund-policy">refund policy</Link> for
+                refund terms.
+              </p>
+            </div>
+          </details>
         </section>
 
         <section

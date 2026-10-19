@@ -902,3 +902,42 @@
     animation: none !important;
   }
 }
+
+.ha-pricing > .ha-pricing-summary {
+  font-size: 12px;
+  max-width: 610px;
+  margin: 20px auto;
+}
+.ha-pricing-details {
+  border-block: 1px solid var(--ha-line);
+  text-align: left;
+}
+.ha-pricing-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 0;
+  font-size: 13px;
+  color: var(--ha-green);
+}
+.ha-pricing-details[open] > summary > svg {
+  transform: rotate(45deg);
+}
+.ha-pricing-details .ha-pricing-terms {
+  padding-bottom: 20px;
+  color: var(--ha-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.ha-pricing-terms h3 {
+  margin: 16px 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ha-ink);
+}
+.ha-pricing-terms p {
+  margin: 0;
+}
