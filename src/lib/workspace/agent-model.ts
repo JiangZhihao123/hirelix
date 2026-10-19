@@ -23,8 +23,9 @@ import { activeAgentJob } from "./agent-execution";
 import { WorkspaceError } from "./database";
 import type { Job } from "./types";
 
-export function agentModel(job: Job, purpose: "reply" | "conversation_title" = "reply") {
-  const stage = purpose === "conversation_title" ? "conversation_title" : "private_agent_step";
+export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "tool_input_repair" = "reply") {
+  const stage = purpose === "conversation_title" ? "conversation_title"
+    : purpose === "tool_input_repair" ? "private_agent_tool_input_repair" : "private_agent_step";
   const modelId = getDefaultLlmModel(),
     official = isUsingOfficialDeepSeek();
   const provider = official ? "deepseek" : "openrouter";
@@ -80,9 +81,10 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" = "
         body?.usage?.cost);
     if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)
       throw new Error("AI provider returned no cost");
-    // Automatic titles are product metadata, not user-requested agent work.
-    // Track provider usage above without sharing the reply reservation.
-    if (purpose === "conversation_title") return;
+    // Product metadata and structural format repairs are not extra user work.
+    // Record their provider usage without overwriting the active reply's
+    // reservation while the SDK is still parsing that reply's tool calls.
+    if (purpose !== "reply") return;
     await consumeAgentCredits(job, costToCreditUnits(cost, multiplier), cost, {
       stage,
       model: modelId,
@@ -98,7 +100,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" = "
     specificationVersion: "v3",
     transformParams: async ({ params }) => {
       await activeAgentJob(job);
-      if (purpose === "conversation_title") return params;
+      if (purpose !== "reply") return params;
       const rates = official
         ? deepSeekRates(modelId, new Date(), true)
         : { input: 20, output: 20 };

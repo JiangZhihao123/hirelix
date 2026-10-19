@@ -41,10 +41,10 @@ export const assessmentOutput = z.object({
     "not_aligned",
   ]),
   summary: z.string(),
-  strengths: z.array(observation),
-  gaps: z.array(observation),
-  questions: z.array(z.string()),
-  unconfirmed: z.array(z.string()),
+  strengths: z.array(observation).describe("Supported strengths. Use [] when none, never null."),
+  gaps: z.array(observation).describe("Evidence gaps or mismatches. Use [] when none, never null."),
+  questions: z.array(z.string()).describe("Concrete questions worth verifying. Use [] when none, never null."),
+  unconfirmed: z.array(z.string()).describe("Conditions not confirmed by the evidence. Use [] when none, never null."),
 });
 async function sources(userId: string, personId: string, roleId: string, tx: Runner = db) {
   return rows<SourceRecord>(

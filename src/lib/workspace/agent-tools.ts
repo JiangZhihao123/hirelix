@@ -6,7 +6,7 @@ import { recordEvidence, reminderEvidence } from "./agent-evidence";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { LostLease, retryJob } from "./jobs";
 import { getLogger } from "@/lib/logger";
-import { agentRoleBrief } from "./agent-contracts";
+import { agentRoleBrief, agentRoleChanges } from "./agent-contracts";
 import { agentSkillNames, readAgentSkill } from "./agent-skills";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
@@ -38,7 +38,7 @@ import { listPeople, personDetails, deletePerson } from "./people";
 import { retrieveCandidates } from "./retrieval";
 import { retrieveRoles } from "./role-retrieval";
 import { candidateChangesSchema } from "./candidate-changes";
-import { recordChangesSchema, roleChangesSchema } from "./conversation-schema";
+import { recordChangesSchema } from "./conversation-schema";
 import { applyAssistantAction } from "./conversation-actions";
 import type { AssistantAction } from "./conversations";
 import { readFile } from "./files";
@@ -685,19 +685,22 @@ export function createAgentTools(ctx: AgentToolContext) {
           .describe(
             "Complete current brief with all still-valid requirements. Null means no brief change; an omitted field is invalid.",
           ),
-        changes: roleChangesSchema,
-        feedback: recordFact
+        changes: agentRoleChanges,
+        feedback: recordFact.pick({ content: true, occurred_at: true, occurred_on: true })
           .extend({
+            occurred_at: recordFact.shape.occurred_at.default(null),
+            occurred_on: recordFact.shape.occurred_on.default(null),
             file_id: z
               .uuid()
               .nullable()
+              .default(null)
               .describe(
                 "Original client feedback file when this event comes from an uploaded note; null only for user-dictated events.",
               ),
           })
           .nullable()
           .describe(
-            "New scoped client feedback, or null when reusing feedback_record_id.",
+            "For a new requirements change reported by the user, supply the actual changed facts in content. Required whenever brief changes from new feedback; unknown dates and file may be omitted. Use null only for details-only updates or when reusing an existing feedback_record_id. Do not drop the source merely because the user supplied it directly in chat.",
           ),
         feedback_record_id: z
           .uuid()
@@ -720,7 +723,7 @@ export function createAgentTools(ctx: AgentToolContext) {
             input.brief
               ? {
                   brief: input.brief,
-                  changes: input.changes,
+                  changes: input.changes ?? {},
                   expected_version: input.expected_version,
                   feedback: input.feedback?.content,
                   feedback_record_id: input.feedback_record_id,
@@ -730,7 +733,7 @@ export function createAgentTools(ctx: AgentToolContext) {
                   source_message_id: question.id,
                 }
               : {
-                  changes: input.changes,
+                  changes: input.changes ?? {},
                   expected_version: input.expected_version,
                   source_message_id: question.id,
                   source_content: question.content,

@@ -26,6 +26,8 @@ Keep supplied names and identifiers intact. When saving a role, retain compensat
 
 Retain original JD requirements separately from later client feedback. The current brief combines still-valid requirements and supported changes, including priorities, flexibility and unresolved questions. Associate changes with their source feedback instead of duplicating the event. Corrections update the identified record; new interactions create dated evidence. Keep original file references and prior versions.
 
+When requirements change, replace the superseded conditions wherever they occur in the current brief, including flexibility and open questions. Preserve unaffected conditions and keep the client's changes distinct from your suggestions. Reconsider earlier recommendations and exclusions against the revised requirements; a prior decision is not evidence of present suitability. A relaxation can make someone worth considering without changing their factual profile. Match the current standard faithfully rather than keeping an old requirement as an unstated seniority or quality filter.
+
 Preserve temporal precision: date-only evidence stays date-only, exact times retain their timezone, and planned events remain separate from completed activity. Related fields in a correction must remain consistent. Tool schemas define the fields and version requirements for each operation.
 
 ## Professional assessment
