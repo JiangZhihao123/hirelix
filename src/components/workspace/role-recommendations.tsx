@@ -186,7 +186,7 @@ export function RoleRecommendations({ roleId }: { roleId: string }) {
             {data
               ? zh
                 ? `已记录发送 ${data.recommended_count} 人 · 有效链接包含 ${publishedPeople} 人 · ${data.materials.length} 份材料`
-                : `${data.recommended_count} with recorded sends · ${publishedPeople} in active links · ${data.materials.length} saved materials`
+                : `${data.recommended_count} with recorded sends · ${publishedPeople} in active links · ${data.materials.length} ${data.materials.length === 1 ? "saved material" : "saved materials"}`
               : ""}
           </p>
         </div>
@@ -200,7 +200,7 @@ export function RoleRecommendations({ roleId }: { roleId: string }) {
           </Link>
           <Link className="ws-button ws-button-primary" href={ask}>
             <FilePenLine size={16} />
-            {t("Prepare submission")}
+            {t("Prepare recommendation")}
           </Link>
         </div>
       </header>

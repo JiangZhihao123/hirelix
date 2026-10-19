@@ -102,7 +102,7 @@ export default function Roles() {
             </button>
           )}
           <span className="ws-count">
-            {query.data?.total ?? "—"} {zh ? "个职位" : "roles"}
+            {query.data?.total ?? "—"} {zh ? "个职位" : query.data?.total === 1 ? "role" : "roles"}
           </span>
         </div>
       </div>

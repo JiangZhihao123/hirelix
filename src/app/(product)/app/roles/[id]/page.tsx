@@ -159,6 +159,7 @@ export default function RolePage({
     );
   const { role, people, records, deliverables } = query.data,
     submissions = deliverables.filter((item) => item.kind === "submission");
+  const recordedSendCount = submissions.filter((item) => item.status === "submitted").length;
   return (
     <div className="ws-page">
       <header className="ws-page-header">
@@ -372,7 +373,7 @@ export default function RolePage({
                           className="ws-link"
                           href={`/app?role=${id}&person=${link.person_id}&prompt=${encodeURIComponent(locale === "zh" ? `请给这个职位准备 ${link.person?.name || "这位候选人"} 的推荐稿，不要发送。` : `Prepare a recommendation for ${link.person?.name || "this candidate"} for this role. Do not send it.`)}`}
                         >
-                          {t("Prepare submission")} <ArrowUpRight size={13} />
+                          {t("Prepare recommendation")} <ArrowUpRight size={13} />
                         </Link>
                       </div>
                       <details className="ws-role-fit mt-4">
@@ -506,8 +507,8 @@ export default function RolePage({
             <h3>{t("Client material")}</h3>
             <p>
               {locale === "zh"
-                ? `已记录 ${submissions.filter((item) => item.status === "submitted").length} 次发送`
-                : `${submissions.filter((item) => item.status === "submitted").length} sends recorded`}
+                ? `已记录 ${recordedSendCount} 次发送`
+                : `${recordedSendCount} ${recordedSendCount === 1 ? "send recorded" : "sends recorded"}`}
             </p>
             <Link
               className="ws-link mt-3"

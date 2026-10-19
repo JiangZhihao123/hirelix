@@ -1191,6 +1191,7 @@ export const uiZh: Record<string, string> = {
   "Prepare draft": "准备草稿",
   "Prepare revision": "准备修订",
   "Prepare search update": "准备进展汇报",
+  "Prepare recommendation": "准备候选人推荐",
   "Prepare submission": "准备候选人推荐",
   "Preparing column mapping for your review": "正在准备列映射供您审阅",
   "Preparing revision…": "正在准备修订…",

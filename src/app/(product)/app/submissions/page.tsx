@@ -61,7 +61,7 @@ export default function Submissions() {
           onClick={() => setChoose(true)}
         >
           <FilePenLine size={17} />
-          {t("Prepare submission")}
+          {t("Prepare recommendation")}
         </button>
       </header>
       <div className="ws-toolbar">

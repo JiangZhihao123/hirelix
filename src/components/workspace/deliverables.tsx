@@ -205,14 +205,14 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
             <ArrowLeft size={14} />
             {document.kind === "search_update"
               ? t("Back to role")
-              : t("Candidate submissions")}
+              : t("Recommendations")}
           </Link>
           <h1>
             {internalReview
               ? t("Internal review")
               : document.kind === "search_update"
               ? t("Search update")
-              : t("Candidate submission")}
+              : t("Candidate recommendation")}
           </h1>
           <p>
             {source.role?.client_name} · {source.role?.title}
