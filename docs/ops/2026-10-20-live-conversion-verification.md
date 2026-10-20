@@ -56,3 +56,21 @@
 - `trial-usage.png`：试用用量读回。
 
 截图和原始界面文本仅本地保存，未提交 Git。试用消耗属于真实线上 AI 使用；未把虚构输入当作模拟服务回执。
+
+## 优惠券验收方案与权限阻塞
+
+用户要求使用优惠券降低测试成本，随后核对官方 Discount API：支持首期 100% 减免，`recur=false`，可限用一次并限制月付 price。零元订单可用于核对 Live 订单/订阅及应用权益；不能计为银行卡实际扣款已验证。
+
+本地配置确认：Live API key 类型，checkout environment 为 production，Live client token 类型；本地月付 price ID 与实际收银台一致。未输出或记录密钥值。
+
+实际调用 Live API：
+
+- 读取月付 price：403，`not authorized to read price`。
+- 读取 discounts：403，`not authorized to read discount`。
+- 创建限定月付、首期 100%、一次使用、48 小时有效的验收优惠券：403，`not authorized to create|read discount`；请求 ID `a63f23f6-ca2f-46f4-92f2-3ed55bf4cd90`。
+
+因此优惠券**未创建**，没有可用券码，也没有更改价格或扣款。创建请求仅尝试一次，拒绝回执保存在本地归档 `discount-attempt.json`，不提交 Git。
+
+已在 Chrome 打开 Paddle 正式后台，由 `vendors.paddle.com` 跳转到 `login.paddle.com` 登录页；当前没有后台登录态。保留该页及原收银台，等待用户登录后继续。未更改 API key 权限，也未索取密码或密钥内容。
+
+首期优惠不改变后续正常续费价格；完成验收后仍需验证取消自动续费，避免下个周期正常扣款。
