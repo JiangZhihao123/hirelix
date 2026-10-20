@@ -43,3 +43,9 @@
 验证：实际浏览器重新下载 DOCX，LibreOffice 转 PDF 并渲染整页检查；中英文样张检查；回归验证正文内容、脚本字体映射和 OOXML 字体解混淆后与源字节完全一致。TypeScript、针对性 ESLint 与回归测试通过。尚未覆盖 Windows Microsoft Word 渲染，不据此宣称全部 Office 客户端兼容。
 
 证据：归档 `exports/recommendation-fixed-render/page-1.png`、`exports/bilingual-fontconfig-render/page-1.png`、`final-persistence.json`、`13-reminder-delivered.png`。
+
+## 跨对话续办
+
+从文档页点击 Continue in a new conversation，新对话 `063dc4ae-b448-4019-8aa2-9503b7eb34c0` 请求对照最新客户反馈准备 Mara 电话，明确只读、不要发送。模型取得当前文档和职位工具观察，辨识 v3 推荐仍引用旧到场条件，找回隔周周二、创始人希望沟通、个人 ownership 待追问，以及人工修改的“通勤/搬迁未讨论”。完成后数据库推荐仍为 v3 draft、submitted_at=null，任务 done、一次执行。截图 `14-cross-conversation-readback.png`。
+
+本轮结束边界：两个产品修复已本地提交；真实链路使用本地隔离数据库，没有部署生产。邮件链路沿用同日单封自发自收证据，本轮未重复发信。生产发布、Live 计费回归、外部客户访问与 Windows Word 尚不能由本轮结果替代。
