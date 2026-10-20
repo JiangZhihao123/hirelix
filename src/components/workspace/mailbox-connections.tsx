@@ -5,7 +5,7 @@ import { useLanguage, useT } from "@/components/LanguageProvider";
 import { Mail, Mails, Check, CircleAlert } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { microsoftSuspendedMessage } from "@/lib/workspace/mailbox-errors";
-import { mailboxCallbackURLs, mailboxScopes, type MailboxProvider, type MailboxSettings } from "@/lib/workspace/mailbox-contract";
+import { mailboxAuthorizationURL, mailboxCallbackURLs, mailboxScopes, type MailboxProvider, type MailboxSettings } from "@/lib/workspace/mailbox-contract";
 import { api, useQuery, ErrorNotice } from "./client";
 
 export async function connectMailbox(provider: MailboxProvider, read: boolean, callbackURL: string) {
@@ -13,9 +13,7 @@ export async function connectMailbox(provider: MailboxProvider, read: boolean, c
   const scopes = [mailboxScopes[provider].send, ...(read ? [mailboxScopes[provider].read] : []), ...(provider === "microsoft" ? ["User.Read", "offline_access"] : [])];
   const result = await authClient.linkSocial({ provider, scopes, disableRedirect: true, ...callbacks });
   if (result.error || !result.data?.url) throw new Error(result.error?.message || "Could not connect this mailbox.");
-  const url = new URL(result.data.url);
-  url.searchParams.set("prompt", "consent");
-  window.location.assign(url.href);
+  window.location.assign(mailboxAuthorizationURL(result.data.url, provider, read));
 }
 
 export function MailboxReturnNotice({connections, loading}: {connections: MailboxSettings["connections"] | undefined; loading:boolean}) {

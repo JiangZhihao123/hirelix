@@ -1,6 +1,14 @@
 import { z } from "zod";
 export const mailboxProvider = z.enum(["google", "microsoft"]);
 export type MailboxProvider = z.infer<typeof mailboxProvider>;
+export function mailboxAuthorizationURL(value: string, provider: MailboxProvider, read: boolean) {
+  const url = new URL(value);
+  url.searchParams.set("prompt", "consent");
+  // A sending-only reconnection must not inherit an older, broader Gmail grant.
+  // In particular, a previous readonly test grant may still await verification.
+  if (provider === "google" && !read) url.searchParams.set("include_granted_scopes", "false");
+  return url.href;
+}
 export function mailboxCallbackURLs(path: string, origin: string, provider: MailboxProvider) {
   const success = new URL(path, origin);
   if (success.origin !== origin) throw new Error("Return to Hirelix after connecting your mailbox.");
