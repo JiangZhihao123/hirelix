@@ -53,15 +53,16 @@ export async function loadPaddle(
       script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
       script.async = true;
       script.onload = () => {
-        if (!window.Paddle) {
-          reject(new Error("Paddle failed to load"));
-          return;
+        try {
+          if (!window.Paddle) throw new Error("Paddle failed to load");
+          if (environment === "sandbox") {
+            window.Paddle.Environment?.set("sandbox");
+          }
+          window.Paddle.Initialize({ token: clientToken, eventCallback: handlePaddleEvent });
+          resolve(window.Paddle);
+        } catch (error) {
+          reject(error);
         }
-        if (environment === "sandbox") {
-          window.Paddle.Environment?.set("sandbox");
-        }
-        window.Paddle.Initialize({ token: clientToken, eventCallback: handlePaddleEvent });
-        resolve(window.Paddle);
       };
       script.onerror = () => reject(new Error("Failed to load Paddle"));
       document.head.appendChild(script);
