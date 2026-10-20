@@ -23,6 +23,7 @@ test("Agent trial limits and signed webhook lifecycle against local Postgres", {
   process.env.NEXT_PUBLIC_PADDLE_AGENT_ANNUAL_PRICE_ID = "pri_qa_annual";
   delete process.env.RESEND_API_KEY;
   try {
+    await db.execute(sql`INSERT INTO "user"(id,email,"emailVerified","createdAt","updatedAt") VALUES(${userId},${`${userId}@example.test`},true,now(),now())`);
     assert.equal((await getAgentAccess(userId)).state, "trial_ready");
     const seed = await enqueue(userId, "chat", "cost-seed", { test: true });
     // Synthetic settled cost fixture: leaves three credits, not three tasks.
@@ -75,6 +76,7 @@ test("Agent trial limits and signed webhook lifecycle against local Postgres", {
     await db.execute(sql`DELETE FROM hirelix_private_jobs WHERE user_id=${userId}::uuid`);
     await db.execute(sql`DELETE FROM hirelix_agent_access WHERE user_id=${userId}::uuid`);
     await db.execute(sql`DELETE FROM hirelix_user_settings WHERE user_id=${userId}::uuid`);
+    await db.execute(sql`DELETE FROM "user" WHERE id=${userId}`);
     for (const [key,value] of Object.entries({ PADDLE_WEBHOOK_SECRET:originalSecret,NEXT_PUBLIC_PADDLE_AGENT_ANNUAL_PRICE_ID:originalPrice,RESEND_API_KEY:originalResend })) { if (value === undefined) delete process.env[key]; else process.env[key]=value; }
     await closeDb();
   }

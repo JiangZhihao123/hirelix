@@ -333,8 +333,14 @@ export async function POST(req: NextRequest) {
 
     const occurredAt = new Date(String(payload.occurred_at || ""));
     if (eventType.startsWith("subscription.") && !Number.isFinite(occurredAt.getTime())) return NextResponse.json({ error: "Missing valid event timestamp" }, { status: 400 });
-    const userId = await resolveUserId(data);
+    let userId = await resolveUserId(data);
     const transactionResult = await db.transaction(async (tx) => {
+      if (userId) {
+        // Delayed provider events must not recreate settings for a deleted
+        // account. Hold the identity row until this write commits.
+        const account = await tx.execute(sql`SELECT id FROM "user" WHERE id=${userId} FOR KEY SHARE`);
+        if (!account.length) userId = null;
+      }
       const duplicate = await recordEvent(tx, eventId, eventType, userId, payload);
       if (duplicate) {
         return { duplicate: true as const, planCode: null };

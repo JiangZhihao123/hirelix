@@ -26,6 +26,7 @@ test('paid cycle ledger, renewal ordering, duplicates, cancellation and annual w
  const subscription={id:sub,status:'active',started_at:start.toISOString(),next_billed_at:end.toISOString(),custom_data:{user_id:owner},items:[{price:{id:'pri_cycle'}}]};
  const payment={id:`txn_${owner}`,subscription_id:sub,status:'completed',origin:'subscription_recurring',billing_period:{starts_at:start.toISOString(),ends_at:end.toISOString()}};
  try{
+  await db.execute(sql`INSERT INTO "user"(id,email,"emailVerified","createdAt","updatedAt") VALUES(${owner},${`${owner}@example.test`},true,now(),now())`);
   // Payment arrives before subscription ownership is known: retained event is still usable.
   await event(`payment_${owner}`,'transaction.completed',payment);
   await event(`subscription_${owner}`,'subscription.updated',subscription);
@@ -70,11 +71,17 @@ test('paid cycle ledger, renewal ordering, duplicates, cancellation and annual w
   access=await getAgentAccess(owner);assert.equal(access.periodStart,start.toISOString());assert.equal(access.periodEnd,end.toISOString());assert.equal(access.limit,3000);
   await event(`cancel_${owner}`,'subscription.canceled',{...subscription,status:'canceled'},new Date(now.getTime()+3000));
   assert.equal((await getAgentAccess(owner)).remaining,0);
+  await db.execute(sql`DELETE FROM hirelix_user_settings WHERE user_id=${owner}::uuid`);
+  await db.execute(sql`DELETE FROM "user" WHERE id=${owner}`);
+  await event(`late_deleted_${owner}`,'subscription.updated',subscription,new Date(now.getTime()+4000));
+  assert.equal((await db.execute(sql`SELECT 1 FROM hirelix_user_settings WHERE user_id=${owner}::uuid`)).length,0,'Delayed signed callback cannot recreate a deleted account');
+  assert.equal((await db.execute(sql`SELECT user_id FROM hirelix_billing_events WHERE event_id=${`late_deleted_${owner}`}`))[0].user_id,null);
  }finally{
   await db.execute(sql`DELETE FROM hirelix_private_jobs WHERE user_id=${owner}::uuid`);
   await db.execute(sql`DELETE FROM hirelix_agent_access WHERE user_id=${owner}::uuid`);
-  await db.execute(sql`DELETE FROM hirelix_billing_events WHERE user_id=${owner}::uuid OR payload->'data'->>'subscription_id'=${sub}`);
+  await db.execute(sql`DELETE FROM hirelix_billing_events WHERE user_id=${owner}::uuid OR payload->'data'->>'subscription_id'=${sub} OR payload->'data'->'custom_data'->>'user_id'=${owner}`);
   await db.execute(sql`DELETE FROM hirelix_user_settings WHERE user_id=${owner}::uuid`);
+  await db.execute(sql`DELETE FROM "user" WHERE id=${owner}`);
   for(const [key,value] of Object.entries(env)){if(value===undefined) delete process.env[key];else process.env[key]=value;}
   await closeDb();
  }

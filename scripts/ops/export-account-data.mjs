@@ -7,26 +7,7 @@ const omit = ["password", "token", "token_hash", "accessToken", "refreshToken",
   "idToken", "pdl_api_key", "lease_token"];
 const quote = (value) => `"${value.replaceAll('"', '""')}"`;
 
-export async function exportAccountData(client, userId, email) {
-  await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-  try {
-    const identity = await client.query(
-      'SELECT * FROM public."user" WHERE id=$1 AND lower(email)=lower($2)', [userId, email],
-    );
-    if (identity.rowCount !== 1) throw new Error("Account ID and email do not match");
-    const columns = (await client.query(`
-      SELECT table_name, column_name FROM information_schema.columns
-      WHERE table_schema='public' ORDER BY table_name, ordinal_position
-    `)).rows;
-    const tables = new Map();
-    for (const row of columns) {
-      if (!tables.has(row.table_name)) tables.set(row.table_name, []);
-      tables.get(row.table_name).push(row.column_name);
-    }
-    const data = { user: identity.rows };
-    for (const [table, names] of tables) {
-      // Known ownership paths, including retired search records. Shared public
-      // talent caches are not owned by an individual account and are excluded.
+export function accountSelection(table, names, userId, email) {
       let predicate;
       let params = [userId];
       if (names.includes("user_id")) predicate = "t.user_id::text=$1";
@@ -49,6 +30,30 @@ export async function exportAccountData(client, userId, email) {
           WHERE activated_user_id::text=$1 OR lower(recipient_email)=lower($2))`;
         params = [userId, email];
       }
+  return { predicate, params };
+}
+
+export async function exportAccountData(client, userId, email) {
+  await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+  try {
+    const identity = await client.query(
+      'SELECT * FROM public."user" WHERE id=$1 AND lower(email)=lower($2)', [userId, email],
+    );
+    if (identity.rowCount !== 1) throw new Error("Account ID and email do not match");
+    const columns = (await client.query(`
+      SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema='public' ORDER BY table_name, ordinal_position
+    `)).rows;
+    const tables = new Map();
+    for (const row of columns) {
+      if (!tables.has(row.table_name)) tables.set(row.table_name, []);
+      tables.get(row.table_name).push(row.column_name);
+    }
+    const data = { user: identity.rows };
+    for (const [table, names] of tables) {
+      // Known ownership paths, including retired search records. Shared public
+      // talent caches are not owned by an individual account and are excluded.
+      const { predicate, params } = accountSelection(table, names, userId, email);
       if (!predicate) continue;
       const projection = names.filter((name) => !omit.includes(name))
         .map((name) => `t.${quote(name)}`).join(", ");
