@@ -12,7 +12,9 @@ export const pdfOptions = {
   standardFontDataUrl: join(pdfRoot, "standard_fonts") + sep,
   wasmUrl: join(pdfRoot, "wasm") + sep,
   disableFontFace: true,
-  useSystemFonts: true,
+  // Serverless hosts may have no fonts. With true, PDF.js skips the bundled
+  // standard font data and can successfully render an entirely blank page.
+  useSystemFonts: false,
   maxImageSize: 16777216,
   isEvalSupported: false,
 };

@@ -2,6 +2,40 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PDFDocument, rgb } from "pdf-lib";
 import { pdfPagePreview, pdfThumbnail } from "../src/lib/workspace/file-thumbnail";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import { pdfOptions } from "../src/lib/workspace/pdf-options";
+
+test("standard PDF text loads bundled font bytes instead of relying on host fonts", async () => {
+  const document = await PDFDocument.create();
+  document.addPage([300,200]).drawText("Visible original CV", {x:20,y:100,size:20});
+  const bytes = await document.save();
+  const fetched: string[] = [];
+  class FontData {
+    async fetch({filename}: {filename:string}) {
+      fetched.push(filename);
+      return new Uint8Array(await readFile(join(pdfOptions.standardFontDataUrl, filename)));
+    }
+  }
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const task = pdfjs.getDocument({...pdfOptions, data:new Uint8Array(bytes), StandardFontDataFactory:FontData});
+  try {
+    await (await (await task.promise).getPage(1)).getOperatorList();
+    assert.ok(fetched.length > 0, "Non-embedded Helvetica must load real bundled font data");
+  } finally { await task.destroy(); }
+  const preview = await pdfPagePreview(bytes,1);
+  const image = await loadImage(preview.image);
+  const canvas = createCanvas(image.width,image.height);
+  const context = canvas.getContext("2d");
+  context.drawImage(image,0,0);
+  const pixels = context.getImageData(0,0,canvas.width,canvas.height).data;
+  let ink = 0;
+  for (let i=0;i<pixels.length;i+=4) {
+    if (pixels[i]<100 && pixels[i+1]<100 && pixels[i+2]<100 && pixels[i+3]>0) ink++;
+  }
+  assert.ok(ink>100, "Successful preview must contain the original text, not a blank white page");
+});
 
 test("PDF preview renders the requested original page and reports the full page count", async () => {
   const document = await PDFDocument.create();
