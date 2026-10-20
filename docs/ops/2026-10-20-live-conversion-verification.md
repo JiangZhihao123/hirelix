@@ -89,3 +89,26 @@
 已在保留的 Live 收银台通过 Add discount 应用该券，实际显示：`Pay nothing`、`Discount -US$49.00`、`Due today US$0.00`。没有提交最终订阅，没有录入账单地址或银行卡，也尚未验证零元交易/订阅回调与权益授予。后续续费恢复正常月付价格；完成验收后仍需走取消续费验证。
 
 证据：本地 `live-discount-created.png` 和 `live-checkout-zero.png`。已保留 0 元收银台，等待用户填写真实账单资料并完成订阅。先前 API 403 仍是该密钥的能力边界；后台登录解决了本次创建券的操作入口，没有证明该密钥获得了新权限。
+
+## 用户完成订阅后，优先关闭两个账号的自动续费
+
+用户明确要求取消当前和此前测试账号的续费，并确认后台唯一另一条有效 Hirelix 订阅属于自己。两条均通过 Paddle Live 后台 Actions → Cancel subscription → At the end of the current billing period 操作，**未选择立即终止权益**。
+
+| 账号标识（邮箱略去域名） | 订阅 ID | 已安排取消日期 | 后台 Next payment |
+| --- | --- | --- | --- |
+| 当前账号 `noahjiang2@…` | `sub_01m5bwf2vrjr4fjcn633mf3gmg` | 2026-11-20 | `-` |
+| 此前账号 `rosedawsonwhere@…` | `sub_01m4z5dz0ptasf63pt16fd48yq` | 2026-11-15 | `-` |
+
+两个详情页都显示 Scheduled cancellation 成功横幅。分别搜索两个实际邮箱后：当前账号只有上述一条订阅；此前账号还有一条旧 YieldMirror Subscription，原本已为 Canceled、无下一次付款，未再操作。没有修改其他客户的订阅。此前确认提问中少写的邮箱字母已明确更正；后台真实拼写以 `rosedawsonwhere` 为准。
+
+Paddle 当前账号详情确认：本次 USD 0.00 交易 Completed，已建立 Active 月付订阅，付款国家 CN。此前账号对应 2026-10-15 的 USD 0.70 交易 Complete。均为本轮后台读回，不再以优惠券创建或用户口头付款替代交易状态证据。
+
+### 产品端与付费任务读回
+
+取消后刷新 Hirelix 订阅页：Subscription active、3,000 AI credits、Access ends Nov 20, 2026，续费关闭已同步到页面。当前周期权益仍有效。
+
+继续原定 Live 验收，在新会话自然请求从已保存的职位及 Alex/Jamie 资料准备后续沟通问题。模型实际完成候选人检索、职位检索、读取职位、读取两位候选人，最终回复已保存。会话 `dc883179-aa10-4670-936a-025a810f23c2`。之后重新进入订阅页显示已用 2.94 / 3,000、剩余 2,997.06，Access ends 仍为 Nov 20。
+
+以上确认 Live 零元订阅完成、产品权益到账、付费期继续工作及 UI 用量记账、后台取消续费及产品端同步。尚未通过生产数据库直接核对签名 webhook 原始事件和账本；新注册登录、到期执行、真实后续续费等仍不因本轮局部结果而放行。
+
+证据均仅本地保存：`noah-renewal-cancelled.png`、`previous-account-renewal-cancelled.png`、两个账号筛选后的无 Next payment 截图、`paid-access-ends-after-cancellation.png`、`paid-follow-up-complete.png`、`paid-follow-up-readback.txt`、`paid-usage-after-cancellation.png`、`renewal-cancellations.json`。未记录完整银行卡资料，未创建额外收费项目。
