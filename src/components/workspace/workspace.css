@@ -3008,6 +3008,9 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-mailbox-details { display:grid; gap:12px; margin-top:12px; }
 .ws-mailbox-details p, .ws-mailbox-compact > p { font-size:14px; line-height:1.6; }
 .ws-mailbox-details > button { justify-self:start; }
+.ws-mailbox-help { margin-top:16px; font-size:14px; line-height:1.6; color:var(--ws-muted, #657267); }
+.ws-mailbox-help summary { cursor:pointer; width:fit-content; }
+.ws-mailbox-help p { margin:12px 0; }
 .ws-mailbox-compact .ws-mailbox-account { padding:10px 0; }
 
 .ws-email-card > .ws-mailbox-compact { padding: 0 20px 12px; }

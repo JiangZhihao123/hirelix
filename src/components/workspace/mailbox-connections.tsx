@@ -49,34 +49,39 @@ export function MailboxConnections({ callbackURL = "/app/settings?section=email"
     finally { setBusy(false); }
   }
   return <section className={compact ? "ws-mailbox-compact" : "ws-mailbox-settings"} aria-label={zh ? "邮箱连接" : "Email connections"}>
-    {!compact && <header><h2>{zh ? "邮箱" : "Email"}</h2><p>{zh ? "连接你的工作邮箱，用它发送推荐，并按需让助理查阅邮件。" : "Connect your work mailbox to send recommendations and let your assistant read mail when needed."}</p><p className="ws-muted">{zh ? "连接后，在对话里告诉助理收件人和邮件内容，或在推荐材料的“交付推荐 → 邮件”中准备。你确认后才会发送；登录 Hirelix 并不等于已授权邮箱。" : "Once connected, tell your assistant who to email and what to say, or use Deliver recommendation → Email on a saved recommendation. You confirm each send. Signing in to Hirelix does not connect your mailbox."}</p></header>}
-    {compact && <p className="ws-muted">{zh ? "以下是当前连接状态。连接后可回到这段对话继续准备邮件。" : "Live connection status. Return to this conversation after connecting to continue preparing your email."}</p>}
+    {!compact && <header><h2>{zh ? "邮箱" : "Email"}</h2><p>{zh ? "连接工作邮箱，让助理帮你处理邮件。" : "Connect your work mailbox so your assistant can help with email."}</p></header>}
+    {compact && <p className="ws-muted">{zh ? "连接邮箱后，继续准备这封邮件。" : "Connect your mailbox to continue preparing this email."}</p>}
     <MailboxReturnNotice connections={query.data?.connections} loading={query.loading} />
     {query.loading && <p role="status">{zh ? "正在检查邮箱…" : "Checking mailboxes…"}</p>}
     {query.data?.connections.filter(c => !compact || showOther || c.provider === preferredProvider).map(c => <article key={c.provider} className="ws-mailbox-account">
-      <div className="ws-mailbox-heading"><div><strong>{c.email || (c.provider === "google" ? "Gmail / Google Workspace" : "Outlook / Microsoft 365")}</strong><p className="ws-muted">{c.error ? (zh ? "连接需要检查" : "Connection needs attention") : c.connected ? (c.can_read ? (zh ? "可发送 · 可按需读取" : "Sending enabled · Reading enabled") : (!c.read_enabled ? (zh ? "可发送 · 读取暂未开放" : "Sending enabled · Reading unavailable") : (zh ? "可发送 · 未开启读取" : "Sending enabled · Reading off"))) : (zh ? "尚未连接发信权限" : "Not connected for sending")}{query.data?.default_provider === c.provider && ` · ${zh ? "默认发件人" : "Default sender"}`}</p></div>
+      <div className="ws-mailbox-heading"><div><strong>{c.provider === "google" ? "Gmail / Google Workspace" : "Outlook / Microsoft 365"}</strong>
+        <p className="ws-muted">{c.read_enabled ? (zh ? "支持读取和发送" : "Supports reading and sending") : (zh ? "支持发送，暂不支持读取" : "Supports sending · Reading not supported yet")}</p>
+        {(c.email || (!c.error && c.configured)) && <p className="ws-muted">{c.email}{!c.error && c.configured && <>{c.email && " · "}{c.connected ? (c.read_enabled && !c.can_read ? (zh ? "已连接 · 未开启读取" : "Connected · Reading off") : (zh ? "已连接" : "Connected")) : (zh ? "未连接" : "Not connected")}{query.data?.default_provider === c.provider && ` · ${zh ? "默认发件人" : "Default sender"}`}</>}</p>}
+      </div>
         {c.connected && !compact && <button className="ws-link" aria-expanded={manage === c.provider} onClick={() => { setManage(manage === c.provider ? null : c.provider); setDisconnect(null); }}>{zh ? "管理" : "Manage"}</button>}
       </div>
-      <p className="ws-muted">{c.read_enabled
-        ? (zh ? `${c.provider === "google" ? "Gmail" : "Outlook"} 支持读取和发送邮件。` : `${c.provider === "google" ? "Gmail" : "Outlook"} supports reading and sending email.`)
-        : (zh ? `${c.provider === "google" ? "Gmail" : "Outlook"} 支持发送邮件，暂不支持读取。` : `${c.provider === "google" ? "Gmail" : "Outlook"} supports sending email. Reading is not supported yet.`)}</p>
-      {!c.read_enabled && <p className="ws-muted">{zh ? "如需分析来信，可粘贴邮件正文，或上传邮件的 PDF、文本文件。" : "To analyze incoming mail, paste the email content or upload the email as a PDF or text file."}</p>}
+      {c.error && <ErrorNotice error={c.error} />}
       {c.error === microsoftSuspendedMessage && <p><a href="https://outlook.live.com/mail/" target="_blank" rel="noopener noreferrer">{zh ? "打开 Outlook 验证账户" : "Open Outlook to verify your account"}</a></p>}
       {!c.configured ? <p>{zh ? "此服务暂未配置完成。" : "This provider is not configured yet."}</p> : <div className="ws-actions">
-        {!c.connected && <button className="ws-button ws-button-primary" disabled={busy || query.loading} onClick={() => c.error && !c.needs_reconnect ? query.refresh() : void run(() => onConnect ? onConnect(c.provider) : connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{c.error && !c.needs_reconnect ? (zh ? "重新检查连接" : "Check connection again") : c.needs_reconnect ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : (zh ? "连接邮箱" : "Connect mailbox")}</button>}
+        {!c.connected && c.error !== microsoftSuspendedMessage && <button className="ws-button ws-button-primary" disabled={busy || query.loading} onClick={() => c.error && !c.needs_reconnect ? query.refresh() : void run(() => onConnect ? onConnect(c.provider) : connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{c.error && !c.needs_reconnect ? (zh ? "重新检查连接" : "Check connection again") : c.needs_reconnect ? (zh ? "重新连接邮箱" : "Reconnect mailbox") : (zh ? "连接邮箱" : "Connect mailbox")}</button>}
+        {!compact && !c.connected && (c.email || c.error) && <button className="ws-link" aria-expanded={manage === c.provider} onClick={() => { setManage(manage === c.provider ? null : c.provider); setDisconnect(null); }}>{zh ? "更多选项" : "More options"}</button>}
         {!compact && manage === c.provider && c.connected && query.data?.default_provider !== c.provider && <button className="ws-button" disabled={busy} onClick={() => void run(async () => { await api("/mailboxes", { method: "PATCH", body: JSON.stringify({ provider: c.provider }) }); setNotice(zh ? "已更新默认发件人。单封邮件仍可选择其他邮箱。" : "Default sender updated. You can still choose another mailbox for an individual email."); })}>{zh ? "设为默认发件人" : "Use as default sender"}</button>}
       </div>}
-      {(manage === c.provider || !c.connected) && !compact && <div className="ws-mailbox-details">
-        {!c.connected && <p>{zh ? "连接首先申请发送权限。每封邮件发送前仍需你的明确确认。" : "Connecting requests sending permission. Each email still needs your explicit confirmation before sending."}</p>}
+      {manage === c.provider && !compact && <div className="ws-mailbox-details">
         {c.connected && !c.can_read && c.read_enabled && <><p>{zh ? "可选：按你的要求检索邮件，相关内容会交给 AI 处理，摘要可能保留在对话中。不会自动同步整个邮箱。" : "Optional: search mail for your requests. Relevant content is processed by AI, and summaries may remain in conversations. Your entire mailbox is not automatically synced."}</p><button className="ws-button" disabled={busy} onClick={() => void run(() => connectMailbox(c.provider, true, callbackURL))}>{zh ? "开启读取与 AI 分析" : "Enable reading and AI analysis"}</button></>}
         {(c.email || c.error) && <div><button className="ws-link" onClick={() => setDisconnect(disconnect === c.provider ? null : c.provider)}>{zh ? "断开邮箱…" : "Disconnect mailbox…"}</button>{disconnect === c.provider && <div className="ws-email-notice"><p>{zh ? "断开后，助理无法通过此邮箱发送或读取邮件。已保存的对话、推荐及发送记录会保留。" : "Disconnecting stops sending and reading through this mailbox. Saved conversations, recommendations and delivery records remain."}</p><button className="ws-button" disabled={busy} onClick={() => void run(async () => { await api(`/mailboxes?provider=${c.provider}`, { method: "DELETE" }); setDisconnect(null); setManage(null); })}>{zh ? "确认断开" : "Confirm disconnect"}</button><button className="ws-link" onClick={() => setDisconnect(null)}>{zh ? "取消" : "Cancel"}</button></div>}</div>}
       </div>}
-      {c.error && <ErrorNotice error={c.error} />}
-      {c.error && c.error !== microsoftSuspendedMessage && !c.needs_reconnect && !compact && <button className="ws-link" disabled={busy} onClick={() => void run(() => connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{zh ? "仍有问题？重新连接邮箱" : "Still having trouble? Reconnect mailbox"}</button>}
+      {manage === c.provider && c.error && c.error !== microsoftSuspendedMessage && !c.needs_reconnect && !compact && <button className="ws-link" disabled={busy} onClick={() => void run(() => connectMailbox(c.provider, !!c.granted_read && c.read_enabled, callbackURL))}>{zh ? "重新连接邮箱" : "Reconnect mailbox"}</button>}
     </article>)}
     {compact && <button className="ws-link" onClick={() => setShowOther(!showOther)}>{zh ? (showOther ? "收起其他邮箱" : "选择其他邮箱") : (showOther ? "Hide other mailboxes" : "Choose another mailbox")}</button>}
     {notice && <p role="status">{notice}</p>}
     <ErrorNotice error={error || query.error || (oauthError ? (zh ? "邮箱连接未完成，之前的内容仍保留。可以重试或继续工作。" : "Mailbox connection was not completed. Your work is preserved. Retry or continue working.") : "")} retry={query.error ? query.refresh : undefined} />
-    <p className="ws-muted"><a className="ws-link" href={compact ? "/app/settings?section=email" : "/privacy"}>{compact ? (zh ? "管理邮箱与默认发件人" : "Manage email and default sender") : (zh ? "邮箱数据使用说明" : "How mailbox data is used")}</a></p>
+    <details className="ws-mailbox-help">
+      <summary className="ws-link">{zh ? "了解更多" : "Learn more"}</summary>
+      <p>{zh ? "连接后，在对话里告诉助理收件人和邮件内容，或从推荐材料中准备邮件。每封邮件发送前都需要你的确认。登录 Hirelix 不等于已连接邮箱。" : "Once connected, tell your assistant who to email and what to say, or prepare an email from a saved recommendation. You confirm each send. Signing in to Hirelix does not connect your mailbox."}</p>
+      <p>{zh ? "连接首先申请发送权限。读取需要单独授权；相关内容会交给 AI 处理，摘要可能保留在对话中，不会自动同步整个邮箱。" : "Connecting requests sending permission first. Reading requires separate permission. Relevant content is processed by AI, and summaries may remain in conversations. Your entire mailbox is not automatically synced."}</p>
+      <a className="ws-link" href="/privacy">{zh ? "邮箱数据使用说明" : "How mailbox data is used"}</a>
+    </details>
+    {compact && <p><a className="ws-link" href="/app/settings?section=email">{zh ? "管理邮箱与默认发件人" : "Manage email and default sender"}</a></p>}
   </section>;
 }
