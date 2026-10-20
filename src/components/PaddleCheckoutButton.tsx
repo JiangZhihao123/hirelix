@@ -13,7 +13,7 @@ import {
 import { getCheckoutConfig, type BillingPlanCode } from "@/lib/billing";
 import { isAgentPlan } from "@/lib/agent-plan";
 import { fetchWithUserSession } from "@/lib/client-auth";
-import { loadPaddle } from "@/lib/paddle";
+import { acquirePaddleCheckout, loadPaddle } from "@/lib/paddle";
 
 type CheckoutKind = { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> };
 
@@ -90,11 +90,27 @@ export function PaddleCheckoutButton({
       return;
     }
 
+    const checkoutLease = acquirePaddleCheckout({
+      onLoaded: () => setLoading(false),
+      onSettled: () => setLoading(false),
+      onError,
+    });
+    if (!checkoutLease) {
+      trackEvent(ANALYTICS_EVENTS.checkoutError, {
+        ...getAnalyticsContextFromBrowser(),
+        purchase_type: purchaseType,
+        checkout_kind: checkout.type,
+        error_reason: "checkout_in_progress",
+      });
+      onError?.("Another checkout is already opening. Please wait for it to finish or close it before trying again.");
+      return;
+    }
+
     setSlow(false);
     setLoading(true);
     let opened = false;
     try {
-      const paddle = await loadPaddle(config.clientToken, config.environment, onError, () => setLoading(false));
+      const paddle = await loadPaddle(config.clientToken, config.environment);
       if (!paddle) {
         trackEvent(ANALYTICS_EVENTS.checkoutError, {
           ...getAnalyticsContextFromBrowser(),
@@ -126,7 +142,10 @@ export function PaddleCheckoutButton({
       onError?.(err instanceof Error ? err.message : "Checkout failed.");
     } finally {
       // Checkout.open only starts loading the iframe. Wait for Paddle's event.
-      if (!opened) setLoading(false);
+      if (!opened) {
+        checkoutLease.release();
+        setLoading(false);
+      }
     }
   }
 
