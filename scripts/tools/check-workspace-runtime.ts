@@ -55,6 +55,7 @@ async function main() {
         // document versions/delivery, schedules and credit accounting.
         const tables = [
           "user", "session", "account", "verification",
+          "hirelix_admin_sessions", "hirelix_admin_login_limits",
           "hirelix_private_jobs", "hirelix_private_conversations", "hirelix_agent_messages",
           "hirelix_private_files", "hirelix_private_import_rows", "hirelix_agent_people",
           "hirelix_private_roles", "hirelix_private_records", "hirelix_private_role_candidates",

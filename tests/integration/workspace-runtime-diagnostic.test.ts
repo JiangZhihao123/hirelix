@@ -35,7 +35,7 @@ test("real PostgreSQL diagnostic rejects partially missing evidence tables and d
   const complete = diagnose();
   assert.equal(complete.status, 0);
   assert.equal(complete.report.database.ready, true);
-  const missing = ["hirelix_private_records", "hirelix_private_role_candidates", "hirelix_private_versions"];
+  const missing = ["hirelix_private_records", "hirelix_private_role_candidates", "hirelix_private_versions", "hirelix_admin_sessions", "hirelix_admin_login_limits"];
   const hidden: string[] = [];
   try {
     for (const table of missing) {

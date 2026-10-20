@@ -100,7 +100,6 @@ test("analysis-only material cannot authorize writes; a later natural request sa
   assert.equal(people.length, 0);
   const approved = await sendMessage(owner, { message: "现在把 Avery Moss 保存到我的资料库，只保存原文支持的资料。", locale: "zh", conversation_id: first.conversation_id, request_key: randomUUID() });
   await run(approved.job, assistantReply);
-  const detail = await conversationDetails(owner, first.conversation_id);
   people = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='avery.moss@example.test'`);
   assert.equal(people.length,1);
   const originals = await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${people[0].id}::uuid AND file_id=${source.id}::uuid`);
