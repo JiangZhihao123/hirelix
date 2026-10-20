@@ -70,3 +70,37 @@ test("A source-only correction preserves the original URL and rejects an empty c
   assert.equal(recordChangesSchema.safeParse(base).success,false);
   assert.equal(recordChangesSchema.parse({...base,source_url:""}).source_url,"");
 });
+
+test("Outlook attachment boundaries reject ambiguity, oversized bytes and unsupported objects", async t=>{
+  t.mock.method(getDb(),"execute",async()=>[{accountId:"selected-account"}]);
+  const keys=["MICROSOFT_CLIENT_ID","MICROSOFT_CLIENT_SECRET","MICROSOFT_MAIL_READ_ENABLED"];
+  const old=keys.map(k=>process.env[k]);keys.forEach(k=>process.env[k]=k.endsWith("ENABLED")?"true":"fixture");
+  t.after(()=>keys.forEach((k,i)=>{if(old[i]===undefined)delete process.env[k];else process.env[k]=old[i];}));
+  t.mock.getter(auth,"api",()=>({getAccessToken:async()=>({accessToken:"fixture",scopes:["Mail.Read"]})}));
+  let entries=[{id:"first",name:"CV.pdf",size:10},{id:"second",name:"CV.pdf",size:10}];
+  let nextPage=false, downloads=0;
+  const downloadedIds:string[]=[];
+  let attachment:Record<string,unknown>={"@odata.type":"#microsoft.graph.fileAttachment",contentBytes:Buffer.from("selected file").toString("base64")};
+  t.mock.method(globalThis,"fetch",async(url:string)=>{
+    if(url.includes("/attachments?"))return Response.json({value:entries,...(nextPage?{"@odata.nextLink":"https://graph.microsoft.com/next"}:{})});
+    if(url.includes("/attachments/")){downloads++;downloadedIds.push(new URL(url).pathname.split("/").at(-1)!);return Response.json(attachment);}
+    return Response.json({id:"incoming",hasAttachments:true,body:{contentType:"text",content:"Attached CV"},webLink:"https://outlook.live.com/mail/"});
+  });
+  const input={provider:"microsoft",message_id:"incoming",attachment_name:"CV.pdf"};
+  await assert.rejects(readMailboxAttachment("owner",input),/Multiple attachments/);
+  assert.equal(downloads,0,"Ambiguous names must not download an arbitrary file");
+  assert.equal((await readMailboxAttachment("owner",{...input,attachment_id:"second"})).bytes.toString(),"selected file");
+  assert.deepEqual(downloadedIds,["second"],"The explicit ID selects the right file among duplicate names");
+  entries=[{id:"first",name:"CV.pdf",size:4*1024*1024+1}];
+  await assert.rejects(readMailboxAttachment("owner",input),/4 MB/);
+  assert.equal(downloads,1,"Provider size rejects before downloading");
+  entries[0].size=10;
+  attachment={"@odata.type":"#microsoft.graph.itemAttachment"};
+  await assert.rejects(readMailboxAttachment("owner",input),/original mailbox/);
+  attachment={"@odata.type":"#microsoft.graph.fileAttachment",contentBytes:Buffer.alloc(4*1024*1024+1).toString("base64")};
+  await assert.rejects(readMailboxAttachment("owner",input),/4 MB/);
+  assert.equal(downloads,3,"Actual decoded size is enforced even when metadata understates it");
+  nextPage=true;
+  await assert.rejects(readMailboxAttachment("owner",input),/more than 50 attachments/);
+  assert.equal(downloads,3,"Incomplete attachment listings must not claim complete selection");
+});
