@@ -4,7 +4,9 @@ import { CREDIT_RETAIL_USD, CREDIT_UNITS } from "./agent-plan";
 // the subscription price buys the workspace, not a token resale contract.
 // https://api-docs.deepseek.com/quick_start/pricing/
 // https://siliconflow.cn/pricing (Qwen3-Embedding-8B: CNY 0.28 / 1M)
-export const CREDIT_PRICING_VERSION = "2026-10-01";
+export const CREDIT_PRICING_VERSION = "2026-10-20";
+// https://api-docs.deepseek.com/guides/search/ — both Search and Fetch.
+export const DEEPSEEK_WEB_REQUEST_COST_USD = 0.75 / 1000;
 export function creditMarkup() {
   const value = Number(process.env.AGENT_CREDIT_COST_MULTIPLIER ?? 3);
   if (!Number.isFinite(value) || value < 1 || value > 100) throw new Error("Invalid AI credit cost multiplier");

@@ -1,82 +1,80 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseNativeSearch, publicWebUrl, searchWeb } from "../src/lib/workspace/web-search";
+import { fetchWeb, parseFetchedPage, parseSearchResults, publicWebUrl, searchWeb, webSearchInput } from "../src/lib/workspace/web-search";
+import { DEEPSEEK_WEB_REQUEST_COST_USD } from "../src/lib/agent-credit-pricing";
 import { turnSnapshot } from "../src/lib/workspace/turn-progress";
 
-const usage = {input_tokens: 100, output_tokens: 20};
-test("only native search blocks establish sources; excerpts remain tied to their URL", () => {
-  const result = parseNativeSearch({stop_reason: "end_turn", usage, content: [
-    {type: "thinking", text: "private reasoning"},
-    {type: "web_search_tool_result", content: [
-      {type: "web_search_result", title: "Official source", url: "https://example.com/news", encrypted_content: "private", page_age: null},
-      {type: "web_search_result", title: "Duplicate", url: "https://example.com/news"},
-      {type: "web_search_result", title: "Unsafe", url: "javascript:alert(1)"},
-    ]},
-    {type: "text", text: "A generated summary mentioning https://invented.example", citations: [{url: "https://example.com/news", cited_text: "Actual excerpt"}]},
-  ]});
-  assert.deepEqual(result.sources, [{title: "Official source", href: "https://example.com/news", snippet: "Actual excerpt"}]);
-  assert.equal(JSON.stringify(result).includes("private"), false);
-  assert.ok(result.search_summary.includes("generated summary"));
+const source = {title: "Official", url: "https://example.com/news", snippet: "Short summary", summary: "Provider summary", content: "Original text", rerank_score: 2.5, authority: 3, date: null, site_name: "Example"};
+test("structured results preserve source provenance and separate summaries from original content", () => {
+  const result = parseSearchResults({results: [source, source, {...source, url: "javascript:alert(1)"}]});
+  assert.equal(result.billable, true);
+  assert.equal(result.sources.length, 1);
+  assert.equal(result.sources[0].summary, "Provider summary");
+  assert.equal(result.sources[0].content, "Original text");
+  assert.equal(result.sources[0].relevance, 2.5);
+  assert.deepEqual(parseSearchResults({results: []}), {sources: [], billable: false});
+  assert.throws(() => parseSearchResults({results: [{title: "I searched"}]}), /invalid response/);
 });
-
-test("missing search, provider errors and truncated responses are failures, not empty successes", () => {
-  assert.throws(() => parseNativeSearch({stop_reason: "end_turn", usage, content: [{type: "text", text: "I searched"}]}), /did not perform/);
-  assert.throws(() => parseNativeSearch({stop_reason: "end_turn", usage, content: [{type: "web_search_tool_result", content: {type: "web_search_tool_result_error", error_code: "too_many_requests"}}]}), /search failed/);
-  assert.throws(() => parseNativeSearch({stop_reason: "end_turn", usage, content: [{type: "web_search_tool_result", content: [{type: "web_search_tool_result_error", error_code: "unavailable"}]}]}), /search failed \(unavailable\)/);
-  assert.throws(() => parseNativeSearch({stop_reason: "max_tokens", usage, content: [{type: "web_search_tool_result", content: []}]}), /did not finish/);
-  assert.deepEqual(parseNativeSearch({stop_reason: "end_turn", usage, content: [{type: "web_search_tool_result", content: []}]}).sources, []);
+test("retrieved content is bounded with explicit truncation", () => {
+  const result = parseSearchResults({results: Array.from({length: 10}, (_, i) => ({...source, url: `https://example.com/${i}`, content: "a".repeat(20000)}))});
+  assert.equal(result.sources.reduce((sum, s) => sum + s.content.length, 0), 60000);
+  assert.ok(result.sources.every(s => s.truncated));
+  assert.equal(parseFetchedPage({title: "Page", content: "a".repeat(40001)}).truncated, true);
+  assert.equal(parseFetchedPage({title: "Page", content: ""}).content, "");
+  assert.throws(() => parseFetchedPage({content: 123}), /invalid response/);
 });
-
-test("search activity and source URLs survive terminal snapshots", () => {
-  const parts = [{type: "tool", id: "search", label: "Searching the web", status: "done", query: "public company news", sources: [{title: "Official source", href: "https://example.com/news"}]}];
-  const snapshot = turnSnapshot({id: "turn", status: "done", progress: "Complete", error: null, updated_at: "2026-10-12T10:00:00Z", result: {parts}});
-  assert.deepEqual(snapshot.result.parts, parts);
+test("search input follows Unicode and result limits; URLs cannot contain credentials", () => {
+  assert.equal(webSearchInput.parse({query: "😀".repeat(128)}).count, 10);
+  assert.equal(webSearchInput.safeParse({query: "😀".repeat(129)}).success, false);
+  assert.equal(webSearchInput.safeParse({query: " "}).success, false);
+  assert.equal(webSearchInput.safeParse({query: "news", count: 51}).success, false);
   assert.equal(publicWebUrl("https://user:password@example.com"), null);
   assert.equal(publicWebUrl("data:text/html,hello"), null);
+  assert.equal(DEEPSEEK_WEB_REQUEST_COST_USD, 0.00075);
 });
-
-test("cancellation exits before dispatching a native search", async () => {
-  const previous = process.env.DEEPSEEK_API_KEY;
-  process.env.DEEPSEEK_API_KEY = "unused-local-test-value";
-  try {
-    await assert.rejects(() => searchWeb("public news", AbortSignal.abort(new Error("cancelled before dispatch"))), /cancelled before dispatch/);
-  } finally {
-    if (previous === undefined) delete process.env.DEEPSEEK_API_KEY;
-    else process.env.DEEPSEEK_API_KEY = previous;
+test("search and fetch activity sources survive terminal snapshots", () => {
+  for (const tool of ["web_search", "web_fetch"]) {
+    const parts = [{type: "tool", id: "search", tool, label: "Reading sources", status: "done", query: "public company news", sources: [{title: "Official source", href: "https://example.com/news"}]}];
+    const snapshot = turnSnapshot({id: "turn", status: "done", progress: "Complete", error: null, updated_at: "2026-10-20T10:00:00Z", result: {parts}});
+    assert.deepEqual(snapshot.result.parts, parts);
   }
 });
-
-
-test("native recovery keeps successful sources while reporting partial failures", () => {
-  const error = {type: "web_search_tool_result", content: [{type: "web_search_tool_result_error", error_code: "unavailable"}]};
-  const success = {type: "web_search_tool_result", content: [{type: "web_search_result", title: "Official", url: "https://example.com"}]};
-  for (const content of [[error, success], [success, error]]) {
-    const result = parseNativeSearch({stop_reason: "end_turn", usage, content});
-    assert.equal(result.sources.length, 1);
-    assert.deepEqual(result.provider_errors, ["unavailable"]);
-  }
-  assert.throws(() => parseNativeSearch({stop_reason: "end_turn", usage, content: [error]}), /unavailable/);
-});
-
-test("transient failures retry once; authentication failures do not retry", async () => {
-  const originalFetch = globalThis.fetch;
-  const key = process.env.DEEPSEEK_API_KEY;
+test("direct API contracts, cancellation and transient errors", async () => {
+  const originalFetch = globalThis.fetch, key = process.env.DEEPSEEK_API_KEY;
   process.env.DEEPSEEK_API_KEY = "unused-local-test-value";
   try {
     let calls = 0;
-    globalThis.fetch = async () => {
+    globalThis.fetch = async (url, init) => {
       calls++;
-      return new Response(JSON.stringify({stop_reason: "end_turn", usage, content: [{type: "web_search_tool_result", content: [{type: "web_search_tool_result_error", error_code: "unavailable"}]}]}), {status: 200});
+      assert.equal(url, "https://api.deepseek.com/v1/tools/search");
+      assert.deepEqual(JSON.parse(String(init?.body)), {query: "news site:example.com", count: 3, need_content: true});
+      return new Response(JSON.stringify({results: [source]}));
     };
-    await assert.rejects(() => searchWeb("public query", new AbortController().signal), /unavailable/);
+    const result = await searchWeb("news site:example.com", new AbortController().signal, {count: 3, need_content: true});
+    assert.equal(result.sources.length, 1);
+    await assert.rejects(() => searchWeb("news", AbortSignal.abort(new Error("cancelled before dispatch"))), /cancelled before dispatch/);
+    assert.equal(calls, 1);
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, "https://api.deepseek.com/v1/tools/fetch");
+      assert.deepEqual(JSON.parse(String(init?.body)), {url: source.url});
+      return new Response(JSON.stringify({title: "Official", content: "# Original page"}));
+    };
+    assert.equal((await fetchWeb(source.url, new AbortController().signal)).sources[0].href, source.url);
+    await assert.rejects(() => fetchWeb("https://user:secret@example.com", new AbortController().signal));
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return calls === 1 ? new Response("", {status: 429}) : new Response(JSON.stringify({results: []})); };
+    assert.deepEqual((await searchWeb("news", new AbortController().signal)).sources, []);
     assert.equal(calls, 2);
     calls = 0;
     globalThis.fetch = async () => { calls++; return new Response("", {status: 401}); };
-    await assert.rejects(() => searchWeb("public query", new AbortController().signal), /HTTP 401/);
+    await assert.rejects(() => searchWeb("news", new AbortController().signal), /HTTP 401/);
+    assert.equal(calls, 1);
+    calls = 0;
+    globalThis.fetch = async () => { calls++; throw new Error("network"); };
+    await assert.rejects(() => fetchWeb(source.url, new AbortController().signal), /Could not connect/);
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = originalFetch;
-    if (key === undefined) delete process.env.DEEPSEEK_API_KEY;
-    else process.env.DEEPSEEK_API_KEY = key;
+    if (key === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = key;
   }
 });

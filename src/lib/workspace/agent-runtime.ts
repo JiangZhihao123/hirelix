@@ -402,7 +402,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
         flushContinuation();
         textPart = undefined;
         canAppendPreviousText = false;
-        const query = ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;
+        const query = part.toolName === "web_fetch" ? (part.input as {url?: unknown}).url : ["web_search", "find_candidates", "find_roles"].includes(part.toolName) ? (part.input as {query?: unknown}).query : undefined;
         parts.push({type: "tool", id: part.toolCallId, tool: part.toolName, label: progressLabels[part.toolName] || "Working on your request", status: "running",
           ...(typeof query === "string" ? {query} : {}),
         });
@@ -411,9 +411,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
       if (part.type === "tool-result" || part.type === "tool-error") {
         const entry = parts.find(entry => entry.type === "tool" && entry.id === part.toolCallId);
         if (entry?.type === "tool") entry.status = part.type === "tool-error" || (part.output as {ok?: boolean})?.ok === false ? "error" : "done";
-        if (entry?.type === "tool" && part.type === "tool-result" && part.toolName === "web_search") {
-          const output = part.output as {ok?: boolean; result?: {sources?: Array<{title: string; href: string}>; provider_errors?: string[]}};
-          if (output.ok && output.result?.provider_errors?.length) entry.warning = "Some searches failed; available results are shown.";
+        if (entry?.type === "tool" && part.type === "tool-result" && ["web_search", "web_fetch"].includes(part.toolName)) {
+          const output = part.output as {ok?: boolean; result?: {sources?: Array<{title: string; href: string}>}};
           if (output.ok && output.result?.sources) entry.sources = output.result.sources.map(({title, href}) => ({title, href}));
         }
         if (entry?.type === "tool" && part.type === "tool-result") {

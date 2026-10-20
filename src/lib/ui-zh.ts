@@ -131,6 +131,12 @@ export const uiZh: Record<string, string> = {
   "Sending": "发送中",
 
   "Searching the web": "搜索网页",
+  "Reading a web page": "读取网页",
+  "Web retrieval is not configured. A DeepSeek API key is required.": "网页检索尚未配置 DeepSeek API 密钥。",
+  "Web retrieval timed out. Please retry.": "网页检索超时，请重试。",
+  "Could not connect to DeepSeek web retrieval. Please retry.": "无法连接 DeepSeek 网页检索服务，请重试。",
+  "DeepSeek Search returned an invalid response. Please retry.": "DeepSeek 搜索返回格式无效，请重试。",
+  "DeepSeek Fetch returned an invalid response. Please retry.": "DeepSeek 网页读取返回格式无效，请重试。",
   "Web search is not configured. A DeepSeek API key is required.": "联网搜索尚未配置 DeepSeek API 密钥。",
   "DeepSeek did not perform a web search. Please retry.": "DeepSeek 未实际执行联网搜索，请重试。",
   "Web search timed out. Please retry.": "联网搜索超时，请重试。",
