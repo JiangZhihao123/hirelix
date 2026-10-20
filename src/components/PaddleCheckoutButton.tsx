@@ -3,6 +3,7 @@
 
 import { useT, useLanguage } from "@/components/LanguageProvider";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -167,10 +168,15 @@ export function PaddleCheckoutButton({
         label
       )}
     </button>
-    {loading && slow && <p role="status">
+    {loading && slow && createPortal(<div role="status" style={{
+      position: "fixed", zIndex: 2147483647, bottom: 24, left: "50%",
+      transform: "translateX(-50%)", width: "min(560px, calc(100vw - 32px))",
+      padding: 16, background: "#f8faf7", border: "1px solid #dce4dc",
+      borderRadius: 12, boxShadow: "0 8px 32px #0002",
+    }}>
       {locale === "zh" ? "收银台加载时间较长。请检查网络，或刷新页面后重试。" : "Checkout is taking longer than usual. Check your connection, or reload the page to try again."}{" "}
       <button type="button" onClick={() => window.location.reload()}>{locale === "zh" ? "刷新页面" : "Reload page"}</button>
-    </p>}
+    </div>, document.body)}
     </>
   );
 }
