@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {auth} from "../src/lib/auth";
+import {getDb} from "../src/db/client";
 import {readMailboxThread,readMailboxAttachment} from "../src/lib/workspace/mailbox";
 import {microsoftSendBody} from "../src/lib/workspace/gmail";
 import {toolResultMailbox} from "../src/lib/workspace/tool-result-view";
 
+process.env.DATABASE_URL ||= "postgresql://fixture:fixture@127.0.0.1:1/fixture";
+
 test("Outlook conversation reads use exact provider identity, retain chronology and disclose incomplete coverage", async t=>{
+  t.mock.method(getDb(),"execute",async()=>[{accountId:"selected-account"}]);
   const keys=["MICROSOFT_CLIENT_ID","MICROSOFT_CLIENT_SECRET","MICROSOFT_MAIL_READ_ENABLED"];
   const old=keys.map(k=>process.env[k]);keys.forEach(k=>process.env[k]=k.endsWith("ENABLED")?"true":"fixture");
   t.after(()=>keys.forEach((k,i)=>{if(old[i]===undefined)delete process.env[k];else process.env[k]=old[i];}));
@@ -42,6 +46,7 @@ test("Outlook reply payload preserves the reviewed audience and does not use sen
 });
 
 test("Attachment ownership is checked against the selected mailbox message before downloading bytes",async t=>{
+  t.mock.method(getDb(),"execute",async()=>[{accountId:"selected-account"}]);
   const keys=["MICROSOFT_CLIENT_ID","MICROSOFT_CLIENT_SECRET","MICROSOFT_MAIL_READ_ENABLED"];
   const old=keys.map(k=>process.env[k]);keys.forEach(k=>process.env[k]=k.endsWith("ENABLED")?"true":"fixture");
   t.after(()=>keys.forEach((k,i)=>{if(old[i]===undefined)delete process.env[k];else process.env[k]=old[i];}));

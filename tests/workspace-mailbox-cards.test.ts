@@ -4,6 +4,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextRequest } from "next/server";
 import { auth } from "../src/lib/auth";
+import { getDb } from "../src/db/client";
 import { toolResultMailbox, toolResultMailboxError } from "../src/lib/workspace/tool-result-view";
 import { turnSnapshot, type TurnPart } from "../src/lib/workspace/turn-progress";
 import { TurnParts } from "../src/components/workspace/turn-parts";
@@ -11,6 +12,7 @@ import { GET } from "../src/app/(product)/api/workspace/mailboxes/messages/route
 import { mailboxReadErrorActions } from "../src/lib/workspace/mailbox-contract";
 
 Object.assign(globalThis, {React});
+process.env.DATABASE_URL ||= "postgresql://fixture:fixture@127.0.0.1:1/fixture";
 type ToolPart = Extract<TurnPart, {type:"tool"}>;
 const part = (overrides: Partial<ToolPart> = {}): ToolPart => ({type:"tool",id:"fixture-call",tool:"search_mail",label:"Searching your mailbox",status:"done",...overrides});
 const render = (value: ToolPart, running = false) => renderToStaticMarkup(React.createElement(TurnParts,{parts:[value],running}));
@@ -102,11 +104,13 @@ test("message API requires a signed-in owner and existing read availability befo
 });
 
 test("message API reads only the authenticated owner's mailbox and returns display fields, not credentials or headers", async (t) => {
+  t.mock.method(getDb(), "execute", async () => [{accountId:"owner-mailbox"}]);
   const previous = process.env.GMAIL_READ_ENABLED;
   process.env.GMAIL_READ_ENABLED = "true";
   t.after(() => { if (previous === undefined) delete process.env.GMAIL_READ_ENABLED; else process.env.GMAIL_READ_ENABLED = previous; });
-  t.mock.getter(auth,"api",() => ({getSession:async () => ({user:{id:"authenticated-owner"}}),getAccessToken:async ({body}:{body:{userId:string;providerId:string}}) => {
+  t.mock.getter(auth,"api",() => ({getSession:async () => ({user:{id:"authenticated-owner"}}),getAccessToken:async ({body}:{body:{userId:string;providerId:string;accountId:string}}) => {
     assert.equal(body.userId,"authenticated-owner");assert.equal(body.providerId,"google");
+    assert.equal(body.accountId,"owner-mailbox");
     return {accessToken:"nonfunctional-fixture-token",scopes:["https://www.googleapis.com/auth/gmail.readonly"]};
   }}));
   const paths: string[] = [];

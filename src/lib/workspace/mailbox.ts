@@ -21,9 +21,11 @@ export async function mailboxToken(userId: string, provider: MailboxProvider, ca
   if (!mailboxConfigured(provider)) throw new WorkspaceError("This email provider has not been configured yet.", 409);
   if (capability === "read" && !mailboxReadEnabled(provider)) throw new WorkspaceError(mailboxReadUnavailableReason(provider), 409);
   const reconnect = () => new WorkspaceError(`Reconnect ${provider === "google" ? "Google" : "Microsoft"} to grant ${capability} permission.`, 409);
+  const [account] = await rows<{accountId:string}>(sql`SELECT "accountId" FROM account WHERE "userId"=${userId} AND "providerId"=${provider} ORDER BY "updatedAt" DESC,id DESC LIMIT 1`);
+  if (!account) throw reconnect();
   let token: Awaited<ReturnType<typeof auth.api.getAccessToken>>;
   try {
-    token = await auth.api.getAccessToken({ body: { providerId: provider, userId } });
+    token = await auth.api.getAccessToken({ body: { providerId: provider, userId, accountId: account.accountId } });
   } catch (error) {
     if (mailboxAuthorizationMissing(error)) throw reconnect();
     throw new WorkspaceError("Could not verify mailbox access. Please try again.", 502);
@@ -50,13 +52,13 @@ export async function mailboxIdentity(provider: MailboxProvider, token: string) 
 export async function mailboxConnection(userId: string, provider: MailboxProvider): Promise<MailboxConnection> {
   const base: MailboxConnection = {provider, configured:mailboxConfigured(provider),connected:false,can_read:false,read_enabled:mailboxReadEnabled(provider),email:null};
   if (!base.read_enabled) base.read_unavailable_reason = mailboxReadUnavailableReason(provider);
-  const [account] = await rows<{scope:string|null;available:boolean;last_send_error:string|null;mailboxEmail:string|null}>(sql`
-    SELECT a.scope,a."mailboxEmail",(a."accessToken" IS NOT NULL) AS available,
+  const [account] = await rows<{id:string;accountId:string;scope:string|null;available:boolean;last_send_error:string|null;mailboxEmail:string|null}>(sql`
+    SELECT a.id,a."accountId",a.scope,a."mailboxEmail",(a."accessToken" IS NOT NULL) AS available,
       (SELECT e.error FROM hirelix_private_email_deliveries e
        WHERE e.user_id::text=a."userId" AND coalesce(e.snapshot->>'provider','google')=${provider}
          AND e.updated_at>a."updatedAt" ORDER BY e.updated_at DESC LIMIT 1) AS last_send_error
     FROM account a WHERE a."userId"=${userId} AND a."providerId"=${provider}
-    ORDER BY a."updatedAt" DESC LIMIT 1`);
+    ORDER BY a."updatedAt" DESC,a.id DESC LIMIT 1`);
   base.email = account?.mailboxEmail || null;
   base.granted_read = hasMailboxScope(account?.scope,provider,"read");
   if (!base.configured || !account?.available) return base;
@@ -66,10 +68,10 @@ export async function mailboxConnection(userId: string, provider: MailboxProvide
     : account.last_send_error?.startsWith(`${provider === "google" ? "Gmail" : "Microsoft"} declined sending.`) ? denied : undefined;
   if (account.last_send_error === mailboxProviderError(provider,401,null).message) return {...base,needs_reconnect:true,error:account.last_send_error};
   try {
-    const token = await auth.api.getAccessToken({body:{providerId:provider,userId}});
+    const token = await auth.api.getAccessToken({body:{providerId:provider,userId,accountId:account.accountId}});
     if (!token.accessToken) return {...base,needs_reconnect:true,error:"Reconnect this mailbox to renew access."};
     const email = await mailboxIdentity(provider,token.accessToken);
-    if (email !== base.email) await db.execute(sql`UPDATE account SET "mailboxEmail"=${email} WHERE "userId"=${userId} AND "providerId"=${provider}`);
+    if (email !== base.email) await db.execute(sql`UPDATE account SET "mailboxEmail"=${email} WHERE id=${account.id} AND "userId"=${userId} AND "providerId"=${provider}`);
     return {...base,email,...(sendingWarning ? {error:sendingWarning,needs_reconnect:false} : {}),connected:hasMailboxScope(token.scopes.join(" "),provider,"send"),can_read:base.read_enabled && hasMailboxScope(token.scopes.join(" "),provider,"read")};
   } catch (error) {
     if (error instanceof WorkspaceError) return {...base,needs_reconnect:error.status === 401,error:error.message};

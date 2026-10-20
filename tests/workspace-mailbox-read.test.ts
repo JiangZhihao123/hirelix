@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { auth } from "../src/lib/auth";
+import { getDb } from "../src/db/client";
 import { gmailMessage, mailboxToken, readMailboxMessage, searchMailbox } from "../src/lib/workspace/mailbox";
 
+process.env.DATABASE_URL ||= "postgresql://fixture:fixture@127.0.0.1:1/fixture";
+
 test("mailbox access distinguishes temporary failures from missing authorization without exposing details", async (t) => {
+  t.mock.method(getDb(), "execute", async () => [{accountId:"selected-account"}]);
   const readEnabled = process.env.GMAIL_READ_ENABLED;
   process.env.GMAIL_READ_ENABLED = "true";
   t.after(() => { if (readEnabled === undefined) delete process.env.GMAIL_READ_ENABLED; else process.env.GMAIL_READ_ENABLED = readEnabled; });
   let result: unknown = new TypeError("private transport detail");
-  t.mock.getter(auth, "api", () => ({ getAccessToken: async () => {
+  t.mock.getter(auth, "api", () => ({ getAccessToken: async ({body}: {body:{accountId:string;userId:string;providerId:string}}) => {
+    assert.equal(body.accountId, "selected-account");
+    assert.equal(body.userId, "fixture-owner");
+    assert.equal(body.providerId, "google");
     if (result instanceof Error || (result as {body?:unknown})?.body) throw result;
     return result;
   } }));
@@ -77,6 +84,7 @@ test("Gmail preserves provider labels instead of treating a sent copy as receive
 });
 
 test("Microsoft reading respects its gate and preserves provider folder evidence", async (t) => {
+  t.mock.method(getDb(), "execute", async () => [{accountId:"selected-microsoft-account"}]);
   const previous = Object.fromEntries(["MICROSOFT_MAIL_READ_ENABLED", "MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET"].map(key => [key, process.env[key]]));
   t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
   process.env.MICROSOFT_CLIENT_ID = "test";
