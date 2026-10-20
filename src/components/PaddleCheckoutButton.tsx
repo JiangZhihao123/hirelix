@@ -2,7 +2,7 @@
 
 
 import { useT, useLanguage } from "@/components/LanguageProvider";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import {
@@ -38,6 +38,12 @@ export function PaddleCheckoutButton({
   const { locale } = useLanguage();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setSlow(true), 15000);
+    return () => clearTimeout(timer);
+  }, [loading]);
   const config = getCheckoutConfig();
 
   const priceId =
@@ -84,9 +90,11 @@ export function PaddleCheckoutButton({
       return;
     }
 
+    setSlow(false);
     setLoading(true);
+    let opened = false;
     try {
-      const paddle = await loadPaddle(config.clientToken, config.environment, onError);
+      const paddle = await loadPaddle(config.clientToken, config.environment, onError, () => setLoading(false));
       if (!paddle) {
         trackEvent(ANALYTICS_EVENTS.checkoutError, {
           ...getAnalyticsContextFromBrowser(),
@@ -97,7 +105,6 @@ export function PaddleCheckoutButton({
         onError?.("Checkout failed to load.");
         return;
       }
-
       const successUrl = `${window.location.origin}/app/settings?section=billing&checkout=pending`;
       if (isAgentPlan(checkout.planCode)) {
         const response = await fetchWithUserSession("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: checkout.planCode }) });
@@ -107,6 +114,7 @@ export function PaddleCheckoutButton({
       } else {
         paddle.Checkout.open({ items: [{ priceId, quantity: 1 }], customer: { email: user.email }, customData: { user_id: user.id, purchase_type: purchaseType }, settings: { displayMode: "overlay", locale: locale === "zh" ? "zh-Hans" : "en", successUrl } });
       }
+      opened = true;
 
     } catch (err) {
       trackEvent(ANALYTICS_EVENTS.checkoutError, {
@@ -117,12 +125,14 @@ export function PaddleCheckoutButton({
       });
       onError?.(err instanceof Error ? err.message : "Checkout failed.");
     } finally {
-      setLoading(false);
+      // Checkout.open only starts loading the iframe. Wait for Paddle's event.
+      if (!opened) setLoading(false);
     }
   }
 
 
   return (
+    <>
     <button
       type="button"
       onClick={handleCheckout}
@@ -138,5 +148,10 @@ export function PaddleCheckoutButton({
         label
       )}
     </button>
+    {loading && slow && <p role="status">
+      {locale === "zh" ? "收银台加载时间较长。请检查网络，或刷新页面后重试。" : "Checkout is taking longer than usual. Check your connection, or reload the page to try again."}{" "}
+      <button type="button" onClick={() => window.location.reload()}>{locale === "zh" ? "刷新页面" : "Reload page"}</button>
+    </p>}
+    </>
   );
 }

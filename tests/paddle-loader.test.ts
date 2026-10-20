@@ -7,8 +7,12 @@ test("Paddle initialization failure rejects and permits a fresh attempt", async 
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   const scripts: Array<{ onload: () => void }> = [];
   let fail = true;
+  let eventCallback: ((event: unknown) => void) | undefined;
   const sdk = {
-    Initialize() { if (fail) throw new Error("SDK initialization failed"); },
+    Initialize(options: { eventCallback?: (event: unknown) => void }) {
+      if (fail) throw new Error("SDK initialization failed");
+      eventCallback = options.eventCallback;
+    },
     Checkout: { open() {} },
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { Paddle: sdk } });
@@ -27,8 +31,17 @@ test("Paddle initialization failure rejects and permits a fresh attempt", async 
   assert.doesNotThrow(() => scripts[0].onload());
   await rejected;
   fail = false;
-  const retry = loadPaddle("fixture-token", "production");
+  let responses = 0, errors = 0;
+  const retry = loadPaddle("fixture-token", "production", () => errors++, () => responses++);
   assert.equal(scripts.length, 2);
   scripts[1].onload();
   assert.equal(await retry, sdk);
+  assert.equal(responses, 0, "Loading the SDK is not loading the checkout");
+  eventCallback?.({name: "checkout.customer.updated"});
+  assert.equal(responses, 0);
+  for (const name of ["checkout.loaded", "checkout.closed", "checkout.completed", "checkout.error"]) {
+    eventCallback?.({name});
+  }
+  assert.equal(responses, 4, "Visible checkout, closure, completion and failure release waiting");
+  assert.equal(errors, 1);
 });

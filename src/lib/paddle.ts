@@ -28,9 +28,13 @@ declare global {
 }
 
 let checkoutErrorHandler: ((message: string) => void) | undefined;
+let checkoutResponseHandler: (() => void) | undefined;
 function handlePaddleEvent(event: unknown) {
   if (!event || typeof event !== "object") return;
   const value = event as Record<string, unknown>;
+  if (["checkout.loaded", "checkout.closed", "checkout.completed", "checkout.error", "checkout.payment.error", "checkout.payment.failed"].includes(String(value.name))) {
+    checkoutResponseHandler?.();
+  }
   if (value.name === "checkout.error" || value.name === "checkout.payment.error" || value.name === "checkout.payment.failed") {
     checkoutErrorHandler?.("Paddle could not open or complete your checkout. Please try again or contact support@hirelix.online. Your subscription has not been activated.");
   }
@@ -42,10 +46,12 @@ export async function loadPaddle(
   clientToken: string,
   environment: "sandbox" | "production",
   onError?: (message: string) => void,
+  onCheckoutResponse?: () => void,
 ) {
   if (typeof window === "undefined") return null;
 
   checkoutErrorHandler = onError;
+  checkoutResponseHandler = onCheckoutResponse;
 
   if (!paddlePromise) {
     paddlePromise = new Promise((resolve, reject) => {
