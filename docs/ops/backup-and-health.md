@@ -38,3 +38,5 @@ sudo bash -o pipefail -c 'pg_restore --no-owner --no-privileges --file=- /var/ba
 ## 应用回滚
 
 记录上一版 Git SHA 和 Vercel 部署 URL。Vercel 可提升已有成功部署；worker 在确认服务器工作区无用户改动后切换到上一版 SHA，执行 `npm ci` 并重启 `hirelix-scheduler`，随后核对队列和实际业务行为。数据库保持向前兼容；回滚代码前先确认该版本兼容当前 schema。恢复服务后的缺陷继续修复，不把回滚当成目标完成。
+
+队列检查使用同目录 `deploy/hirelix-health.sql`：已停止对话中的排队消息不算 worker 积压；超时运行租约仍算异常；启用且未完成的一次性提醒超过约定时间十分钟未送达也算异常，不要求提醒关联职位。此 SQL 由真实隔离 PostgreSQL 回归直接执行，避免测试另写一套规则。部署时须同步 `.sh` 和 `.sql`。
