@@ -59,3 +59,16 @@ Official references:
 - Google Data Access now uses the revised URL. Submission questionnaire was answered for the public Hirelix product and submitted. Google Verification Center now explicitly shows that data access is under review. Evidence: `/tmp/hirelix-google-review-submitted.png`. This is acceptance for review, not approval or CASA certification.
 
 - After submission, the temporary local Gmail read flag was restored false. Production Gmail remains false; production Microsoft reading remains enabled. No additional test emails were sent.
+
+## Verification Center readback — 2026-10-20
+
+Reopened the real Google Auth Platform Verification Center for `loyal-glass-510417-t9` in Chrome. Branding is verified; data access is still under review. The verification progress panel reports:
+
+- Homepage requirements and branding guidelines: completed; last reviewed October 17, 2026.
+- Privacy policy requirements, app functionality, appropriate data access, minimum requested scopes and additional requirements: in progress.
+- The Trust and Safety team received the form and may contact the configured contact address. The panel gives a possible 4–6 week review duration and an expected first email within 3–5 days. These are Google's displayed estimates, not an approval deadline.
+- The previously approved consent screen remains in use. The pending reading scope is not approved by this readback.
+
+Evidence: `/Users/noah/projects/hirelix-local-archive/2026-10-20/live-account-audit/26-google-review-progress.png` and the matching `.txt`. No review form, scopes, credentials, mailbox permissions or production read flags were changed. Gmail web did not load successfully, so this check does not establish whether a new review email has arrived.
+
+During review, the Gmail read gate rejects search/read calls before token lookup or a provider request; the Agent receives an explicit unavailable reason and can offer pasted email content or an uploaded PDF/text export. Sending is separate and requires a working connection plus confirmation of the specific message. Existing local mailbox read/contract/OAuth/card regression tests passed 17/17 in this follow-up; these include mocked contracts and do not establish live Gmail reading or sending. The current Live account's expired Gmail connection and misleading generic “can send” text are separately recorded in `../2026-10-20-live-account-ui-verification.md`; no product fix or deployment was made in this status check.
