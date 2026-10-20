@@ -53,7 +53,7 @@ export const uiZh: Record<string, string> = {
   "One-time reminders": "一次性提醒",
   "Recurring reports": "定期汇报",
   "Manage reminders": "管理提醒",
-  "Delivered in this conversation": "在本对话内提醒",
+  "In this conversation": "在本对话内提醒",
   "Delivered at": "送达时间",
   "Scheduled for": "约定时间",
   "Change reminder time": "调整提醒时间",

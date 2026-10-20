@@ -18,7 +18,7 @@ test("real model and PG: one-time reminder returns to conversation exactly once 
   const detail=await conversationDetails(owner,sent.conversation_id);const receipt=(detail.messages.at(-1)!.metadata as AssistantMeta).reminders?.[0];assert(receipt);
   assert.equal(new Date(receipt.next_run_at).toISOString().slice(0,16),"2030-10-09T08:00");
   assert.equal((await listReminders(randomUUID())).length,0);
-  const other=randomUUID();await assert.rejects(()=>db.transaction(tx=>saveReminder(other,sent.conversation_id,{id:null,title:"private",due_at:"2030-10-09T08:00:00Z",timezone:"UTC",enabled:true,authorization_quote:"remind me"},tx)),/not found/);
+  const other=randomUUID();await assert.rejects(()=>db.transaction(tx=>saveReminder(other,sent.conversation_id,{id:null,expected_version:null,title:"private",due_at:"2030-10-09T08:00:00Z",timezone:"UTC",enabled:true,authorization_quote:"remind me"},tx)),/not found/);
   // Move only this test fixture into the due set; exercise the actual DB scheduler.
   await db.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=now()-interval '1 minute' WHERE id=${receipt.id}::uuid AND user_id=${owner}::uuid`);
   const delivered=await Promise.all([deliverReminders(),deliverReminders()]);assert.equal(delivered.reduce((a,b)=>a+b,0),1);

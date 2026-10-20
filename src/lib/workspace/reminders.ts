@@ -5,6 +5,7 @@ import { owned, rows, WorkspaceError, type Runner } from "./database";
 import { scheduleInput } from "./schedules";
 export const reminderActionSchema = z.object({
   id: z.uuid().nullable(),
+  expected_version: z.number().int().positive().nullable().describe("For edits, use the version you observed in the reminder receipt or list_reminders. Null only when creating a new reminder."),
   title: z.string().trim().min(1).max(500),
   due_at: z.iso.datetime({offset: true}),
   timezone: scheduleInput.shape.timezone,
@@ -50,11 +51,11 @@ export async function editReminder(userId: string, value: unknown) {
   if (!result.length) throw new WorkspaceError("This reminder changed or is already due. Ask to reschedule it.",409);
   return {ok: true};
 }
-export async function saveReminder(userId: string, conversationId: string, input: z.infer<typeof reminderActionSchema>, runner: Runner, expectedVersion?: number, language: "en" | "zh" = "en") {
+export async function saveReminder(userId: string, conversationId: string, input: z.infer<typeof reminderActionSchema>, runner: Runner, language: "en" | "zh" = "en") {
   await owned(userId,"conversation",conversationId,runner);
   if (input.enabled && new Date(input.due_at).getTime()<=Date.now()) throw new WorkspaceError("Choose a future reminder time.");
   if (input.id) {
-    const [updated]=await rows<Reminder>(sql`UPDATE hirelix_private_schedules SET title=${input.title},next_run_at=${input.due_at}::timestamptz,timezone=${input.timezone},enabled=${input.enabled},completed_at=NULL,version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${input.id}::uuid AND kind='reminder' AND version=${expectedVersion ?? -1} RETURNING *`,runner);
+    const [updated]=await rows<Reminder>(sql`UPDATE hirelix_private_schedules SET title=${input.title},next_run_at=${input.due_at}::timestamptz,timezone=${input.timezone},enabled=${input.enabled},completed_at=NULL,version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${input.id}::uuid AND kind='reminder' AND version=${input.expected_version ?? -1} RETURNING *`,runner);
     if(!updated) throw new WorkspaceError("This reminder changed or is unavailable. Reload before editing.",409);
     return updated;
   }

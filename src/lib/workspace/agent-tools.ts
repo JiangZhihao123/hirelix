@@ -59,7 +59,7 @@ import {
   generateDeliverable,
 } from "./deliverables";
 import { requestRevision, generateRevision, editDocument, documentEdits } from "./revisions";
-import { reminderActionSchema, listReminders, saveReminder } from "./reminders";
+import { reminderActionSchema, saveReminder } from "./reminders";
 import { scheduleInput, saveSchedule } from "./schedules";
 import {
   listPersonalMemories,
@@ -1187,17 +1187,11 @@ export function createAgentTools(ctx: AgentToolContext) {
       reminderActionSchema,
       (input) =>
         mutate("reminder", input, input.authorization_quote, async (tx) => {
-          const prior = input.id
-            ? (await listReminders(userId, tx, input.id))[0]
-            : undefined;
-          if (input.id && !prior)
-            throw new WorkspaceError("Reminder not found.", 404);
           const saved = await saveReminder(
             userId,
             conversationId,
             input,
             tx,
-            prior?.version,
             ctx.locale === "zh" ? "zh" : "en",
           );
           return { output: saved, metadata: { reminders: [saved] } };
