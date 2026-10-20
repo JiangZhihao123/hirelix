@@ -444,6 +444,7 @@ export const uiZh: Record<string, string> = {
   "View subscription": "查看订阅",
   "Update payment method": "更新付款方式",
   "Cancel subscription": "取消订阅",
+  "Auto-renewal is off. Your access continues until the date shown above.": "自动续费已关闭，您仍可使用至上方显示的截止日期。",
   "Contact support to manage or cancel your subscription": "联系支持管理或取消订阅",
   "Back to your agent": "返回私人 AI 助理",
   "$49 / month": "$49 / 月",

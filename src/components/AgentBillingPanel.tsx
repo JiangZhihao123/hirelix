@@ -78,7 +78,7 @@ export function AgentBillingPanel({ billing }: { billing: BillingSummary }) {
           {billing.checkout.paddlePortalConfigured ? (
             <div className="agent-billing-actions">
               <button className="ws-button ws-button-primary" disabled={managing} onClick={() => manage("portalUrl")}>{t("Manage subscription")} ↗</button>
-              <button className="agent-billing-cancel" disabled={managing} onClick={() => manage("cancelUrl")}>{t("Cancel subscription")}</button>
+              {ending ? <p role="status">{t("Auto-renewal is off. Your access continues until the date shown above.")}</p> : <button className="agent-billing-cancel" disabled={managing} onClick={() => manage("cancelUrl")}>{t("Cancel subscription")}</button>}
               <p>{t("View invoices and update your payment method in Manage subscription.")}</p>
             </div>
           ) : <a href="mailto:support@hirelix.online?subject=Manage%20my%20Hirelix%20subscription">{t("Contact support to manage or cancel your subscription")}</a>}
