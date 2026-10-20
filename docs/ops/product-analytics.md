@@ -96,3 +96,5 @@ PLAYWRIGHT_BASE_URL=http://localhost:3000 PLAYWRIGHT_REUSE_SERVER=1 PLAYWRIGHT_C
 真实 SQL/HTTP 验证错误密码、跨源登录与退出、无登录访问、旧密钥不再授权、Cookie 属性、会话摘要、退出后 token 重放、过期和凭据轮换撤销，以及并发限流。浏览器验证登录、刷新保持登录、旧入口跳转、分析筛选导出和退出。本轮本地真实 SQL/HTTP、Chrome 流程均通过；全量单测 486 通过 / 9 跳过，TypeScript、ESLint 和生产构建通过。
 
 生产发布前先应用管理员表迁移，再将用户名与密码哈希配置到 Vercel 服务端。发布后以真实浏览器验证登录、刷新、默认内部排除、退出和未登录 API，确认前端和 worker 的 SHA。不要把明文密码或会话 token 写入验收记录。
+
+当既有部署名单被设为不可回读的敏感值时，可通过 `ANALYTICS_INTERNAL_USER_IDS_EXTRA` 补充内部账号ID；它与原ID列表合并，既有ID和邮箱名单保持有效。补充列表本身不含凭证，可按运营配置维护；它不改写历史事件，统计按当前排除名单过滤。

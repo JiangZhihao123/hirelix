@@ -7,6 +7,24 @@ import {
   telemetryBot,
 } from "../src/lib/telemetry";
 import { parseAnalyticsFilters } from "../src/lib/product-analytics";
+import { internalAnalyticsUsers } from "../src/lib/telemetry-server";
+
+test("supplemental internal accounts retain the existing exclusion lists", t => {
+  const values = {
+    ANALYTICS_INTERNAL_USER_IDS: " original-user ",
+    ANALYTICS_INTERNAL_USER_IDS_EXTRA: " added-user ",
+    ANALYTICS_INTERNAL_EMAILS: " EXISTING@example.test ",
+  };
+  for (const [key, value] of Object.entries(values)) {
+    const prior = process.env[key];
+    process.env[key] = value;
+    t.after(() => { if (prior === undefined) delete process.env[key]; else process.env[key] = prior; });
+  }
+  assert.deepEqual(internalAnalyticsUsers(), {
+    ids: ["original-user", "added-user"],
+    emails: ["existing@example.test"],
+  });
+});
 
 test("telemetry never keeps private query, shared token, account IDs or business content", () => {
   assert.equal(

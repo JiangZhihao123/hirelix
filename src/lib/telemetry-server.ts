@@ -2,7 +2,8 @@ import { db } from "@/db/client";
 import { sql } from "drizzle-orm";
 export function internalAnalyticsUsers() {
   return {
-    ids: (process.env.ANALYTICS_INTERNAL_USER_IDS || "")
+    // Supplement an existing sensitive deployment value without replacing it.
+    ids: [process.env.ANALYTICS_INTERNAL_USER_IDS, process.env.ANALYTICS_INTERNAL_USER_IDS_EXTRA].filter(Boolean).join(",")
       .split(",")
       .map((x) => x.trim())
       .filter(Boolean),
