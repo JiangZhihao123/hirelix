@@ -40,3 +40,46 @@ sudo bash -o pipefail -c 'pg_restore --no-owner --no-privileges --file=- /var/ba
 记录上一版 Git SHA 和 Vercel 部署 URL。Vercel 可提升已有成功部署；worker 在确认服务器工作区无用户改动后切换到上一版 SHA，执行 `npm ci` 并重启 `hirelix-scheduler`，随后核对队列和实际业务行为。数据库保持向前兼容；回滚代码前先确认该版本兼容当前 schema。恢复服务后的缺陷继续修复，不把回滚当成目标完成。
 
 队列检查使用同目录 `deploy/hirelix-health.sql`：已停止对话中的排队消息不算 worker 积压；超时运行租约仍算异常；启用且未完成的一次性提醒超过约定时间十分钟未送达也算异常，不要求提醒关联职位。此 SQL 由真实隔离 PostgreSQL 回归直接执行，避免测试另写一套规则。部署时须同步 `.sh` 和 `.sql`。
+
+## 可重复的跨主机备份拉取
+
+在独立于 VPS 的可信设备运行（项目目录仅存脚本，备份存私有目录）：
+
+```sh
+node scripts/ops/pull-database-backup.mjs us-2 /absolute/private/backup-directory
+```
+
+脚本只读取最新 daily 备份，源文件不得超过26小时；按600权限写临时文件，校验大小/SHA-256后原子创建目标文件。相同副本已验证时不重复下载；已有目标不一致时失败且不覆盖。不会创建远端备份或删除历史副本，留存与容量需单独安排。SSH 使用既有密钥、主机配置和 BatchMode，不索取或保存密码。
+
+本轮在 Mac 的新私有目录真实拉取52,451,471字节备份并校验成功，重复运行返回 already_verified。尚未安装自动拉取计划；应先确定长期保存位置、设备在线条件和留存容量。Mac休眠或离线期间不能提供24小时持续备份保障；一次真实复制不等于已完成自动异地备份。
+
+## 明确配置后才启用的故障告警
+
+`deploy/hirelix-alert.mjs` 默认只预览，不发信：
+
+```sh
+node deploy/hirelix-alert.mjs test --preview
+```
+
+需用户先确认 `HIRELIX_ALERT_TO`，并在 `/etc/hirelix.env` 配置该值及已有 `RESEND_API_KEY`、`SEARCH_NOTIFICATIONS_FROM_EMAIL`。脚本只允许 health、backup 和手动 test 三类消息，不带日志正文、客户信息或凭证。同一检查每UTC小时最多一封；本地状态抑制重复，且使用 [Resend Idempotency-Key](https://resend.com/changelog/idempotency-keys) 处理响应丢失后的同请求重试。服务端接受不等于收件人实际收到。
+
+确认接收地址和一次测试发送后，可安装模板并测试：
+
+```sh
+sudo install -m 644 /opt/hirelix/deploy/systemd/hirelix-alert@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start hirelix-alert@test.service
+sudo systemctl status hirelix-alert@test.service --no-pager
+```
+
+收到测试信后再接入现有定时检查（模板本身不启用任何计划）：
+
+```sh
+for service in hirelix-health.service hirelix-backup.service; do
+  sudo install -d -m 755 "/etc/systemd/system/$service.d"
+  printf '%s\n' '[Unit]' 'OnFailure=hirelix-alert@%n.service' | sudo tee "/etc/systemd/system/$service.d/alert.conf" >/dev/null
+done
+sudo systemctl daemon-reload
+```
+
+本轮只完成代码、消息合同回归和不发信预览，没有配置收件人、发送测试邮件或安装告警服务。主机内告警也不能覆盖整台VPS断电/失联，后者需要外部监测与独立接收渠道；不得将本模板宣传成全故障覆盖。

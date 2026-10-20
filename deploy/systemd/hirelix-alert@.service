@@ -1,0 +1,19 @@
+[Unit]
+Description=Notify the approved Hirelix operator about %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=noah
+Group=noah
+EnvironmentFile=/etc/hirelix.env
+StateDirectory=hirelix-alert
+StateDirectoryMode=0700
+UMask=0077
+ExecStart=/usr/bin/node /opt/hirelix/deploy/hirelix-alert.mjs %i --send
+TimeoutStartSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
