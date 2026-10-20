@@ -1,0 +1,76 @@
+# CLI uploads must exclude the same local files as Git.
+# Vercel does not use .gitignore as its upload exclusion list.
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/.playwright-cli/
+/.playwright-mcp/
+/output/
+/logs/
+/runs/
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+/.npm-cache/
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# local tooling state
+/supabase/.temp/
+/.codex-worktree-env
+.windsurfrules
+.env*.local
+
+# 临时调试脚本
+analyze-debug.ts
+hirelix-e2e-debug.ts
+hirelix-e2e.ts
+hirelix-monitor.ts
+
+# local competitive research screenshots
+competitor-*.png
+docs/research/
+
+/.next-agent-qa/
+
+# Repository metadata and local scratch work
+.git/
+tmp/
