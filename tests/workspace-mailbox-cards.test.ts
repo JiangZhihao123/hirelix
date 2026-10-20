@@ -94,7 +94,7 @@ test("message API requires a signed-in owner and existing read availability befo
   process.env.GMAIL_READ_ENABLED = "false";
   response = await GET(req());
   assert.equal(response.status,409);
-  assert.match((await response.json()).error,/awaiting Google review/);
+  assert.match((await response.json()).error,/Gmail reading is not supported yet/);
   assert.equal(tokenCalls,0);
   response = await GET(new NextRequest("http://localhost:3000/api/workspace/mailboxes/messages?provider=unknown&message_id=g1"));
   assert.equal(response.status,400);

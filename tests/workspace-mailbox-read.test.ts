@@ -43,7 +43,7 @@ test("mailbox access distinguishes temporary failures from missing authorization
   assert.equal(await mailboxToken("fixture-owner", "google", "read"),"fixture-only");
 });
 
-test("unavailable Gmail search and reading explain review and alternatives before accessing the provider", async (t) => {
+test("unavailable Gmail search and reading explain capabilities and alternatives before accessing the provider", async (t) => {
   const previous = process.env.GMAIL_READ_ENABLED;
   t.after(() => { if (previous === undefined) delete process.env.GMAIL_READ_ENABLED; else process.env.GMAIL_READ_ENABLED = previous; });
   process.env.GMAIL_READ_ENABLED = "false";
@@ -51,10 +51,11 @@ test("unavailable Gmail search and reading explain review and alternatives befor
   t.mock.getter(auth, "api", () => ({ getAccessToken: async () => { tokenCalls++; throw new Error("must not request access"); } }));
   for (const action of [() => searchMailbox("owner", {provider:"google",query:"test"}), () => readMailboxMessage("owner", {provider:"google",message_id:"test"})]) {
     await assert.rejects(action(), (error: unknown) => {
-      assert.match((error as Error).message, /awaiting Google review/);
-      assert.match((error as Error).message, /Sending remains available/);
+      assert.match((error as Error).message, /Gmail reading is not supported yet/);
+      assert.match((error as Error).message, /sending email after connection/);
       assert.match((error as Error).message, /paste.*upload/);
       assert.doesNotMatch((error as Error).message, /[Rr]econnect/);
+      assert.doesNotMatch((error as Error).message, /review|verification|Sending remains available/);
       return true;
     });
   }
@@ -83,7 +84,7 @@ test("Microsoft reading respects its gate and preserves provider folder evidence
   process.env.MICROSOFT_MAIL_READ_ENABLED = "false";
   let tokenCalls = 0;
   t.mock.getter(auth, "api", () => ({ getAccessToken: async () => { tokenCalls++; return { accessToken: "test-token", scopes: ["Mail.Read"] }; } }));
-  await assert.rejects(readMailboxMessage("owner", { provider: "microsoft", message_id: "copy" }), /not available/);
+  await assert.rejects(readMailboxMessage("owner", { provider: "microsoft", message_id: "copy" }), /Outlook reading is not supported yet/);
   assert.equal(tokenCalls, 0);
   process.env.MICROSOFT_MAIL_READ_ENABLED = "true";
   const requested: string[] = [];

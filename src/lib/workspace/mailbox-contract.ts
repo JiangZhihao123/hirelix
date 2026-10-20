@@ -23,8 +23,8 @@ export function hasMailboxScope(scope: string | null | undefined, provider: Mail
 }
 export function mailboxReadUnavailableReason(provider: MailboxProvider) {
   return provider === "google"
-    ? "Gmail reading is awaiting Google review and is not yet available. Sending remains available. To analyze incoming mail, paste the email content into the conversation or upload the email exported as a PDF or text file."
-    : "Microsoft mailbox reading is not available yet. To analyze incoming mail, paste the email content into the conversation or upload the email exported as a PDF or text file.";
+    ? "Gmail reading is not supported yet. Gmail supports sending email after connection. To analyze incoming mail, paste the email content into the conversation or upload the email as a PDF or text file."
+    : "Outlook reading is not supported yet. Outlook supports sending email after connection. To analyze incoming mail, paste the email content into the conversation or upload the email as a PDF or text file.";
 }
 export type MailboxConnection = { provider: MailboxProvider; configured: boolean; connected: boolean; can_read: boolean; read_enabled: boolean; read_unavailable_reason?: string; email: string | null; error?: string; needs_reconnect?: boolean; granted_read?: boolean };
 export const mailboxSearchInput = z.object({

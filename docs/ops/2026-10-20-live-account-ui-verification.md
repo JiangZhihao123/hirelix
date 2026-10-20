@@ -50,3 +50,11 @@ Paddle 门户和返回产品后的控制台 error/warn 采样均为空；这仅�
 未验证：重新登录/找回或修改密码、邮箱 OAuth 重连和发信、文件上传/解析/导出、候选人或职位写入/删除、推荐生成/分享/交付、提醒调度执行、账户级导出/删除、支付失败/续费/到期执行，以及手机和实体移动设备。先前 Live 任务和支付记录另见 `2026-10-20-live-conversion-verification.md`，不在本轮重复执行。
 
 本轮只提交验收记录。没有以页面可达替代上述真实业务结果，也没有把模型业务判断列作工程缺陷。
+
+## 邮箱能力文案调整（后续本地修改）
+
+用户确认直接描述可用能力，不在用户界面展示 Google 审核流程。设置页和对话里的邮箱连接卡片共用 `MailboxConnections`，现按服务实际的 `read_enabled` 分别显示：Gmail 支持发送、暂不支持读取；Outlook 在读取启用时显示支持读取和发送。账号自己的连接状态、错误和重连入口仍单独显示，不以产品支持某能力推断该账号已授权或连接正常。
+
+读取被关闭时的工具/API 错误及其中英文翻译同步改为能力说明，保留粘贴正文或上传 PDF/文本的替代入口描述。没有修改读取权限、OAuth scopes、发信确认或业务执行逻辑。
+
+验证：现有 mailbox read/cards/contract/OAuth UX 回归 17/17 通过，TypeScript 和修改文件 ESLint 通过。真实 Chrome 通过原有 Google 账号登录本地隔离库 `hirelix_workspace_qa_queue_20261015`，核对中英文设置页；仅本地预览进程临时设置 Microsoft 读取启用以检查对应文案，配置文件和生产开关未改。最初邮箱依赖返回连接错误，随后 Gmail 状态恢复，Outlook 仍显示连接错误；界面如实显示，未发送或读取邮件。截图保存在 `/Users/noah/projects/hirelix-local-archive/2026-10-20/mailbox-capability-copy/`，`email-zh.png` 同屏显示两个能力说明和独立的连接状态。本地语言已恢复原英文，预览服务已停止。本次修改尚未部署到 Live。
