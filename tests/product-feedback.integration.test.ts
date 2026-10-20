@@ -85,7 +85,18 @@ test(
         ),
         /Choose a PNG/,
       );
-      for (let i = 0; i < 9; i++)
+      const { default: sharp } = await import("sharp");
+      const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: "#ffffff" } }).png().toBuffer();
+      const withScreenshot = await saveFeedback(
+        owner, { ...input, request_key: randomUUID() },
+        new File([new Uint8Array(png)], "valid.png", { type: "image/png" }),
+      );
+      assert.equal((await listFeedback(token, null, withScreenshot.id))[0].has_screenshot, true);
+      const stored = await db.execute(sql`SELECT screenshot FROM hirelix_product_feedback WHERE id=${withScreenshot.id}::uuid`);
+      const image = await sharp(stored[0].screenshot as Buffer).metadata();
+      assert.equal(image.width, 2);
+      assert.equal(image.format, "png", "Real screenshot decoding/storage remains available after lazy loading");
+      for (let i = 0; i < 8; i++)
         await saveFeedback(owner, { ...input, request_key: randomUUID() });
       await assert.rejects(
         saveFeedback(owner, { ...input, request_key: randomUUID() }),

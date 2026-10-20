@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import sharp from "sharp";
 import { db } from "@/db/client";
 import { rows, WorkspaceError } from "@/lib/workspace/database";
 import type { ApiAuthUser } from "@/lib/api-auth";
@@ -33,6 +32,9 @@ export async function saveFeedback(
         "Choose a PNG, JPEG or WebP screenshot up to 2 MB",
       );
     try {
+      // Admin list/status reads do not need native image libraries.
+      // Only the screenshot-upload route loads Sharp (and traces libvips).
+      const { default: sharp } = await import("sharp");
       image = await sharp(Buffer.from(await screenshot.arrayBuffer()), {
         limitInputPixels: 20000000,
       })
