@@ -25,7 +25,7 @@ after(async () => {
   }
   await closeDb();
 });
-const agreement = { enabled: true, timezone: "Europe/London", weekday: 5, local_time: "09:00", interval_weeks: 1, language: "en", person_ids: [], include_role_records: true, include_candidate_records: false, only_when_changed: true };
+const agreement = { expected_version: null, enabled: true, timezone: "Europe/London", weekday: 5, local_time: "09:00", interval_weeks: 1, language: "en", person_ids: [], include_role_records: true, include_candidate_records: false, only_when_changed: true };
 
 test("real PostgreSQL recurrence: local clock across DST, folds/gaps, fortnight phase and delayed execution", async () => {
   const config = { timezone: "Europe/London", weekday: 0, local_time: "01:30", interval_weeks: 1 as const };
@@ -72,10 +72,10 @@ test("real PG + AI: atomic due runs, source opt-in, pause, allowance error, fail
   assert.doesNotMatch(document.content, /PRIVATE UNSELECTED|private-schedule@example/);
   const [totals] = await rows<{ documents: number; usage: number; notices: number }>(sql`SELECT (SELECT count(*)::int FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid) documents,(SELECT count(*)::int FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid) usage,(SELECT count(*)::int FROM hirelix_private_notifications WHERE user_id=${owner}::uuid) notices`);
   assert.deepEqual(totals, { documents: 1, usage: 1, notices: 1 });
-  await saveSchedule(owner, role.id, { ...agreement, person_ids: [person.id], enabled: false });
+  const pausedAgreement = await saveSchedule(owner, role.id, { ...agreement, expected_version: saved.version, person_ids: [person.id], enabled: false });
   await db.execute(sql`UPDATE hirelix_private_schedules SET next_run_at=${due}::timestamptz WHERE id=${schedule.id}::uuid`);
   assert.equal(await queueScheduledDrafts(), 0);
-  await saveSchedule(owner, role.id, { ...agreement, person_ids: [person.id], enabled: true });
+  await saveSchedule(owner, role.id, { ...agreement, expected_version: pausedAgreement.version, person_ids: [person.id], enabled: true });
   await db.execute(sql`UPDATE hirelix_agent_access SET trial_started_at=now()-interval '8 days' WHERE user_id=${owner}::uuid`);
   const quotaRole = await createRole(owner, { title: "Fictional expired schedule QA", client_name: "QA", jd_text: "Lead a product team" });
   const quotaSchedule = await saveSchedule(owner, quotaRole.id, agreement);
@@ -102,7 +102,7 @@ test("real scheduled drafts: unchanged evidence produces another draft without a
   }
   const [total] = await rows<{ count: number }>(sql`SELECT count(*)::int AS count FROM hirelix_private_notifications WHERE user_id=${account}::uuid AND href LIKE ${`/app/roles/${role.id}/updates/%`}`);
   assert.equal(total.count, 1);
-  await saveSchedule(account, role.id, { ...agreement, include_role_records: false, enabled: false });
+  await saveSchedule(account, role.id, { ...agreement, expected_version: schedule.version, include_role_records: false, enabled: false });
 });
 
 
@@ -112,7 +112,7 @@ test("real PG: pausing an agreement cancels its running result and preserves its
   const saved = await saveSchedule(account, role.id, agreement);
   const queued = await enqueue(account, "deliverable", randomUUID(), {schedule_id: saved.id, schedule_version: saved.version});
   const running = await claimJob(["deliverable"]); assert.equal(running?.id, queued.id);
-  const paused = await saveSchedule(account, role.id, {...agreement, enabled: false});
+  const paused = await saveSchedule(account, role.id, {...agreement, expected_version: saved.version, enabled: false});
   assert.equal(new Date(paused.next_run_at).getTime(), new Date(saved.next_run_at).getTime());
   assert.equal(paused.version, saved.version + 1);
   assert.equal((await owned<Job>(account, "job", queued.id)).status, "cancelled");

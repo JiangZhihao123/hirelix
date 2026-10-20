@@ -79,7 +79,7 @@ export function AssistantAgreement({ receipt }: { receipt: AssistantScheduleRece
   async function toggle() {
     if (!schedule) return;
     setBusy(true); setError("");
-    try { await api(`/roles/${receipt.role_id}/schedule`, { method: "PUT", body: JSON.stringify({ ...schedule, enabled: !schedule.enabled }) }); query.refresh(); }
+    try { await api(`/roles/${receipt.role_id}/schedule`, { method: "PUT", body: JSON.stringify({ ...schedule, expected_version: schedule.version, enabled: !schedule.enabled }) }); query.refresh(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save agreement"); }
     finally { setBusy(false); }
   }

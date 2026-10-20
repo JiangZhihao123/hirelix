@@ -19,7 +19,7 @@ export function ScheduledDrafts({ role, schedule, refresh }: { role: Role; sched
   async function pause() {
     if (!schedule) return;
     setBusy(true); setError("");
-    try { await api(`/roles/${role.id}/schedule`, { method: "PUT", body: JSON.stringify({ ...schedule, enabled: !schedule.enabled }) }); refresh(); }
+    try { await api(`/roles/${role.id}/schedule`, { method: "PUT", body: JSON.stringify({ ...schedule, expected_version: schedule.version, enabled: !schedule.enabled }) }); refresh(); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not save agreement"); }
     finally { setBusy(false); }
   }

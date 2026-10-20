@@ -21,6 +21,9 @@ export const scheduleInput = z.object({
   include_candidate_records: z.boolean(),
   only_when_changed: z.boolean(),
 });
+export const scheduleSaveInput = scheduleInput.extend({
+  expected_version: z.number().int().positive().nullable().describe("Null for a new agreement; for changes, use the report_schedule.version observed in read_role or the current saved agreement."),
+});
 type Agreement = z.infer<typeof scheduleInput>;
 
 // PostgreSQL owns timezone conversion. Its standard-time choice resolves DST
@@ -43,7 +46,7 @@ export async function nextScheduleRun(
 }
 
 export async function saveSchedule(userId: string, roleId: string, value: unknown, runner: Runner = db) {
-  const input = scheduleInput.parse(value);
+  const input = scheduleSaveInput.parse(value);
   const save = async (tx: Runner) => {
     await owned<Role>(userId, "role", roleId, tx, true);
     for (const id of input.person_ids) {
@@ -51,6 +54,9 @@ export async function saveSchedule(userId: string, roleId: string, value: unknow
       if (!linked.length) throw new WorkspaceError("Choose candidates linked to this role");
     }
     const [current] = await rows<Schedule>(sql`SELECT * FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid FOR UPDATE`, tx);
+    if (current ? current.version !== input.expected_version : input.expected_version !== null) {
+      throw new WorkspaceError("This agreement changed. Read the current agreement before editing; your newer timing and source choices were preserved.", 409);
+    }
     const sameTiming = current && current.timezone === input.timezone && current.weekday === input.weekday && current.local_time.slice(0, 5) === input.local_time && current.interval_weeks === input.interval_weeks;
     const next = sameTiming && (!input.enabled || (current.enabled && !current.error))
       ? new Date(current.next_run_at).toISOString()

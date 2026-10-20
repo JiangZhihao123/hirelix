@@ -60,7 +60,7 @@ import {
 } from "./deliverables";
 import { requestRevision, generateRevision, editDocument, documentEdits } from "./revisions";
 import { reminderActionSchema, saveReminder } from "./reminders";
-import { scheduleInput, saveSchedule } from "./schedules";
+import { scheduleSaveInput, saveSchedule } from "./schedules";
 import {
   listPersonalMemories,
   memoryChangeSchema,
@@ -1200,7 +1200,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     schedule_report: define(
       "schedule_report",
       "Save an explicitly requested recurring role report agreement. Preserve its scope when editing; generated reports stay in the conversation and are never sent automatically.",
-      scheduleInput.extend({
+      scheduleSaveInput.extend({
         ...authorization,
         role_id: z.uuid(),
         include_role_records: z

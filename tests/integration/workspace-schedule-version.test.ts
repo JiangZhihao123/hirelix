@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {test} from 'node:test';
+import {sql} from 'drizzle-orm';
+import {db,closeDb} from '../../src/db/client';
+import {rows,WorkspaceError} from '../../src/lib/workspace/database';
+import {createRole} from '../../src/lib/workspace/roles';
+import {saveSchedule} from '../../src/lib/workspace/schedules';
+import type {Schedule} from '../../src/lib/workspace/types';
+
+test('stale recurring-report edits preserve newer timing and private-source choices',async()=>{
+ const url=new URL(process.env.DATABASE_URL || 'postgres://invalid/invalid');
+ assert.equal(url.hostname,'127.0.0.1');assert.ok(url.pathname.startsWith('/hirelix_workspace_qa_isolated_'));
+ const owner=randomUUID();
+ try {
+  const role=await createRole(owner,{title:'Schedule conflict fixture',client_name:'QA',jd_text:'Fictional product role'});
+  const original={expected_version:null,enabled:true,timezone:'UTC',weekday:2,local_time:'09:00',interval_weeks:1,language:'en',person_ids:[],include_role_records:true,include_candidate_records:false,only_when_changed:true};
+  const first=await saveSchedule(owner,role.id,original);
+  const newer=await saveSchedule(owner,role.id,{...original,expected_version:first.version,local_time:'10:30',include_role_records:false});
+  await assert.rejects(()=>saveSchedule(owner,role.id,{...original,expected_version:first.version,enabled:false}),e=>e instanceof WorkspaceError&&e.status===409);
+  await assert.rejects(()=>saveSchedule(owner,role.id,{...original,enabled:false}),e=>e instanceof WorkspaceError&&e.status===409);
+  const [current]=await rows<Schedule>(sql`SELECT * FROM hirelix_private_schedules WHERE id=${first.id}::uuid`);
+  assert.equal(current.local_time.slice(0,5),'10:30');assert.equal(current.include_role_records,false);assert.equal(current.enabled,true);assert.equal(current.version,newer.version);
+  const paused=await saveSchedule(owner,role.id,{...current,expected_version:current.version,enabled:false});
+  assert.equal(paused.enabled,false);assert.equal(paused.local_time.slice(0,5),'10:30');assert.equal(paused.include_role_records,false);
+  assert.equal(paused.version,current.version+1);
+ }finally{
+  await db.execute(sql`UPDATE hirelix_private_schedules SET enabled=false WHERE user_id=${owner}::uuid`);
+  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
+  await closeDb();
+ }
+});
