@@ -24,3 +24,22 @@
 - TypeScript、针对性 ESLint、独立输出目录的生产构建通过。构建自动添加的 tsconfig 路径已移除，构建输出移入本地归档，没有混入源码提交。
 
 证据目录：`/Users/noah/projects/hirelix-local-archive/2026-10-20/recruiter-sprint/`。`screenshots/03-source-panel-before.png` 为修复前，`05-source-panel-fixed.png`、`07-pdf-second-page.png` 为修复后。测试 PDF 明确标注虚构人物，原件和截图不提交 Git。
+
+## 推荐、修改、交付与客户反馈
+
+- 合并 PDF 内容与已保存两份 CV 一致，模型读取后未重复导入；数据库仍为两个人选。此次证明自然场景中的避免重复行为，不等同直接覆盖导入工具的所有去重分支。
+- 电话笔记中的期望薪酬从 GBP 148,000 改为 146,000；原始 CV、当前薪酬及其内部保密说明保留。四个上传文件的数据库字节 SHA-256 与原件一致。
+- 明确取得面向 Alder 的分享许可后生成私有推荐稿。手工修改未确认的通勤描述，自动保存为 v2，再从界面请求 AI 精简为 v3；人工改动得到保留。
+- 实际点击下载 PDF、DOCX、ZIP，并检查文件。推荐稿包含 146,000，没有保密当前薪酬 132,000；ZIP 内推荐 PDF 与选中的原始 Mara CV 齐全，原始 CV 哈希相同。复制正文返回可粘贴文本，没有 Markdown 标记。下载不产生交付状态，数据库仍为 draft、submitted_at=null。
+- 客户将到场要求改为隔周周二，实际职位 brief 保存为 v2；反馈保存到候选人记录，原推荐稿保留 v3，没有自动改写或发送。
+- 提醒由真实 worker 在 2026-10-20 18:15:09 Asia/Shanghai 送回原对话，计划时间 18:15:00；数据库 completed_at 已写入、enabled=false，对应提醒消息仅一条，没有人工推进时钟。
+
+## 已修复：Word 英文多行重叠
+
+原始 UI 下载的 DOCX 在 LibreOffice 实际渲染中，多行英文重叠。相同内容、相同字号/段落设置，仅将 ASCII/hAnsi/cs 字体从 Noto Sans SC 调整为 Arial 后恢复正常。保留 eastAsia 的 Noto Sans SC 和嵌入字体字节，PDF 导出未改动。单独增加 lineRule 或更改字体名称不能解决问题，未纳入修复。
+
+同时发现验收工具环境未正确找到中文字体，导致中文在诊断渲染中缺字；为当前渲染进程提供包含项目字体目录的 FONTCONFIG_FILE 后，中英文样张正常。该配置只在本地归档中，未修改系统字体或产品环境。配置字体后的旧版英文推荐仍重叠，新版实际下载文件整页正常，区分了产品问题和测试环境问题。
+
+验证：实际浏览器重新下载 DOCX，LibreOffice 转 PDF 并渲染整页检查；中英文样张检查；回归验证正文内容、脚本字体映射和 OOXML 字体解混淆后与源字节完全一致。TypeScript、针对性 ESLint 与回归测试通过。尚未覆盖 Windows Microsoft Word 渲染，不据此宣称全部 Office 客户端兼容。
+
+证据：归档 `exports/recommendation-fixed-render/page-1.png`、`exports/bilingual-fontconfig-render/page-1.png`、`final-persistence.json`、`13-reminder-delivered.png`。

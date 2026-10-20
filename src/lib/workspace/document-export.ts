@@ -45,10 +45,12 @@ export async function renderDocument(
           document: {
             run: {
               font: {
-                ascii: "Noto Sans SC",
-                hAnsi: "Noto Sans SC",
+                // Keep Latin text on a Latin font: using the CJK font for every
+                // script collapses wrapped line spacing in LibreOffice.
+                ascii: "Arial",
+                hAnsi: "Arial",
                 eastAsia: "Noto Sans SC",
-                cs: "Noto Sans SC",
+                cs: "Arial",
               },
               size: 22,
               color: "242824",
