@@ -2,7 +2,7 @@
 
 `deploy/hirelix-backup.sh` 通过本机 PostgreSQL socket 备份 `hirelix`，文件仅 root 可读。daily 文件保留至少十四天；手动发布快照不自动清理。定时运行时间为每天 UTC 19:00（北京时间次日 03:00），随机延后不超过五分钟。
 
-`deploy/hirelix-health.sh` 每分钟检查 PostgreSQL、scheduler 的运行和自启动、私人 worker 未被关闭、排队超过十分钟或租约过期超过三分钟的私人任务，以及最近二十六小时的成功备份。服务 active 不能代替队列检查。检查失败会让 `hirelix-health.service` 进入 failed，日志只记录计数，不包含私人材料。当前不对外发送提醒；查看 failed 状态和 journal。队列积压可能由高负载造成，需结合日志定位，不能直接删除任务。
+`deploy/hirelix-health.sh` 每分钟检查 PostgreSQL、scheduler 的运行和自启动、私人 worker 未被关闭、排队超过十分钟或租约过期超过三分钟的私人任务，以及最近二十六小时的成功备份。服务 active 不能代替队列检查。检查失败会让 `hirelix-health.service` 进入 failed，日志只记录计数，不包含私人材料。现已将失败事件接入下文的已验证邮件告警；同时保留 failed 状态和 journal。队列积压可能由高负载造成，需结合日志定位，不能直接删除任务。
 
 ## 安装与检查
 
@@ -74,4 +74,4 @@ done
 sudo systemctl daemon-reload
 ```
 
-本轮只完成代码、消息合同回归和不发信预览，没有配置收件人、发送测试邮件或安装告警服务。主机内告警也不能覆盖整台VPS断电/失联，后者需要外部监测与独立接收渠道；不得将本模板宣传成全故障覆盖。
+2026-10-20用户明确批准后，已配置noahjiang2@gmail.com，安装模板并实收一封test告警（22:49 Asia/Shanghai）。健康检查和原有备份服务均已配置OnFailure，两个既有timer保持active；未故意破坏生产服务制造额外告警。主机内告警也不能覆盖整台VPS断电/失联，后者需要外部监测与独立接收渠道；不得将本模板宣传成全故障覆盖。
