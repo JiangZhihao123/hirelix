@@ -8,6 +8,7 @@ import { useQuery, ErrorNotice, Loading } from "./client";
 import { DocumentDownloads } from "./document-download";
 import { DocumentAttachments } from "./document-attachments";
 import { SourceContent } from "./source-content";
+import { PdfPreview } from "./pdf-preview";
 import type { Person, Role, SourceRecord, Deliverable } from "@/lib/workspace/types";
 
 function OriginalFile({ id, title }: { id: string; title: string }) {
@@ -21,7 +22,7 @@ function OriginalFile({ id, title }: { id: string; title: string }) {
       {query.data.preview_type?.startsWith("image/") ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="ws-source-image" src={`${href}?preview=1`} alt={query.data.name || title} />
-      ) : query.data.preview_type === "application/pdf" ? <iframe className="ws-source-pdf" title={query.data.name || title} src={`${href}?preview=1`} /> : <SourceContent content={query.data.content || ""} />}
+      ) : query.data.preview_type === "application/pdf" ? <PdfPreview key={id} id={id} title={query.data.name || title} /> : <SourceContent content={query.data.content || ""} />}
       {query.data.truncated && <p>{t("Preview limited to 100,000 characters. Open the original for the full file.")}</p>}
     </>}
     <div className="ws-actions">

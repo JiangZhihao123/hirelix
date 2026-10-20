@@ -2534,7 +2534,11 @@
 .ws-message-user .ws-chat-attachment { display: flex; width: fit-content; text-align: left; cursor: pointer; }
 .ws-attachment-error { color: #a34b38; font-size: 12px; padding: 8px 0; }
 .ws-source-image { display: block; width: 100%; height: auto; border-radius: 8px; }
-.ws-source-pdf { width: 100%; height: 65vh; border: 1px solid #dce4d9; border-radius: 8px; }
+.ws-pdf-preview { width:100%; min-width:0; border:1px solid #dce4d9; border-radius:8px; overflow:hidden; }
+.ws-pdf-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; padding:6px; border-bottom:1px solid #dce4d9; font-size:12px; background:#f4f7f3; }
+.ws-pdf-toolbar span { min-width:72px; text-align:center; }
+.ws-pdf-viewport { max-height:65vh; overflow:auto; background:#eef2ee; }
+.ws-pdf-viewport img { display:block; max-width:none; height:auto; }
 
 
 .ws-delivery { display: grid; gap: 24px; min-width: 0; min-height: 0; overflow-y: auto; padding: 20px 24px 24px; }

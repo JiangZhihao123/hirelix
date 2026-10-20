@@ -3,6 +3,8 @@ import { workspaceApi } from "@/lib/workspace/http";
 import { readFile, attachment } from "@/lib/workspace/files";
 import { idSchema } from "@/lib/workspace/types";
 import { attachmentPreviewType } from "@/lib/workspace/attachments";
+import { z } from "zod";
+import { WorkspaceError } from "@/lib/workspace/database";
 export function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -12,6 +14,12 @@ export function GET(
       user.id,
       idSchema.parse((await context.params).id),
     );
+    if (req.nextUrl.searchParams.has("page")) {
+      if (attachmentPreviewType(file.name) !== "application/pdf") throw new WorkspaceError("Choose a PDF to preview pages.");
+      const page = z.coerce.number().int().min(1).max(10000).parse(req.nextUrl.searchParams.get("page"));
+      const {pdfPagePreview} = await import("@/lib/workspace/file-thumbnail");
+      return Response.json(await pdfPagePreview(file.bytes, page), {headers: {"Cache-Control": "private, no-store"}});
+    }
     if (req.nextUrl.searchParams.has("thumbnail") && file.name.toLowerCase().endsWith(".pdf")) {
       const {pdfThumbnail} = await import("@/lib/workspace/file-thumbnail");
       return Response.json(await pdfThumbnail(file.bytes), {headers: {"Cache-Control": "private, no-store"}});
