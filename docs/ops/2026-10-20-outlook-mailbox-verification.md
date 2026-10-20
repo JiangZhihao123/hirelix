@@ -19,3 +19,17 @@
 第一轮查找微软欢迎邮件：真实 Graph 搜索返回账号通知等邮件，未找到欢迎邮件，模型没有擅自读取其他正文或发送。此轮只证明搜索与展示，正文读取和发送/收件需另行确认。
 
 本地证据目录：`/Users/noah/projects/hirelix-local-archive/2026-10-20/outlook-real-chain/`。截图和邮件内容不提交 Git。当前代码修复尚未部署。
+
+## 发送、实际收件与刷新读回
+
+第二轮明确要求读取最新的“连接到 Microsoft 帐户的新应用”通知，真实 read_mail 返回 Inbox 正文，确认 Hirelix 已连接。随后准备一封自发自收预览，发件人与收件人均为新 Outlook 账号；主题“邮箱连接记录”，正文为本人记录邮箱连接的一句说明与署名，无链接、附件、抄送或营销内容。
+
+浏览器核对预览后，点击 Confirm and send email 一次。实际发送接受时间为 2026-10-20 17:11:02（Asia/Shanghai），持久回执 `90d1f020-83cd-42e0-8642-9b6653070928`，数据库 status=sent、provider=microsoft。Graph sendMail 接受不返回 message ID，因此该字段为空，未伪造一个 ID。
+
+下一轮只查这封邮件，实际搜索并读取了 Inbox 来信和 Sent Items 副本。Inbox 来信收到时间为 17:11:08；展开真实工具结果卡片确认 Inbox 标签、发件人与收件人及正文。没有把 Sent Items 或模型结论单独作为送达证明，也没有重新发送。
+
+独立查询本地账本：该用户、本日该主题只有 1 条发送记录。刷新对话后，预览卡和发送结果卡均读回同一个回执，Confirm and send email 按钮数量为 0。两张卡展示同一回执，不是两次发送。
+
+结果：新账号 OAuth 授权、按需检索、正文读取、正常预览、单次发送、Inbox 实收、读回核对和刷新持久化在本地真实链路通过。只发了上述一封自发自收邮件；未验证跨收件服务投递、批量发送、生产部署、Microsoft 发布者验证或未来账号风控状态。
+
+证据：`connected.png`、`search-complete.png`、`read-and-preview.png`、`accepted.png`、`inbox-readback.png`、`after-refresh.png`、`ledger.json`、`received-evidence.json` 和对应轮次的真实结果 JSON。
