@@ -35,6 +35,7 @@ type Receipt = {
   deliverable_version: number;
   current_copy: boolean;
   error: string | null;
+  created_at: string;
 };
 export function RecommendationDelivery({
   document,
@@ -509,7 +510,12 @@ export function RecommendationDelivery({
                 </p>
                 {receipts.data?.receipts.map((r) => (
                   <p key={r.id} className="ws-muted">
-                    {r.recipient} ·{" "}
+                    <time dateTime={new Date(r.created_at).toISOString()}>
+                      {new Date(r.created_at).toLocaleString(zh ? "zh-CN" : "en-GB", {
+                        year: "numeric", month: "short", day: "numeric",
+                        hour: "2-digit", minute: "2-digit", second: "2-digit",
+                      })}
+                    </time>{" · "}{r.recipient} ·{" "}
                     {t(
                       r.status === "sent"
                         ? (zh ? "服务商已接受发送，送达未确认" : "Accepted by provider; delivery unconfirmed")
