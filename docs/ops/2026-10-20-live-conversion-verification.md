@@ -74,3 +74,18 @@
 已在 Chrome 打开 Paddle 正式后台，由 `vendors.paddle.com` 跳转到 `login.paddle.com` 登录页；当前没有后台登录态。保留该页及原收银台，等待用户登录后继续。未更改 API key 权限，也未索取密码或密钥内容。
 
 首期优惠不改变后续正常续费价格；完成验收后仍需验证取消自动续费，避免下个周期正常扣款。
+
+## 后台登录后创建并应用优惠券
+
+用户完成 Paddle 商户后台登录后，确认商户 YieldMirror、环境 Live。通过 Catalog → Discounts 创建优惠券，未更改或扩展 API key 权限。
+
+- ID：`dsc_01m5bw9zea4kgn9agr2qwkg17c`。
+- 首期 100% 减免，Recurring discount 关闭，列表显示 Applies to 为 1 payment。
+- 总使用次数限制 1，创建后列表显示 Active、Uses left 1。
+- 限定 Hirelix Personal Agent 的 USD 49 Monthly price：`pri_01m3mf4h660x9k2h9jq0vj27qz`，未选择年付或其他产品。
+- 到期：2026-10-22 05:19 UTC（北京时间 2026-10-22 13:19）。
+- 券码保存在本地 `discount-created.json`，不写入 Git。
+
+已在保留的 Live 收银台通过 Add discount 应用该券，实际显示：`Pay nothing`、`Discount -US$49.00`、`Due today US$0.00`。没有提交最终订阅，没有录入账单地址或银行卡，也尚未验证零元交易/订阅回调与权益授予。后续续费恢复正常月付价格；完成验收后仍需走取消续费验证。
+
+证据：本地 `live-discount-created.png` 和 `live-checkout-zero.png`。已保留 0 元收银台，等待用户填写真实账单资料并完成订阅。先前 API 403 仍是该密钥的能力边界；后台登录解决了本次创建券的操作入口，没有证明该密钥获得了新权限。
