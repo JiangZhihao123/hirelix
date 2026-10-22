@@ -1,7 +1,8 @@
 "use client";
 
-import { useT } from "@/components/LanguageProvider";
-import { useEffect, useState } from "react";
+import { useLanguage, useT } from "@/components/LanguageProvider";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { api, useQuery, ErrorNotice, Field, Dialog } from "./client";
 import { AgentText } from "@/components/AgentText";
 import type { Deliverable, Job } from "@/lib/workspace/types";
@@ -20,6 +21,9 @@ export function RevisionPanel({
   onApplied: (value: Deliverable) => void;
 }) {
   const t = useT();
+  const {locale} = useLanguage();
+  const settled = useRef<string | null>(null);
+  const requestKey = useRef<{signature:string; key:string} | null>(null);
   const query = useQuery<{ job: Job | null }>(
     jobId ? `/jobs/${jobId}` : `/deliverables/${document.id}/revision`,
   );
@@ -29,6 +33,14 @@ export function RevisionPanel({
     [error, setError] = useState("");
   const job = query.data?.job;
   const appliedVersion = job?.result?.applied_version;
+  const conversationId = job?.kind === "chat" && typeof job.payload.conversation_id === "string" ? job.payload.conversation_id : null;
+  useEffect(() => {
+    if (disabled || job?.kind !== "chat" || !["done", "error", "cancelled"].includes(job.status)) return;
+    const key = `${job.id}:${job.status}`;
+    if (settled.current === key) return;
+    settled.current = key;
+    api<{deliverable:Deliverable}>(`/deliverables/${document.id}`).then(result => onApplied(result.deliverable)).catch(cause => setError(cause instanceof Error ? cause.message : "Could not load updated document"));
+  }, [job?.id, job?.kind, job?.status, document.id, disabled, onApplied]);
   useEffect(() => {
     if (appliedVersion && Number(appliedVersion) > document.version) {
       api<{ deliverable: Deliverable }>(`/deliverables/${document.id}`).then(result => onApplied(result.deliverable)).catch(cause => setError(cause instanceof Error ? cause.message : "Could not load updated document"));
@@ -44,14 +56,22 @@ export function RevisionPanel({
     setBusy(true);
     setError("");
     try {
-      await api(`/deliverables/${document.id}/revision`, {
+      const payload = {
+        message: instructions,
+        document_id: document.id,
+        document_version: document.version,
+        role_id: document.role_id,
+        locale,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+      const signature = JSON.stringify(payload);
+      if (requestKey.current?.signature !== signature) requestKey.current = {signature, key:crypto.randomUUID()};
+      await api("/conversations", {
         method: "POST",
-        body: JSON.stringify({
-          instructions,
-          expected_version: document.version,
-          request_key: crypto.randomUUID(),
-        }),
+        body: JSON.stringify({...payload, request_key:requestKey.current.key}),
       });
+      requestKey.current = null;
+      setInstructions("");
       query.refresh();
     } catch (cause) {
       setError(
@@ -92,7 +112,7 @@ export function RevisionPanel({
     <section className={embedded ? "ws-revision-receipt" : "ws-panel mt-6"}>
       {!embedded && <><h2>{t("Revise with your AI assistant")}</h2>
       <p className="ws-muted">
-        {t("Requested changes are saved directly. Your previous version is kept.")}
+        {t("Your assistant can use saved notes and feedback to revise this document. Previous versions are kept.")}
       </p></>}
       <ErrorNotice error={error || query.error} />
       {!embedded && <><Field label={t("What would you like to change?")}>
@@ -109,7 +129,7 @@ export function RevisionPanel({
         onClick={() => void request()}
       >
         {" "}
-        {running ? t("Preparing revision…") : t("Prepare revision")}
+        {running ? t("Working on your request…") : t("Ask your assistant")}
       </button>
       </>}
       {disabled && (
@@ -126,11 +146,13 @@ export function RevisionPanel({
         catch (cause) { setError(cause instanceof Error ? cause.message : "Could not stop revision"); }
         finally { setBusy(false); }
       }}>{t("Stop")}</button>}
-      {job?.status === "cancelled" && <p role="status">{t("Stopped. Your saved document is unchanged.")}</p>}
+      {conversationId && <p><Link className="ws-link" href={`/app?conversation=${conversationId}`}>{t("Continue in conversation")} ↗</Link></p>}
+      {job?.kind === "chat" && job.status === "done" && <p role="status">{t("Your assistant has replied. Open the conversation for the result or any questions.")}</p>}
+      {job?.status === "cancelled" && <p role="status">{t(job.kind === "chat" ? "Stopped. Completed changes are kept; continue in the conversation." : "Stopped. Your saved document is unchanged.")}</p>}
       {job?.status === "error" && (
         <>
           <ErrorNotice
-            error={job.error || "Revision failed. Your draft is unchanged."}
+            error={job.error || (job.kind === "chat" ? "Assistant request failed. Completed changes are kept." : "Revision failed. Your draft is unchanged.")}
           />
           <button
             className="ws-button"
@@ -152,11 +174,11 @@ export function RevisionPanel({
               }
             }}
           >
-            {t("Retry revision")}
+            {t(job.kind === "chat" ? "Retry" : "Retry revision")}
           </button>
         </>
       )}
-      {job?.status === "done" && !job.result?.applied_version && (
+      {job?.kind === "revision" && job.status === "done" && !job.result?.applied_version && (
         <div className="mt-4">
           <button className="ws-button" onClick={() => setReview(true)}>
             {t("Review proposed revision")}

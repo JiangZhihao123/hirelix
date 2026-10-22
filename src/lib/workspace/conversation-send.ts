@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { enqueue, json, owned, rows, WorkspaceError } from "./database";
+import { enqueue, expectVersion, json, owned, rows, WorkspaceError } from "./database";
 import { conversationInput } from "./conversations";
 import { saveFile, type PrivateFile } from "./files";
 import { MAX_CONVERSATION_FILES, type ConversationAttachment } from "./attachments";
@@ -53,7 +53,11 @@ export async function sendMessage(
       attachments.push({ file_id: saved.id, name: saved.name, size: saved.byte_size });
     }
     if (attachments.length > MAX_CONVERSATION_FILES) throw new WorkspaceError("Attach up to 20 files per message");
-    const document = input.document_id ? await owned<Deliverable>(userId, "deliverable", input.document_id, tx) : null;
+    const document = input.document_id ? await owned<Deliverable>(userId, "deliverable", input.document_id, tx, input.document_version !== undefined) : null;
+    if (input.document_version !== undefined) {
+      if (!document) throw new WorkspaceError("Choose the saved document for this request", 400);
+      expectVersion(document.version, input.document_version);
+    }
     if (input.question_message_id && !input.conversation_id) throw new WorkspaceError("Choose the original conversation", 409);
     if (document && input.conversation_id) throw new WorkspaceError("Start a document conversation from the saved draft");
     if (document && input.role_id && document.role_id !== input.role_id) throw new WorkspaceError("This document belongs to another role", 409);

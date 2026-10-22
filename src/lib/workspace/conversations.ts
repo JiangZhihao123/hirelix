@@ -31,6 +31,7 @@ export const conversationInput = z.object({
   role_id: z.uuid().nullable().default(null),
   person_id: z.uuid().nullable().default(null),
   document_id: z.uuid().nullable().default(null),
+  document_version: z.number().int().positive().optional(),
   work_document_id: z.uuid().nullable().default(null),
   viewed_source: viewedSourceInput.nullable().default(null),
 });

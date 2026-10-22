@@ -90,10 +90,10 @@ export async function requestRevision(
   };
   return runner === db ? db.transaction(prepare) : prepare(runner);
 }
-export async function latestRevision(userId: string, id: string) {
+export async function latestDocumentWork(userId: string, id: string) {
   await owned(userId, "deliverable", id);
   const [job] = await rows<Job>(
-    sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='revision' AND payload->>'deliverable_id'=${id} ORDER BY created_at DESC LIMIT 1`,
+    sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND ((kind='revision' AND payload->>'deliverable_id'=${id} AND payload->>'parent_chat_job_id' IS NULL) OR (kind='chat' AND (payload->'request'->>'document_id'=${id} OR payload->'request'->>'work_document_id'=${id} OR (payload->'request'->'viewed_source'->>'kind'='deliverable' AND payload->'request'->'viewed_source'->>'id'=${id})))) ORDER BY created_at DESC,id DESC LIMIT 1`,
   );
   return job ?? null;
 }
