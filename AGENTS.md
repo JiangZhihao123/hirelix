@@ -4,15 +4,14 @@ This file is the shared contributor and AI-agent guide for Hirelix. `CLAUDE.md` 
 
 ## Project Structure & Module Organization
 
-Hirelix is a Next.js 16 / React 19 recruiting platform for passive candidate search, scoring, and recruiter outreach. Main code lives in `src/`: routes in `src/app`, UI in `src/components`, database helpers in `src/db`, and business logic in `src/lib`. Key modules:
+Hirelix is a Next.js 16 / React 19 recruiting platform for private candidate libraries, role workflow, and recruiter outreach. Main code lives in `src/`: routes in `src/app`, UI in `src/components`, database helpers in `src/db`, and business logic in `src/lib`. Key modules:
 
 | Path | Purpose |
 | --- | --- |
-| `src/lib/search-jobs.ts` | Main search pipeline: parse, recall, screen, score |
-| `src/lib/brightdata.ts` | Bright Data LinkedIn dataset and snapshot access |
 | `src/lib/llm-client.ts` | DeepSeek-first LLM routing; OpenRouter is fallback only |
 | `src/lib/public-evidence/` | On-demand candidate research sources and evidence |
-| `src/lib/search-job-scheduler.ts` / `scheduler/index.ts` | Scheduler loop and VPS entrypoint |
+| `src/lib/candidate-index/` | Private candidate-pool indexing, retrieval and judgment |
+| `src/lib/search-job-scheduler.ts` / `scheduler/index.ts` | Scheduler loop and VPS entrypoint; retired sourcing queue is disabled |
 | `src/lib/auth.ts`, `src/app/api/auth/[...all]/route.ts` | better-auth Google OAuth |
 | `src/lib/billing*.ts`, `src/lib/paddle.ts` | Billing and Paddle integration |
 
@@ -90,26 +89,21 @@ Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API r
 
 独立的外部付费人才寻访已退出产品：已删除新建、结果列表、结果详情及旧结果分享页面和专属产品 API，不保留旧路由跳转或历史结果兼容。任务执行器禁止启动该链路；私人候选人库搜索、匹配和 Agent 工作继续正常运行。未上线产品无需为测试数据保留废弃功能。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
 
-Historical search flow:
+Retired external sourcing:
 
-```text
-queued -> parsing -> searching -> screening -> deep_scoring -> done
-                                                       -> error
-```
+The standalone paid sourcing product is disabled (`EXTERNAL_SOURCING_ENABLED = false`) and its user-facing pages and APIs were removed. Its historical tables remain read-only for audit; do not re-enable the pipeline, create snapshots, or trigger paid recall. Private candidate-pool retrieval is a separate path.
 
-Pipeline steps are tracked as `accepted -> brief_ready -> linkedin_scan -> reviewing_profiles -> shortlist_ready`. Initial delivery should include the scored candidate pool from the current recall; do not reintroduce old “max 25 shortlist” product copy. Candidate Research is triggered on demand after a user selects a candidate. GitHub is one research source, not part of initial candidate delivery.
-
-Important tables: `hirelix_searches`, `hirelix_candidates`, `hirelix_search_jobs`, `hirelix_public_evidence_jobs`, `hirelix_public_evidence_items`, `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, and legacy `hirelix_github_enrichment_jobs`.
+Historical read-only tables: `hirelix_searches`, `hirelix_candidates`, `hirelix_search_jobs`, `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, and legacy `hirelix_github_enrichment_jobs`. Candidate Research uses `hirelix_public_evidence_jobs` and `hirelix_public_evidence_items`; workspace data uses `hirelix_private_*` and `hirelix_agent_*`.
 
 ## API Route Map
 
 Product APIs live under `src/app/(product)/api/` and require authentication. Key entrypoints include `workspace/*`, `candidates/[id]`, `candidates/[id]/enrich`, `settings/ai-company`, and `billing/*`. The retired external sourcing product APIs under `search/*` and `searches/*` have been removed.
 
-Internal APIs live under `src/app/api/` and are triggered by services or webhooks: `internal/search-jobs/run` for search execution, `internal/public-evidence-jobs/run` for on-demand candidate research, and `paddle/webhook` for billing events. Auth routes are mounted at `src/app/api/auth/[...all]/route.ts`.
+Internal APIs live under `src/app/api/` and are triggered by services or webhooks: `internal/public-evidence-jobs/run` for on-demand candidate research, and `paddle/webhook` for billing events. The retired `internal/search-jobs/run` route remains disabled. Auth routes are mounted at `src/app/api/auth/[...all]/route.ts`.
 
 ## AI Model Strategy
 
-Default search and scoring use the official DeepSeek API. OpenRouter is optional fallback only, not the primary path. Stage-specific model variables are `SEARCH_LIGHT_MODEL` for screening, `SEARCH_JUDGE_MODEL` for deep scoring, and `SEARCH_ARBITER_MODEL` for arbitration. Thinking/reasoning controls are also stage-specific; avoid flattening them into one global behavior unless the product requirement explicitly changes.
+Default candidate research, private-library scoring and Agent work use the official DeepSeek API. OpenRouter is optional fallback only, not the primary path. Stage-specific model variables are `SEARCH_LIGHT_MODEL` for screening, `SEARCH_JUDGE_MODEL` for deep scoring, and `SEARCH_ARBITER_MODEL` for arbitration; they are shared by candidate research and the private candidate index. Thinking/reasoning controls are also stage-specific; avoid flattening them into one global behavior unless the product requirement explicitly changes.
 
 ## Build, Test, and Development Commands
 
@@ -126,14 +120,14 @@ Default search and scoring use the official DeepSeek API. OpenRouter is optional
 Targeted examples:
 
 ```bash
-npx tsx --test tests/search-task.test.ts
-npx tsx scripts/debug/check-failed-search.ts
-npx tsx scripts/debug/check-snapshot.ts
+npx tsx --test tests/candidate-index-workflow.test.ts
+npx tsx --test tests/public-evidence.test.ts
+npx tsx --test tests/workspace-document-export.test.ts
 ```
 
 ## Coding Style & Naming Conventions
 
-Use TypeScript, React Server Components where appropriate, and existing patterns before adding abstractions. Keep modules focused and use explicit names such as `search-task.ts`, `public-evidence-jobs.ts`, or `billing-server.ts`. Follow ESLint/Next.js defaults and two-space indentation in TS/TSX/JSON.
+Use TypeScript, React Server Components where appropriate, and existing patterns before adding abstractions. Keep modules focused and use explicit names such as `candidate-index.ts`, `public-evidence-jobs.ts`, or `billing-server.ts`. Follow ESLint/Next.js defaults and two-space indentation in TS/TSX/JSON.
 
 For server logs, use `getLogger({ component: "..." })` from `src/lib/logger.ts`; do not spread new raw `console.*` calls. Log by stable identifiers such as `component`, `search_id`, `job_id`, `candidate_id`, and `workerIndex`. Never log tokens, passwords, authorization headers, or large sensitive objects.
 
@@ -141,7 +135,7 @@ For natural-language cleaning, classification, extraction, scoring, or repair, p
 
 ## Candidate Quality Principle
 
-Hirelix’s core product quality must come from JD-aware LLM judgment, not special-case keyword patches. Do not improve candidate quality by adding hard-coded exclusions for particular titles, stacks, schools, companies, profile phrases, or one-off observed failures. Use deterministic code only for structural concerns such as budget accounting, deduplication, cache identity, snapshot status, location eligibility primitives, and safe Bright Data filter construction.
+Hirelix’s core product quality must come from JD-aware LLM judgment, not special-case keyword patches. Do not improve candidate quality by adding hard-coded exclusions for particular titles, stacks, schools, companies, profile phrases, or one-off observed failures. Use deterministic code only for structural concerns such as budget accounting, deduplication, cache identity, snapshot status, location eligibility primitives, and safe retrieval filters.
 
 When a candidate should be advanced, held, or rejected, encode the reasoning in prompts, schemas, scoring rubrics, and eval fixtures. The judge must compare the profile against the JD, parsed search intent, role function, seniority, and core must-have evidence. Target-company membership, employer prestige, exact-looking titles, or loose keyword overlap are not enough to advance a candidate without concrete profile evidence. Adjacent profiles can pass when the evidence shows equivalent work.
 
@@ -149,9 +143,9 @@ Candidate quality labels are always scoped to a specific `(JD, candidate profile
 
 ## Testing Guidelines
 
-Mock tests are useful for local state, payloads, and error branches, but they do not prove the real search journey works. For core search, billing, auth, Bright Data, LLM, Postgres, or scheduler behavior, prefer real services or clearly state what was not verified. Report results as `mock regression`, `local real chain`, or `production/staging chain`.
+Mock tests are useful for local state, payloads, and error branches, but they do not prove the real journey works. For core candidate research, billing, auth, LLM, Postgres, or scheduler behavior, prefer real services or clearly state what was not verified. Report results as `mock regression`, `local real chain`, or `production/staging chain`.
 
-Bright Data real recall costs money. Current Bright Filter API pricing is USD 2.50 per 1,000 records. Do not create snapshots, expand recall, or rerun real searches without explicit authorization. For retrospective analysis, start read-only from `hirelix_searches`, `hirelix_candidates`, `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, and scheduler logs. Treat Bright snapshot `cost <= 0` as unknown, not real zero cost.
+Paid external sourcing is retired (`EXTERNAL_SOURCING_ENABLED = false`). Do not create snapshots, trigger recall, or re-enable the pipeline without an explicit product decision. Historical sourcing data is read-only.
 
 For page debugging, use Playwright MCP progressively: inspect page state, console, network, and DOM before deciding the next action. Stable regression flows can later move to Playwright CLI or `@playwright/test`.
 
@@ -159,17 +153,17 @@ For page debugging, use Playwright MCP progressively: inspect page state, consol
 
 | Problem area | Start with |
 | --- | --- |
-| Search execution | `hirelix_search_jobs`, `hirelix_searches`, `src/lib/search-jobs.ts` |
+| Retired external sourcing | read-only `hirelix_search_jobs`, `hirelix_searches`; do not enqueue new jobs |
 | Candidate Research | `hirelix_public_evidence_jobs`, `hirelix_public_evidence_items`, `src/lib/public-evidence/` |
 | Scheduler health | `scheduler/index.ts`, `src/lib/search-job-scheduler.ts`, `journalctl -u hirelix-scheduler` |
-| Bright Data retrospective | `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, final rows in `hirelix_candidates` |
+| Historical sourcing audit | `hirelix_snapshot_profiles`, `hirelix_dataset_snapshots`, final rows in `hirelix_candidates` |
 | Auth/session | `src/lib/auth.ts`, `/api/auth/*`, better-auth tables in Postgres |
 
 ## Local Development & Configuration
 
 Local login uses Google OAuth only; use `noahjiang2@gmail.com` through the browser flow. Mainland China local development may need `PROXY_URL=http://127.0.0.1:7890` and `PROXY_ENABLED=true` for Google OAuth and external services. Do not carry this proxy assumption into production.
 
-Keep secrets out of Git. Store local values in `.env.local`; mirror required keys from `.env.example`. Runtime config groups include database, auth, AI models, Bright Data, GitHub/Serper/Hunter, search tuning, Paddle, Resend, and proxy. `GITHUB_TOKEN` and `SERPER_API_KEY` are for on-demand candidate research, not initial candidate delivery.
+Keep secrets out of Git. Store local values in `.env.local`; mirror required keys from `.env.example`. Runtime config groups include database, auth, AI models, GitHub/Serper/Hunter, candidate research, Paddle, Resend, and proxy. `GITHUB_TOKEN` and `SERPER_API_KEY` are for on-demand candidate research, not initial candidate delivery.
 
 SQL migrations live under `supabase/migrations/` despite the historical directory name; production uses self-hosted Postgres on `us-2`, not Supabase. Migration files should use `YYYYMMDD_description.sql` and are applied manually, for example:
 
@@ -195,7 +189,7 @@ Scheduler logs:
 ```bash
 ssh us-2 'sudo journalctl -u hirelix-scheduler -f'
 ssh us-2 'sudo tail -f /var/log/hirelix/scheduler.log'
-ssh us-2 'sudo jq '"'"'select(.search_id == "SEARCH_ID")'"'"' /var/log/hirelix/scheduler.log'
+ssh us-2 'sudo jq '"'"'select(.job_id == "JOB_ID")'"'"' /var/log/hirelix/scheduler.log'
 ```
 
 Production scheduler environment variables are loaded from `/etc/hirelix.env`. File logging is opt-in with `LOG_FILE_ENABLED=true` and `LOG_FILE_PATH=/var/log/hirelix/scheduler.log`; daily rotation is documented in `docs/ops/logging.md` and configured by `deploy/logrotate/hirelix-scheduler`. The scheduler is deployed by GitHub Actions after pushes to `main`: build, type check, unit tests, then pull/install/restart on `us-2`. If disabling the production scheduler is explicitly requested, use `sudo systemctl disable --now hirelix-scheduler` and verify ownership before stopping services on shared hosts.

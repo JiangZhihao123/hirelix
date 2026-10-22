@@ -69,9 +69,9 @@ import { sanitizeDisplayName } from "@/lib/display-name";
 
 | 子目录 | 用途 | 示例 |
 |--------|------|------|
-| `debug/` | 问题诊断、数据检查 | `check-failed-search.ts` |
-| `integration/` | 外部 API 集成验证（手动运行） | `test-bright-10.ts` |
-| `pipeline/` | 搜索流水线测试与度量 | `test-full-pipeline.js` |
+| `debug/` | 问题诊断、数据检查 | `inspect-advancement-rubric.ts` |
+| `integration/` | 外部 API 集成验证（手动运行） | `test-public-evidence.ts` |
+| `pipeline/` | 历史外部寻访流水线（已退役，只读） | `measure-bright-10.mjs` |
 | `tools/` | 一次性工具脚本 | `gen-images.js` |
 
 新脚本必须放入对应子目录，不允许在 `scripts/` 根目录放文件。
