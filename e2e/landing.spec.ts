@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { AGENT_PLAN } from "../src/lib/agent-plan";
+import { firstAssignmentPrompt } from "../src/lib/landing-content";
 
 test.describe("Personal agent landing", () => {
   test.beforeEach(async ({ page }) => {
@@ -87,9 +89,8 @@ test.describe("Personal agent landing", () => {
   test("keeps trial terms clear and expands detailed billing rules", async ({
     page,
   }) => {
-    await expect(page.locator(".ha-hero-copy")).not.toContainText("credits");
-    await expect(page.locator(".ha-hero-copy")).toContainText(
-      "7-day free trial · No card required",
+    await expect(page.locator(".ha-hero-copy .ha-hero-caption")).toContainText(
+      `${AGENT_PLAN.trialDays} days · ${AGENT_PLAN.trialCredits} AI credits · No card required`,
     );
     await expect(page.locator(".ha-pricing-summary")).toContainText(
       "Paid subscriptions renew until canceled",
@@ -184,6 +185,7 @@ test.describe("Personal agent landing", () => {
     expect(url.searchParams.get("utm_source")).toBe("landing-qa");
     expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
     expect(url.searchParams.get("entry")).toBe("free_trial");
+    expect(url.searchParams.get("prompt")).toBe(firstAssignmentPrompt);
     await expect(
       page.getByRole("heading", {
         name: "Start with your private AI assistant",
