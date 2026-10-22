@@ -123,7 +123,7 @@ export function PaddleCheckoutButton({
         onError?.("Checkout failed to load.");
         return;
       }
-      const successUrl = checkoutReturnUrl(window.location.origin, new URLSearchParams(window.location.search).get("returnTo"));
+      const successUrl = checkoutReturnUrl(window.location.origin, new URLSearchParams(window.location.search).get("returnTo"), isAgentPlan(checkout.planCode) ? checkout.planCode : undefined);
       if (isAgentPlan(checkout.planCode)) {
         const response = await fetchWithUserSession("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: checkout.planCode }) });
         const result = await response.json();

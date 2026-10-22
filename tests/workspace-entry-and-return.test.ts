@@ -32,6 +32,25 @@ test("a selected assignment survives settings and checkout without exposing an e
   assert.equal(workspaceReturnPath(conversation),conversation);
 });
 
+test("changing a billing cycle persists through work, reload and the pending checkout return", () => {
+  const start = `/app?conversation=8ac4a939-8438-4195-8cf5-0082596bdea5&plan=agent_monthly&prompt=${encodeURIComponent(firstAssignmentPrompt)}`;
+  const selected = new URL(billingSettingsHref(start,"agent_annual"),"http://localhost:3000");
+  const back = selected.searchParams.get("returnTo")!;
+  const work = new URL(back,"http://localhost:3000");
+  assert.equal(work.searchParams.get("conversation"),"8ac4a939-8438-4195-8cf5-0082596bdea5");
+  assert.equal(work.searchParams.get("prompt"),firstAssignmentPrompt);
+  assert.equal(work.searchParams.get("plan"),"agent_annual");
+  assert.equal(new URL(billingSettingsHref(back),"http://localhost:3000").searchParams.get("plan"),"agent_annual");
+  const pending = new URL(checkoutReturnUrl("http://localhost:3000",start,"agent_annual"));
+  assert.equal(pending.searchParams.get("plan"),"agent_annual");
+  assert.equal(pending.searchParams.get("returnTo"),back);
+  assert.equal(pending.searchParams.get("checkout"),"pending");
+  const document = "/app/submissions/6a79ae7c-7409-447e-ac8f-3cb8db44904d#recommendation-delivery";
+  const returnedDocument = new URL(new URL(billingSettingsHref(document,"agent_monthly"),"http://localhost:3000").searchParams.get("returnTo")!,"http://localhost:3000");
+  assert.equal(returnedDocument.hash,"#recommendation-delivery");
+  assert.equal(new URL(checkoutReturnUrl("http://localhost:3000","https://evil.test/app","agent_annual")).searchParams.has("returnTo"),false);
+});
+
 test("trial and exhausted access show clear navigation, while paid normal use has no upsell", () => {
   const render = (value: AgentAccess | null, required=false) => load(renderToStaticMarkup(React.createElement(ConversationAccess,{access:value,required,returnTo:conversation})));
   let $ = render(access);

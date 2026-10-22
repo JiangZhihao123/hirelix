@@ -1,20 +1,24 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AGENT_PLAN, formatCredits, type AgentPlanCode } from "@/lib/agent-plan";
 import type { BillingSummary } from "@/lib/billing";
 import { PaddleCheckoutButton } from "./PaddleCheckoutButton";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { useLanguage, useT } from "./LanguageProvider";
+import { billingSettingsHref } from "@/lib/workspace/return-path";
 
 export function AgentBillingPanel({ billing }: { billing: BillingSummary }) {
   const params = useSearchParams();
+  const router = useRouter();
   const t = useT();
   const { locale } = useLanguage();
   const [error, setError] = useState("");
-  const selected = params.get("plan") === "agent_annual" ? "agent_annual" : "agent_monthly";
-  const [plan, setPlan] = useState<AgentPlanCode>(selected);
+  const plan: AgentPlanCode = params.get("plan") === "agent_annual" ? "agent_annual" : "agent_monthly";
+  function setPlan(value: AgentPlanCode) {
+    router.replace(billingSettingsHref(params.get("returnTo") || "", value), {scroll:false});
+  }
   const access = billing.agent;
   const paid = access?.state === "paid";
   const awaitingPayment = !paid && billing.access.source === "paddle";
