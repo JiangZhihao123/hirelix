@@ -64,6 +64,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
   const savedActions = [...new Map((metadata.actions || []).filter(action => action.status === "saved").map(action => [action.href || action.id, action])).values()];
   const editedDocuments = [...new Map((metadata.document_edits || []).map(document => [document.id, document])).values()]
     .filter(document => document.id !== metadata.exports?.document_id && document.id !== metadata.revision?.document_id);
+  const displayedDocumentIds = [metadata.exports?.document_id, ...editedDocuments.map(document => document.id)].filter((id): id is string => !!id);
   if (feedback) return <article className="ws-message ws-feedback-receipt" data-message-key={message.id} aria-label={t("Client feedback")}>
     <header><MessageSquare size={15} /><span>{t("Client feedback")}</span><time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time></header>
     <div className="ws-feedback-subject"><strong>{feedback.person_name}</strong><span>{t(feedbackLabels[feedback.response])}</span></div>
@@ -125,7 +126,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>
                     </div>)}
                     {(metadata.email || metadata.email_result || metadata.gmail) && <ConversationEmail mailboxProvider={metadata.gmail?.provider} email={metadata.email_result || metadata.email} conversationId={message.conversation_id!} messageId={metadata.email_result?.preview_message_id || message.id} onChanged={onReady} />}
-                    {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} exportedDocumentId={metadata.exports?.document_id} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
+                    {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} displayedDocumentIds={displayedDocumentIds} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
                     {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}

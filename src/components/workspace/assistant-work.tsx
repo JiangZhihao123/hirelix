@@ -16,12 +16,13 @@ export function ConversationRevision({ revision, onApplied }: { revision: { docu
   return query.data ? <RevisionPanel document={query.data.deliverable} disabled={query.data.deliverable.status !== "draft"} jobId={revision.job_id} embedded onApplied={() => { query.refresh(); onApplied(); window.dispatchEvent(new Event("hirelix:document-changed")); }} /> : <ErrorNotice error={query.error} retry={query.refresh} />;
 }
 
-export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocumentId }: { exportedDocumentId?: string; receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
+export function AssistantWork({ receipt, onReady, onRevise, onOpen, displayedDocumentIds = [] }: { displayedDocumentIds?: readonly string[]; receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
   const t = useT();
   const query = useQuery<{ job: Job }>(`/jobs/${receipt.job_id}`);
   const job = query.data?.job;
   const documentId = typeof job?.result?.deliverable_id === "string" ? job.result.deliverable_id : null;
-  const document = useQuery<{ deliverable: Deliverable }>(documentId && documentId !== exportedDocumentId ? `/deliverables/${documentId}` : null);
+  const alreadyDisplayed = !!documentId && displayedDocumentIds.includes(documentId);
+  const document = useQuery<{ deliverable: Deliverable }>(documentId && !alreadyDisplayed ? `/deliverables/${documentId}` : null);
   const ready = useRef<string | null>(null);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const refresh = query.refresh;
@@ -48,7 +49,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocu
     finally { setBusy(false); }
   }
   const draft = document.data?.deliverable;
-  if (documentId && documentId === exportedDocumentId) return null;
+  if (alreadyDisplayed) return null;
   const failed = !!(error || query.error || document.error || job?.status === "error");
   const state = failed ? "Needs attention" : !job ? "Loading saved work…" : job.status === "done" ? "Saved" : job.status === "cancelled" ? "Stopped" : job.status === "queued" ? "Queued" : "Preparing…";
   const loading = !failed && (query.loading || document.loading || job?.status === "queued" || job?.status === "running");
