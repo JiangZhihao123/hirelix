@@ -12,6 +12,7 @@ import { MailboxConnections } from "@/components/workspace/mailbox-connections";
 import { AccountSection } from "./_components/AccountSection";
 import { BillingPanel } from "./_components/BillingPanel";
 import { type SettingsSectionId } from "./_components/shared";
+import { workspaceReturnPath } from "@/lib/workspace/return-path";
 
 const SETTINGS_SECTION_IDS = ["account", "email", "billing"] as const satisfies readonly SettingsSectionId[];
 
@@ -25,7 +26,7 @@ export default function SettingsPage() {
   const { billing, refresh: refreshBilling } = useBilling();
   const searchParams = useSearchParams();
   const requestedReturn = searchParams.get("returnTo") || "";
-  const returnTo = /^\/app\/submissions\/[a-f0-9-]{36}(?:#recommendation-delivery)?$/.test(requestedReturn) ? requestedReturn : null;
+  const returnTo = workspaceReturnPath(requestedReturn);
   const mailboxCallback = `/app/settings?section=email${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ""}`;
   const settingsHash = useSyncExternalStore(
     (onStoreChange) => {
@@ -165,7 +166,7 @@ export default function SettingsPage() {
 
   return (
     <div className="ws-settings-page">
-      <header className="ws-page-header"><div>{returnTo && <Link className="ws-link" href={returnTo}>{t("Back to your email draft")} ↗</Link>}<h1>{t("Settings")}</h1><p>{t("Manage your account, email, subscription, and AI usage.")}</p></div></header>
+      <header className="ws-page-header"><div>{returnTo && <Link className="ws-link" href={returnTo}>{t(returnTo.includes("#recommendation-delivery") ? "Back to your email draft" : "Back to your work")} ↗</Link>}<h1>{t("Settings")}</h1><p>{t("Manage your account, email, subscription, and AI usage.")}</p></div></header>
       <nav className="ws-tabs ws-settings-tabs" aria-label={t("Settings")}>
         {sectionNav.map((item) => (
           <button key={item.id} type="button" aria-current={activeSection === item.id ? "page" : undefined} onClick={() => selectSection(item.id)}>{item.label}</button>

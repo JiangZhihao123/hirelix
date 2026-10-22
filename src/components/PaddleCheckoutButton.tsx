@@ -15,6 +15,7 @@ import { getCheckoutConfig, type BillingPlanCode } from "@/lib/billing";
 import { isAgentPlan } from "@/lib/agent-plan";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { acquirePaddleCheckout, loadPaddle } from "@/lib/paddle";
+import { checkoutReturnUrl } from "@/lib/workspace/return-path";
 
 type CheckoutKind = { type: "plan"; planCode: Exclude<BillingPlanCode, "free"> };
 
@@ -122,7 +123,7 @@ export function PaddleCheckoutButton({
         onError?.("Checkout failed to load.");
         return;
       }
-      const successUrl = `${window.location.origin}/app/settings?section=billing&checkout=pending`;
+      const successUrl = checkoutReturnUrl(window.location.origin, new URLSearchParams(window.location.search).get("returnTo"));
       if (isAgentPlan(checkout.planCode)) {
         const response = await fetchWithUserSession("/api/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: checkout.planCode }) });
         const result = await response.json();

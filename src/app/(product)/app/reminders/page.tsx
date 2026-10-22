@@ -51,9 +51,11 @@ export default function RemindersPage() {
   const [page, setPage] = useState(1);
   const query = useQuery<{items: ManagedReminder[]; total: number; page_size: number}>(`/reminders?view=manage&kind=${kind}&page=${page}`);
   useEffect(() => { const timer = setInterval(query.refresh, 15000); return () => clearInterval(timer); }, [query.refresh]);
-  const prompt = locale === "zh" ? "提醒我：" : "Remind me to ";
+  const prompt = kind === "search_update"
+    ? locale === "zh" ? "帮我安排定期的职位进展报告。我会提供对应职位、报告范围和交付时间。报告保留在对话中，不要发送给客户。" : "Help me arrange a recurring search-progress report. I'll provide the role, what to cover and when to deliver it. Keep reports in this conversation; do not email clients."
+    : locale === "zh" ? "提醒我：" : "Remind me to ";
   return <div className="ws-page ws-reminders-page">
-    <header className="ws-page-header"><div><h1>{t("Reminders & recurring reports")}</h1><p>{t("Your assistant's agreed follow-ups, delivery times and results.")}</p></div><Link className="ws-button" href={`/app?prompt=${encodeURIComponent(prompt)}`}>{t("Ask for a reminder")}</Link></header>
+    <header className="ws-page-header"><div><h1>{t("Reminders & recurring reports")}</h1><p>{t("Your assistant's agreed follow-ups, delivery times and results.")}</p></div><Link className="ws-button" href={`/app?prompt=${encodeURIComponent(prompt)}`}>{t(kind === "search_update" ? "Arrange a recurring report" : "Ask for a reminder")}</Link></header>
     <div className="ws-reminder-explanation"><Bell size={18}/><p>{t("At the agreed time, a reminder appears in its original conversation and marks that conversation unread. Open the conversation to see it. One-time reminders then become completed; recurring reports continue on their schedule.")}</p></div>
     <nav className="ws-tabs" aria-label={t("Reminders")}><button aria-current={kind === "reminder" ? "page" : undefined} onClick={() => {setKind("reminder");setPage(1);}}>{t("One-time reminders")}</button><button aria-current={kind === "search_update" ? "page" : undefined} onClick={() => {setKind("search_update");setPage(1);}}>{t("Recurring reports")}</button></nav>
     <ErrorNotice error={query.error} retry={query.refresh}/>

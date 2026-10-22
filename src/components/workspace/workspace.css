@@ -3081,3 +3081,14 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-saved-items > ul button { display: inline-flex; align-items: center; gap: 6px; color: var(--ws-green); text-align: left; }
 .ws-saved-items > ul button:hover { text-decoration: underline; }
 .ws-import-saved > .ws-chat-import { margin-top: 8px; }
+
+.ws-conversation-starters { max-width: 640px; margin: 24px auto 0; }
+.ws-conversation-starters > p { margin: 0 0 12px; color: var(--ws-muted); font-size: 13px; }
+.ws-conversation-starters > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.ws-conversation-starters button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #dfe6dc; border-radius: 9px; padding: 10px 12px; font-size: 13px; background: white; color: var(--ws-green); text-align: left; }
+.ws-conversation-starters button:hover { border-color: #aabca8; background: #f5f8f3; }
+.ws-conversation-starters button:focus-visible { outline: 2px solid var(--ws-green); outline-offset: 2px; }
+.ws-conversation-access { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; flex-shrink: 0; margin: 0 28px 8px; padding: 8px 12px; border-radius: 8px; color: var(--ws-muted); font-size: 12px; background: #f4f7f1; }
+.ws-conversation-access p { margin: 0; }
+.ws-conversation-access a { color: var(--ws-green); text-decoration: underline; text-underline-offset: 3px; }
+.ws-conversation-access.is-limited { background: #fcf4e9; color: #795a31; }

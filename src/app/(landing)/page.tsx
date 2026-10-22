@@ -22,7 +22,7 @@ import {
 import "./landing.css";
 import { BrandMark as AgentMark } from "@/components/BrandMark";
 import { AGENT_PLAN } from "@/lib/agent-plan";
-import { landingFaqs as faqs } from "@/lib/landing-content";
+import { landingFaqs as faqs, firstAssignmentPrompt } from "@/lib/landing-content";
 
 // Keep server-rendered buttons inactive until their handlers are attached.
 const subscribeToHydration = () => () => {};
@@ -38,7 +38,7 @@ export default function Home() {
   const [filmStarted, setFilmStarted] = useState(false);
   const [filmError, setFilmError] = useState(false);
 
-  function enter(source: string, signIn = false, plan?: string) {
+  function enter(source: string, signIn = false, plan?: string, prompt?: string) {
     const context = getAnalyticsContextFromBrowser({
       entry_mode: signIn ? "signin" : "free_trial",
       page_variant: "personal-agent",
@@ -59,13 +59,14 @@ export default function Home() {
     trackEvent(ANALYTICS_EVENTS.personalAgentCtaClick, {
       ...context,
       cta_location: source,
-      cta_label: signIn ? "Sign in" : "Get started",
+      cta_label: signIn ? "Sign in" : "Start free trial",
     });
     void window.__hirelixGrowthTrack?.("personal_agent_cta_click", {
       cta_location: source,
       destination: "/app",
     });
     if (plan) query.set("plan", plan);
+    if (prompt) query.set("prompt", prompt);
     if (!signIn) query.set("entry", "free_trial");
     router.push(`/app?${query.toString()}`);
   }
@@ -120,7 +121,7 @@ export default function Home() {
               data-testid="nav-primary-cta"
               onClick={() => enter("nav")}
             >
-              Get started <ArrowUpRight size={15} />
+              Start free trial <ArrowUpRight size={15} />
             </button>
           </div>
         </nav>
@@ -128,16 +129,16 @@ export default function Home() {
       <main id="main">
         <section className="ha-hero ha-wrap" data-growth-section="hero">
           <div className="ha-hero-copy">
-            <p className="ha-eyebrow">WITH YOU FOR THE LONG TERM</p>
+            <p className="ha-eyebrow">FOR NORTH AMERICAN HEADHUNTERS</p>
             <h1>
               Your Personal Agent.
               <br />
               <span>Built for headhunters.</span>
             </h1>
             <p className="ha-lead">
-              Work with your candidates, client briefs, and conversation notes —
-              <br className="ha-desktop-break" /> and pick up where you left
-              off.
+              Turn a client brief and your candidate resumes into a shortlist
+              you can explain. Prepare the recommendation, bring back feedback,
+              and keep the search moving with the same personal agent.
             </p>
             <div className="ha-hero-actions">
               <button
@@ -157,7 +158,7 @@ export default function Home() {
               </button>
             </div>
             <p className="ha-hero-caption">
-              {AGENT_PLAN.trialDays}-day free trial · No card required
+              {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits · No card required
             </p>
           </div>
           <figure className="ha-film" id="story">
@@ -219,7 +220,7 @@ export default function Home() {
             </details>
           </figure>
           <p className="ha-audience">
-            For independent headhunters and boutique search consultants.
+            For independent headhunters and boutique search consultants across the US and Canada.
           </p>
         </section>
 
@@ -504,20 +505,20 @@ export default function Home() {
             <div>
               <p className="ha-eyebrow">YOUR FIRST ASSIGNMENT</p>
               <h2>
-                One role.
+                A real role.
                 <br />
-                Two or three resumes.
+                The people you know.
                 <br />
                 <span>Start there.</span>
               </h2>
               <p>
-                No need to organize your entire candidate pool first. Bring a
-                real piece of work and see how your agent helps.
+                Bring a search you are working on. Start with one resume if
+                that is what you have; add other candidates or notes as you go.
               </p>
               <button
                 className="ha-button"
                 disabled={!hydrated}
-                onClick={() => enter("first_assignment")}
+                onClick={() => enter("first_assignment", false, undefined, firstAssignmentPrompt)}
               >
                 Start free trial <ArrowUpRight size={18} />
               </button>
@@ -533,7 +534,7 @@ export default function Home() {
                   <FileText size={16} /> Role brief
                 </span>
                 <span>
-                  <FileText size={16} /> 2–3 resumes
+                  <FileText size={16} /> Candidate resumes
                 </span>
               </div>
               <blockquote>

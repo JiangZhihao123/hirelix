@@ -12,6 +12,7 @@ import { copyConversationMessage } from "./message-copy";
 import { assistantDraftKey } from "./conversation-draft";
 import { readAttachmentDraft, saveAttachmentDraft, type PendingFile } from "./attachment-draft";
 import { useAuth } from "@/components/AuthProvider";
+import { useBilling } from "@/lib/use-billing";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import {
   useEffect,
@@ -43,8 +44,11 @@ import {
   useQuery,
   ErrorNotice,
   Loading,
+  ApiError,
 } from "@/components/workspace/client";
 import { ConversationQueue } from "./conversation-queue";
+import { ConversationStarters } from "./conversation-starters";
+import { ConversationAccess } from "./conversation-access";
 import { ConversationMessage } from "@/components/workspace/conversation-message";
 import { MessageAttachment } from "./message-attachment";
 import { AttachmentThumbnail } from "./attachment-thumbnail";
@@ -97,6 +101,8 @@ export function AssistantWorkspace({
   const t = useT();
   const router = useRouter();
   const { user } = useAuth();
+  const { billing } = useBilling();
+  const [billingRequired, setBillingRequired] = useState(false);
   const { locale } = useLanguage();
   const roles = useQuery<{ roles: Role[] }>("/roles");
   const query = useQuery<Detail>(
@@ -118,7 +124,8 @@ export function AssistantWorkspace({
   const dragDepth = useRef(0);
 
   const [source, setSource] = useState<{title: string; href: string} | null>(null);
-  const memoryRequested = useSearchParams().has("memories");
+  const params = useSearchParams();
+  const memoryRequested = params.has("memories");
   const [memoriesOpen, setMemoriesOpen] = useState(false);
   useEffect(() => { if (memoryRequested) setMemoriesOpen(true); }, [memoryRequested]);
   const [renaming, setRenaming] = useState(false);
@@ -405,6 +412,7 @@ export function AssistantWorkspace({
     setPendingReplyKey(sendingKey);
     setSending(true);
     setError("");
+    setBillingRequired(false);
     stickToBottom.current = true;
     setShowJump(false);
     if (!pending && !stopped || delivery === "immediate") setOptimistic({text, files: outgoingAttachments, candidates: outgoingCandidates, roles: outgoingRoles, priorIds: query.data?.messages.map(m => m.id) || []});
@@ -488,6 +496,7 @@ export function AssistantWorkspace({
     } catch (cause) {
       setOptimistic(null);
       unfreeze();
+      setBillingRequired(cause instanceof ApiError && cause.status === 402);
       setError(
         cause instanceof Error ? cause.message : "Could not save your message",
       );
@@ -649,6 +658,7 @@ export function AssistantWorkspace({
                   : undefined
             }
           />
+          <ConversationAccess access={billing?.agent} required={billingRequired} returnTo={`/app${params.size ? `?${params.toString()}` : ""}`} />
           <div
             ref={scroll}
             className={`ws-conversation-scroll ${!displayedMessages.length ? "ws-conversation-scroll-empty" : ""}`}
@@ -683,6 +693,7 @@ export function AssistantWorkspace({
                 </div>
                 <h2>{t("What would you like me to take care of?")}</h2>
                 <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Your personal AI assistant for headhunting. Share the goal and the context; I’ll carry the work forward.")}</p>
+                {!currentDocument && !roleId && !linkedPersonId && !draft.trim() && !attachments.length && <ConversationStarters returning={!!roles.data?.roles.length} onChoose={prompt => { setDraft(prompt); composer.current?.focus(); }} />}
                 <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
             ) : (

@@ -1,5 +1,7 @@
 import { AGENT_PLAN } from "./agent-plan";
 
+export const firstAssignmentPrompt = "Save the role and candidate profiles I attach, compare them against the client brief, and recommend whom I should speak with first. Explain the key trade-offs and what I still need to confirm. Keep the work internal.";
+
 export const mailboxAvailability =
   "Connected-mailbox sending requires your explicit authorization. Gmail inbox reading is not currently available. Outlook access depends on granted permissions and the provider’s account restrictions. You can also paste an email or upload it as a PDF or text file for analysis.";
 
