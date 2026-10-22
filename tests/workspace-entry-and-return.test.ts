@@ -8,10 +8,16 @@ import { billingSettingsHref, checkoutReturnUrl, workspaceReturnPath } from "../
 import { ConversationAccess } from "../src/components/workspace/conversation-access";
 import { ConversationStarters } from "../src/components/workspace/conversation-starters";
 import type { AgentAccess } from "../src/lib/agent-plan";
+import { canResumeRecentConversation } from "../src/components/workspace/conversation-draft";
 Object.assign(globalThis, {React});
 
 const access: AgentAccess = {state:"trial_ready",used:0,limit:200,remaining:200,reserved:0,periodStart:null,periodEnd:null};
 const conversation = "/app?conversation=8ac4a939-8438-4195-8cf5-0082596bdea5";
+
+test("ordinary sign-in resumes work while explicit assignments and new work keep their destination", () => {
+  for (const query of ["", "entry=signin", "entry=signin&utm_source=example&page_variant=personal-agent"]) assert.equal(canResumeRecentConversation(new URLSearchParams(query)),true,query);
+  for (const query of ["entry=free_trial", "plan=agent_annual", ...["conversation","new","role","person","document","prompt"].map(key=>`entry=signin&${key}=selected`)]) assert.equal(canResumeRecentConversation(new URLSearchParams(query)),false,query);
+});
 
 test("a selected assignment survives settings and checkout without exposing an external redirect", () => {
   const start = `/app?entry=free_trial&plan=agent_annual&prompt=${encodeURIComponent(firstAssignmentPrompt)}`;

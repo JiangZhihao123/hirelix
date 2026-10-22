@@ -2,20 +2,39 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@/components/workspace/client";
 import { useSearchParams } from "next/navigation";
-import { assistantDraftKey, nextConversationView, type ConversationView } from "@/components/workspace/conversation-draft";
+import { assistantDraftKey, canResumeRecentConversation, nextConversationView, type ConversationView } from "@/components/workspace/conversation-draft";
 import { AssistantWorkspace } from "@/components/workspace/assistant-workspace";
+import { readAttachmentDraft } from "@/components/workspace/attachment-draft";
+import { useAuth } from "@/components/AuthProvider";
 export default function AssistantHome() {
   const params = useSearchParams();
+  const {user} = useAuth();
+  const entryQuery = params.toString();
+  const resumeRecent = canResumeRecentConversation(new URLSearchParams(entryQuery));
   const conversationId = params.get("conversation");
-  const recent = useQuery<{conversations: {id:string}[]}>(params.size === 0 ? "/conversations" : null);
+  const recent = useQuery<{conversations: {id:string}[]}>(resumeRecent ? "/conversations" : null);
   const resumed = useRef(false);
   useEffect(() => {
-    if (params.size || resumed.current || !recent.data) return;
-    resumed.current = true;
-    if (!localStorage.getItem("hirelix:assistant:draft:new") && recent.data.conversations[0]) {
-      window.history.replaceState(null,"",`/app?conversation=${recent.data.conversations[0].id}`);
-    }
-  }, [params, recent.data]);
+    if (!resumeRecent || resumed.current || !recent.data || !user?.id) return;
+    const draftKey = assistantDraftKey(null,null,null);
+    const hasDraft = () => {
+      try {
+        const references = JSON.parse(localStorage.getItem(`${draftKey}:references`) || "[]");
+        return !!localStorage.getItem(draftKey) || !!localStorage.getItem(`${draftKey}:role`) || !Array.isArray(references) || references.length > 0;
+      } catch { return true; }
+    };
+    if (hasDraft() || !recent.data.conversations[0]) { resumed.current = true; return; }
+    let active = true;
+    void readAttachmentDraft(`${user.id}:${draftKey}`).then(files => {
+      if (!active || resumed.current) return;
+      resumed.current = true;
+      if (files.length || hasDraft() || new URLSearchParams(window.location.search).toString() !== entryQuery) return;
+      const next = new URLSearchParams(entryQuery);
+      next.set("conversation", recent.data!.conversations[0].id);
+      window.history.replaceState(null,"",`/app?${next.toString()}`);
+    }).catch(() => { /* Keep the composer when its attachment draft cannot be checked. */ });
+    return () => { active = false; };
+  }, [resumeRecent, recent.data, user?.id, entryQuery]);
   const roleId = params.get("role"),
     personId = params.get("person");
   const documentId = params.get("document");

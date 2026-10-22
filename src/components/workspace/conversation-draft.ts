@@ -1,5 +1,10 @@
 export type ConversationView = {route: string; generation: number; promotion: string | null};
 
+export function canResumeRecentConversation(params: URLSearchParams) {
+  if (["conversation", "new", "role", "person", "document", "prompt"].some(key => params.has(key))) return false;
+  return params.size === 0 || params.get("entry") === "signin";
+}
+
 export function nextConversationView(view: ConversationView, route: string, conversationId: string | null): ConversationView {
   if (route === view.route) return view;
   return {route, generation: conversationId && view.promotion === conversationId ? view.generation : view.generation + 1, promotion: null};
