@@ -21,7 +21,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocu
   const query = useQuery<{ job: Job }>(`/jobs/${receipt.job_id}`);
   const job = query.data?.job;
   const documentId = typeof job?.result?.deliverable_id === "string" ? job.result.deliverable_id : null;
-  const document = useQuery<{ deliverable: Deliverable }>(documentId ? `/deliverables/${documentId}` : null);
+  const document = useQuery<{ deliverable: Deliverable }>(documentId && documentId !== exportedDocumentId ? `/deliverables/${documentId}` : null);
   const ready = useRef<string | null>(null);
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const refresh = query.refresh;
@@ -29,7 +29,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocu
   useEffect(() => { const changed = () => { refresh(); refreshDocument(); }; window.addEventListener("hirelix:work-changed", changed); return () => window.removeEventListener("hirelix:work-changed", changed); }, [refresh, refreshDocument]);
   useEffect(() => { window.addEventListener("hirelix:document-changed", refreshDocument); return () => window.removeEventListener("hirelix:document-changed", refreshDocument); }, [refreshDocument]);
   useEffect(() => {
-    if (!job || ["queued", "running"].includes(job.status)) {
+    if (job && ["queued", "running"].includes(job.status)) {
       const timer = setInterval(refresh, 2500);
       return () => clearInterval(timer);
     }
@@ -48,9 +48,12 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, exportedDocu
     finally { setBusy(false); }
   }
   const draft = document.data?.deliverable;
-  if (documentId && documentId === exportedDocumentId && draft) return null;
+  if (documentId && documentId === exportedDocumentId) return null;
+  const failed = !!(error || query.error || document.error || job?.status === "error");
+  const state = failed ? "Needs attention" : !job ? "Loading saved work…" : job.status === "done" ? "Saved" : job.status === "cancelled" ? "Stopped" : job.status === "queued" ? "Queued" : "Preparing…";
+  const loading = !failed && (query.loading || document.loading || job?.status === "queued" || job?.status === "running");
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
-    <header><span className="ws-delivery-icon">{job?.status === "done" ? <Check size={17} /> : ["error", "cancelled"].includes(job?.status || "") ? <FileText size={17} /> : <Loader2 size={17} className="animate-spin" />}</span><div><strong>{draft?.title || receipt.title}</strong><small>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</small></div><span className="ws-delivery-state">{t(job?.status === "done" ? "Saved" : job?.status === "cancelled" ? "Stopped" : job?.status === "error" ? "Needs attention" : "Preparing…")}</span></header>
+    <header><span className="ws-delivery-icon">{loading ? <Loader2 size={17} className="animate-spin" /> : !failed && job?.status === "done" ? <Check size={17} /> : <FileText size={17} />}</span><div><strong>{draft?.title || receipt.title}</strong><small>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</small></div><span className="ws-delivery-state">{t(state)}</span></header>
     <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
     {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
     {draft && <>

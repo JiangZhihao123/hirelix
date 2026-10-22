@@ -300,6 +300,7 @@ export const uiZh: Record<string, string> = {
   "Ask for a revision": "继续修改",
   "Open document": "打开文档",
   "Opening your draft…": "正在打开草稿…",
+  "Loading saved work…": "正在读取已保存的工作…",
   "Agreement paused": "约定已暂停",
   "Your agreed recurring update": "按约定准备的周期更新",
   "Please revise the draft: ": "请修改这份草稿：",
