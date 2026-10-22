@@ -1161,7 +1161,6 @@ export function createAgentTools(ctx: AgentToolContext) {
       "export_document",
       "Show PDF and Word download controls for an existing saved document. Export does not change or send the document.",
       z.object({
-        ...authorization,
         document_id: z.uuid(),
         formats: z
           .array(z.enum(["pdf", "docx"]))
@@ -1169,10 +1168,10 @@ export function createAgentTools(ctx: AgentToolContext) {
           .max(2),
       }),
       (input) =>
-        mutate(
+        commitAgentTool(
+          job,
           "export_document",
           input,
-          input.authorization_quote,
           async (tx) => {
             const document = await readSavedDocument(input.document_id, tx);
             return {
