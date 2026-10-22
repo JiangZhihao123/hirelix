@@ -30,6 +30,7 @@ import type {
   Deliverable,
 } from "./types";
 import { roleInput, recordInput } from "./types";
+import { registerCandidateCv } from "./records";
 import { roleDetails, linkPerson, linkCandidates, findLikelyDuplicateRoles } from "./roles";
 import { savedAssessmentsInput, saveAgentAssessments } from "./assessment";
 import { activeDocumentShare, publishDocument, revokeDocumentShare } from "./document-sharing";
@@ -95,6 +96,7 @@ export const progressLabels: Record<string, string> = {
   find_conversations: "Finding the earlier conversation",
   read_conversation: "Reading the earlier conversation",
   save_candidate: "Saving candidate details",
+  register_candidate_cv: "Keeping the original CV with the candidate",
   delete_candidate: "Deleting candidate",
   save_role: "Saving the client role",
   update_role: "Updating role requirements",
@@ -649,6 +651,17 @@ export function createAgentTools(ctx: AgentToolContext) {
             ),
         );
       },
+    ),
+    register_candidate_cv: define(
+      "register_candidate_cv",
+      "Use an existing candidate source record and its original file as that candidate's CV for requested materials. Read the source first and choose only an actual resume supplied or explicitly selected for this person. Reuses the same source record; does not import another candidate, duplicate the source, rewrite the profile or grant sharing permission. Useful when a saved resume is currently labelled as a general profile source.",
+      z.object({...authorization, person_id:z.uuid(), record_id:z.uuid(), expected_version:z.number().int().positive()}),
+      input => mutate("register_candidate_cv",input,input.authorization_quote,async tx=>{
+        const record=await registerCandidateCv(userId,input.person_id,input.record_id,input.expected_version,tx);
+        const href=`/app/candidates?person=${record.person_id}&record=${record.id}`;
+        cite(record.title,href);
+        return {output:{status:"saved",record,href},metadata:{sources:[{title:record.title,href}]}};
+      }),
     ),
     save_role: define(
       "save_role",

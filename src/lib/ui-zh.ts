@@ -321,6 +321,7 @@ export const uiZh: Record<string, string> = {
   "Source text saved with this document. The current record may have changed.": "这是随本版本文档保存的来源原文，当前记录可能已发生变化。",
   "Open current record": "打开当前记录",
   "Source version": "来源版本",
+  "Keeping the original CV with the candidate": "为候选人保留原始简历",
   "Your assistant can use saved notes and feedback to revise this document. Previous versions are kept.": "助理可以结合已保存的笔记和反馈修改这份文档，历史版本会保留。",
   "Ask your assistant": "交给助理",
   "Continue in conversation": "在对话中继续",

@@ -88,3 +88,21 @@ export async function updateRecord(
   };
   return runner ? run(runner) : db.transaction(run);
 }
+
+/** Reuse an observed original resume source; do not import or rewrite the person. */
+export async function registerCandidateCv(userId: string, personId: string, recordId: string, expectedVersion: number, tx: Runner) {
+  await owned(userId, "person", personId, tx);
+  const record = await owned<SourceRecord>(userId, "record", recordId, tx, true);
+  expectVersion(record.version, expectedVersion);
+  if (record.person_id !== personId || !["profile", "cv"].includes(record.kind) || !record.file_id)
+    throw new WorkspaceError("Choose this candidate's saved resume source with its original file.");
+  const [file] = await rows<{name:string}>(sql`SELECT name FROM hirelix_private_files WHERE user_id=${userId}::uuid AND id=${record.file_id}::uuid`,tx);
+  if (!file) throw new WorkspaceError("This original file was not found",404);
+  if (!["pdf", "docx", "txt", "md"].includes(file.name.split(".").pop()?.toLowerCase() || ""))
+    throw new WorkspaceError("Original CV attachments support PDF, DOCX, TXT or Markdown files.");
+  if (record.kind === "cv") return record;
+  return updateRecord(userId,record.id,{
+    ...record, kind:"cv", title:file.name,
+    occurred_at:record.occurred_at ? new Date(record.occurred_at).toISOString() : null,
+  },record.version,tx);
+}
