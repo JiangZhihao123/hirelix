@@ -30,7 +30,7 @@ import type {
   Deliverable,
 } from "./types";
 import { roleInput, recordInput } from "./types";
-import { roleDetails, linkPerson } from "./roles";
+import { roleDetails, linkPerson, findLikelyDuplicateRoles } from "./roles";
 import { savedAssessmentsInput, saveAgentAssessments } from "./assessment";
 import { activeDocumentShare, publishDocument, revokeDocumentShare } from "./document-sharing";
 import { recommendationFeedbackContext } from "./recommendation-feedback-contract";
@@ -651,14 +651,38 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     save_role: define(
       "save_role",
-      "Save a new client role only within a user-authorized assignment to save, organize or advance it; receiving a JD alone is context, not save authorization. Copy the supplied JD or dictated brief verbatim into jd_text (preserve wording, punctuation and formatting; exclude the surrounding save instruction), without expanding it into an invented job description or adding typical responsibilities. Populate brief.priorities only from supplied requirements and brief.flexible only from explicit concessions; unspecified conditions are not concessions. Preserve the supplied client name, including qualifiers and identifiers; do not silently shorten or normalize it. Include supplied role compensation and working conditions in brief.priorities so they remain part of matching criteria. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD.",
+      "Save a new client role only within a user-authorized assignment to save, organize or advance it; receiving a JD alone is context, not save authorization. Copy the supplied JD or dictated brief verbatim into jd_text (preserve wording, punctuation and formatting; exclude the surrounding save instruction), without expanding it into an invented job description or adding typical responsibilities. Populate brief.priorities only from supplied requirements and brief.flexible only from explicit concessions; unspecified conditions are not concessions. Preserve the supplied client name, including qualifiers and identifiers; do not silently shorten or normalize it. Include supplied role compensation and working conditions in brief.priorities so they remain part of matching criteria. Store the client company in client_name and the single client contact name/email in client_contact when supplied. Missing contact email must not block saving, matching or preparing materials; never invent it. Contact availability belongs in client_contact, not in the hiring requirements brief. Preserve each client's material separately; do not merge client notes into the original JD. Before creating, checks for an active role with the same or similar title. If one exists and create_anyway is not set, returns possible_duplicates without creating; compare the client and content, then ask the user whether to reuse the existing role or create a separate one.",
       z.object({
         ...authorization,
         role: roleInput.extend({ brief: agentRoleBrief }),
         source_file_id: z.uuid().nullable(),
         notes: z.array(recordFact).max(10),
+        create_anyway: z
+          .boolean()
+          .default(false)
+          .describe(
+            "Create a separate role even when an active role with the same or similar title already exists. Set only after the user explicitly chooses to create a duplicate.",
+          ),
       }),
       async (input) => {
+        const duplicates = await findLikelyDuplicateRoles(userId, { title: input.role.title });
+        if (duplicates.length && !input.create_anyway)
+          return {
+            created: false,
+            possible_duplicates: duplicates.map(
+              ({ id, title, client_name, status, updated_at, candidate_count }) => ({
+                id,
+                title,
+                client_name,
+                status,
+                updated_at,
+                candidate_count,
+                href: `/app/roles/${id}`,
+              }),
+            ),
+            next_step:
+              "An active role with the same title already exists. Compare client_name and content with the list; ask the user whether to reuse an existing role or create a separate one. Do not set create_anyway without an explicit decision.",
+          };
         const source = input.source_file_id
           ? await readOriginal(input.source_file_id)
           : null;

@@ -97,6 +97,21 @@ export async function roleDetails(userId: string, id: string) {
     assessment_job: assessments[0] ?? null,
   };
 }
+// A matching title is only a prompt for the model to check with the user;
+// client naming and JD wording vary, so this must not block or merge silently.
+export async function findLikelyDuplicateRoles(userId: string, input: { title: string }) {
+  const title = input.title.trim();
+  if (!title) return [];
+  return rows<Role & { candidate_count: number }>(
+    sql`SELECT r.*,
+      (SELECT count(*)::int FROM hirelix_private_role_candidates c WHERE c.user_id=r.user_id AND c.role_id=r.id) candidate_count
+      FROM hirelix_private_roles r
+      WHERE r.user_id=${userId}::uuid AND r.status<>'closed'
+        AND lower(btrim(r.title))=lower(btrim(${title}))
+      ORDER BY r.updated_at DESC LIMIT 5`,
+  );
+}
+
 export async function createRole(
   userId: string,
   value: unknown,
