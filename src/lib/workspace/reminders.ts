@@ -17,8 +17,8 @@ export async function listReminders(userId: string, runner: Runner = db, id: str
   return rows<Reminder>(sql`SELECT id,title,next_run_at,timezone,enabled,completed_at,version,conversation_id FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND kind='reminder' AND (${id}::uuid IS NULL OR id=${id}::uuid) ORDER BY next_run_at DESC LIMIT 100`,runner);
 }
 export type ManagedReminder = Reminder & { kind: "reminder" | "search_update"; role_id: string | null; role_status: string | null; interval_weeks: number; weekday: number; local_time: string; error: string | null; last_status: string | null; result_href: string | null };
-export async function reminderOverview(userId: string, kind: "reminder" | "search_update", page: number) {
-  const [count] = await rows<{total: number}>(sql`SELECT count(*)::int AS total FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND kind=${kind}`);
+export async function reminderOverview(userId: string, kind: "reminder" | "search_update", page: number, runner: Runner = db) {
+  const [count] = await rows<{total: number}>(sql`SELECT count(*)::int AS total FROM hirelix_private_schedules WHERE user_id=${userId}::uuid AND kind=${kind}`,runner);
   const items = await rows<ManagedReminder>(sql`
     SELECT s.id,s.kind,coalesce(s.title,r.title) AS title,s.next_run_at,s.timezone,s.enabled,s.completed_at,s.version,
       coalesce(s.conversation_id,origin.conversation_id) AS conversation_id,s.role_id,r.status AS role_status,
@@ -32,8 +32,11 @@ export async function reminderOverview(userId: string, kind: "reminder" | "searc
       ORDER BY m.created_at DESC LIMIT 1
     ) origin ON s.kind='search_update'
     WHERE s.user_id=${userId}::uuid AND s.kind=${kind}
-    ORDER BY (s.completed_at IS NULL AND s.enabled) DESC,s.next_run_at DESC,s.id LIMIT 30 OFFSET ${(page - 1) * 30}
-  `);
+    ORDER BY CASE WHEN s.completed_at IS NOT NULL THEN 2
+      WHEN s.enabled AND (s.kind='reminder' OR r.status='active') THEN 0 ELSE 1 END,
+      CASE WHEN s.completed_at IS NULL THEN s.next_run_at END ASC,s.completed_at DESC,s.id
+    LIMIT 30 OFFSET ${(page - 1) * 30}
+  `,runner);
   return { items, total: count.total, page, page_size: 30 };
 }
 export const reminderEditSchema = z.object({
