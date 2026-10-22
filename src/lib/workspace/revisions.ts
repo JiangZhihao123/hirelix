@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { isDeepStrictEqual } from "node:util";
 import { db } from "@/db/client";
 import {
   enqueue,
@@ -8,14 +9,37 @@ import {
   json,
   snapshot,
   expectVersion,
+  uuidArray,
   WorkspaceError,
   type Runner,
 } from "./database";
 import { structured } from "./ai";
 import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { personalWritingPreferences, PERSONAL_MEMORY_USE_RULES } from "./memories";
-import type { Deliverable, Job } from "./types";
+import type { Deliverable, Job, Role } from "./types";
 import type { JobHandler } from "./jobs";
+import { selectedDocumentRecord } from "./deliverables";
+
+export const documentSourceSelection = z.object({
+  role_version: z.number().int().positive().nullable(),
+  records: z.array(z.object({id:z.uuid(), version:z.number().int().positive()})).max(100).refine(items => new Set(items.map(item => item.id)).size === items.length, "Choose each record once"),
+}).nullable().default(null);
+
+async function revisionSources(userId: string, document: Deliverable, selection: z.infer<typeof documentSourceSelection>, tx: Runner) {
+  if (!selection) return {source:document.source_snapshot, recordIds:document.record_ids};
+  const source = {...document.source_snapshot};
+  if (selection.role_version !== null) {
+    const role = await owned<Role>(userId, "role", document.role_id, tx);
+    expectVersion(role.version, selection.role_version);
+    source.role = JSON.parse(JSON.stringify(role));
+  }
+  const records = new Map((Array.isArray(source.records) ? source.records : []).filter(record => record && typeof record.id === "string").map(record => [record.id, record]));
+  for (const ref of selection.records) records.set(ref.id, await selectedDocumentRecord(userId, ref.id, {...document, report_timezone:typeof source.report_timezone === "string" ? source.report_timezone : null}, tx, ref.version));
+  if (selection.records.length) source.records = [...records.values()];
+  if (!isDeepStrictEqual(source, document.source_snapshot)) source.captured_at = new Date().toISOString();
+  if (JSON.stringify(source).length > 240000) throw new WorkspaceError("Select fewer source records for this draft");
+  return {source, recordIds:[...new Set([...document.record_ids, ...selection.records.map(record => record.id)])]};
+}
 
 const proposalSchema = z.object({
   audience: z.enum(["client", "internal"]).optional(),
@@ -35,6 +59,7 @@ export async function requestRevision(
       instructions: z.string().trim().min(1).max(6000),
       expected_version: z.number().int().positive(),
       request_key: z.string().min(1).max(200),
+      sources: documentSourceSelection,
     })
     .parse(value);
   const prepare = async (tx: Runner) => {
@@ -51,7 +76,8 @@ export async function requestRevision(
         prior.payload.deliverable_id !== id ||
         prior.payload.expected_version !== input.expected_version ||
         prior.payload.instructions !== input.instructions ||
-        Boolean(prior.payload.preview_only) !== input.preview_only
+        Boolean(prior.payload.preview_only) !== input.preview_only ||
+        !isDeepStrictEqual(prior.payload.source_selection ?? null, input.sources)
       )
         throw new WorkspaceError(
           "This request belongs to another revision",
@@ -72,6 +98,7 @@ export async function requestRevision(
         "This submitted copy is preserved. Prepare a new draft to revise it.",
         409,
       );
+    const selected = await revisionSources(userId, document, input.sources, tx);
     return enqueue(
       userId,
       "revision",
@@ -83,7 +110,9 @@ export async function requestRevision(
         preview_only: input.preview_only,
         title: document.title,
         content: document.content,
-        source: document.source_snapshot,
+        source: selected.source,
+        record_ids: selected.recordIds,
+        source_selection: input.sources,
       },
       tx,
     );
@@ -167,13 +196,14 @@ async function saveRevision(userId: string, id: string, job: Job, proposal: z.in
   if (document.status !== "draft") throw new WorkspaceError("The submitted copy is preserved", 409);
   expectVersion(document.version, expectedVersion ?? z.number().parse(job.payload.expected_version));
   expectVersion(document.version, z.number().parse(job.payload.expected_version));
-  const source = proposal.audience ? { ...document.source_snapshot, audience: proposal.audience } : document.source_snapshot;
-  return persistDraftRevision(userId, document, proposal, source, tx);
+  const captured = (job.payload.source || document.source_snapshot) as Record<string,unknown>;
+  const source = proposal.audience ? { ...captured, audience: proposal.audience } : captured;
+  return persistDraftRevision(userId, document, proposal, source, tx, z.array(z.uuid()).parse(job.payload.record_ids ?? document.record_ids));
 }
 
-async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner) {
+async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner, recordIds = document.record_ids) {
   const id = document.id;
-  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},record_ids=${uuidArray(recordIds)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
   await snapshot(userId, "deliverable", updated, tx);
   return updated;
 }
@@ -185,7 +215,7 @@ export const documentEdits = z.array(z.object({
 
 // Exact edits use the evidence already read by the main agent. No second model
 // reinterprets the request against an older document snapshot.
-export async function editDocument(userId:string, id:string, expectedVersion:number, edits:z.infer<typeof documentEdits>, tx:Runner) {
+export async function editDocument(userId:string, id:string, expectedVersion:number, edits:z.infer<typeof documentEdits>, tx:Runner, sources: z.infer<typeof documentSourceSelection> = null) {
   const document = await owned<Deliverable>(userId, "deliverable", id, tx, true);
   expectVersion(document.version, expectedVersion);
   if (document.status !== "draft") throw new WorkspaceError("The submitted copy is preserved",409);
@@ -196,6 +226,7 @@ export async function editDocument(userId:string, id:string, expectedVersion:num
     content = content.slice(0,at) + edit.new_text + content.slice(at + edit.old_text.length);
   }
   if (!content.trim() || content.length > 100000) throw new WorkspaceError("The edited document must contain between 1 and 100000 characters");
-  if (content === document.content) return document;
-  return persistDraftRevision(userId,document,{title:document.title,content},document.source_snapshot,tx);
+  const selected = await revisionSources(userId, document, documentSourceSelection.parse(sources), tx);
+  if (content === document.content && isDeepStrictEqual(selected.source, document.source_snapshot) && isDeepStrictEqual(selected.recordIds, document.record_ids)) return document;
+  return persistDraftRevision(userId,document,{title:document.title,content},selected.source,tx,selected.recordIds);
 }

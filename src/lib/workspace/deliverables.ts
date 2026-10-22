@@ -88,6 +88,21 @@ export function publicProfile(person: Person) {
     languages: person.profile.languages,
   };
 }
+// Preparation and revision share the same boundary for selected private notes.
+export async function selectedDocumentRecord(userId: string, id: string, context: {
+  role_id: string; person_ids: string[]; kind: Deliverable["kind"];
+  period_start: string | null; period_end: string | null; report_timezone?: string | null;
+}, tx: Runner, version?: number) {
+  const record = await owned<SourceRecord>(userId, "record", id, tx);
+  if (version !== undefined) expectVersion(record.version, version);
+  if (record.person_id && !context.person_ids.includes(record.person_id)) throw new WorkspaceError("A selected note belongs to an unselected candidate");
+  if (record.role_id && record.role_id !== context.role_id) throw new WorkspaceError("A selected note belongs to another client role");
+  if (!record.person_id && record.role_id !== context.role_id) throw new WorkspaceError("A selected record is not part of this role");
+  const timezone = context.report_timezone ?? "UTC";
+  if (context.kind === "search_update" && (!context.period_start || !context.period_end || !recordWithinPeriod(record, context.period_start, context.period_end, timezone))) throw new WorkspaceError("Only records that happened within the reporting period can be included");
+  const day = recordLocalDate(record, timezone);
+  return {id:record.id, version:record.version, title:record.title, content:record.content, kind:record.kind, person_id:record.person_id, occurred_at:record.occurred_at ? new Date(record.occurred_at).toISOString() : null, occurred_local_date:day, date_precision:record.occurred_at ? "timestamp" : day ? "day" : "unknown", source_url:record.source_url};
+}
 export async function prepareDeliverable(
   userId: string,
   value: unknown,
@@ -149,36 +164,7 @@ export async function prepareDeliverable(
     }
     const records = [];
     for (const id of input.record_ids) {
-      const record = await owned<SourceRecord>(userId, "record", id, tx);
-      if (record.person_id && !input.person_ids.includes(record.person_id))
-        throw new WorkspaceError(
-          "A selected note belongs to an unselected candidate",
-        );
-      if (record.role_id && record.role_id !== role.id)
-        throw new WorkspaceError(
-          "A selected note belongs to another client role",
-        );
-      if (!record.person_id && record.role_id !== role.id)
-        throw new WorkspaceError("A selected record is not part of this role");
-      if (
-        input.kind === "search_update" &&
-        !recordWithinPeriod(record, input.period_start!, input.period_end!, input.report_timezone ?? "UTC")
-      )
-        throw new WorkspaceError(
-          "Only records that happened within the reporting period can be included",
-        );
-      records.push({
-        id: record.id,
-        version: record.version,
-        title: record.title,
-        content: record.content,
-        kind: record.kind,
-        person_id: record.person_id,
-        occurred_at: record.occurred_at,
-        occurred_local_date: recordLocalDate(record, input.report_timezone ?? "UTC"),
-        date_precision: record.occurred_at ? "timestamp" : recordLocalDate(record, input.report_timezone ?? "UTC") ? "day" : "unknown",
-        source_url: record.source_url,
-      });
+      records.push(await selectedDocumentRecord(userId, id, input, tx));
     }
     const files: SubmissionCv[] = [];
     const coveredPeople = new Set<string>();

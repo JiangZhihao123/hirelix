@@ -22,6 +22,7 @@ import {
   ErrorNotice,
   Loading,
   date,
+  Dialog,
 } from "./client";
 import { RecommendationDelivery } from "./recommendation-delivery";
 import { RevisionPanel } from "./revision";
@@ -32,6 +33,7 @@ import type {
 } from "@/lib/workspace/types";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import type { Locale } from "@/lib/locale";
+type SavedRecordSource = {id: string; title: string; person_id: string | null; version?: number; content?: string};
 
 export function DocumentPage({ id }: { id: string }) {
   const query = useQuery<{ deliverable: Deliverable }>(`/deliverables/${id}`);
@@ -48,6 +50,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
   useEffect(() => { const timer=setTimeout(()=>void trackGrowthEvent("document_view", {action:"document_page"}),0); return ()=>clearTimeout(timer); }, []);
   const t = useT();
   const { locale } = useLanguage();
+  const [sourcePreview, setSourcePreview] = useState<SavedRecordSource | null>(null);
   const [document, setDocument] = useState(initial),
     [title, setTitle] = useState(initial.title),
     [content, setContent] = useState(initial.content),
@@ -187,7 +190,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
   const source = document.source_snapshot as {
     role?: { title: string; client_name: string; version: number };
     people?: Array<{ id: string; name: string; sharing_permission?: string }>;
-    records?: Array<{ id: string; title: string; person_id: string | null }>;
+    records?: SavedRecordSource[];
     captured_at?: string;
     language?: Locale;
     audience?: "client" | "internal";
@@ -407,7 +410,12 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 <ArrowUpRight size={12} />
               </Link>
             ))}
-            {source.records?.map((record) => (
+            {source.records?.map((record) => typeof record.content === "string" ? (
+              <button type="button" className="ws-detail-link" key={record.id} onClick={() => setSourcePreview(record)}>
+                {record.title} {record.version && <small className="ws-muted">v{record.version}</small>}
+                <ArrowUpRight size={12} />
+              </button>
+            ) : (
               <Link
                 className="ws-detail-link"
                 key={record.id}
@@ -418,6 +426,7 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
                 }
               >
                 {record.title}
+                {record.version && <small className="ws-muted">v{record.version}</small>}
                 <ArrowUpRight size={12} />
               </Link>
             ))}
@@ -440,6 +449,15 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
         </aside>
       </div>
       {document.kind === "submission" && !internalReview && <RecommendationDelivery key={document.id} document={document} disabled={dirty || saving || !!recovery || !!error} onChanged={setDocument} />}
+      {sourcePreview && <Dialog title={sourcePreview.title} wide onClose={() => setSourcePreview(null)}>
+        <div className="ws-form">
+        <p className="ws-muted">{t("Source text saved with this document. The current record may have changed.")} {sourcePreview.version && <>{t("Source version")}: {sourcePreview.version}</>}</p>
+        <AgentText content={sourcePreview.content || ""} />
+        <Link className="ws-link" href={sourcePreview.person_id ? `/app/candidates?person=${sourcePreview.person_id}&record=${sourcePreview.id}` : `/app/roles/${document.role_id}?tab=activity&record=${sourcePreview.id}`}>
+          {t("Open current record")} <ArrowUpRight size={12} />
+        </Link>
+        </div>
+      </Dialog>}
       {history && (
         <History
           kind="deliverable"
