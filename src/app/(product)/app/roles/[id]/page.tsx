@@ -62,6 +62,11 @@ type Assessment = {
   person_version: number;
   assessed_at?: string;
 };
+const assessmentDecisionLabels: Record<string, string> = {
+  worth_discussing: "Worth discussing",
+  needs_more_information: "Needs more information",
+  not_aligned: "Not aligned",
+};
 export default function RolePage({
   params,
 }: {
@@ -364,6 +369,7 @@ export default function RolePage({
                       </p>
                       {result.summary && <div className="mt-3 text-sm leading-7">
                         {stale && <div className="ws-warning"><p>{t("New evidence since this assessment. Revisit it before deciding.")}</p><button className="ws-link" onClick={() => reviewAssessment(link.person_id)}>{t("Review latest evidence")}</button></div>}
+                        {assessmentDecisionLabels[result.decision] && <p className="mb-1"><strong>{t(stale ? "Earlier role assessment" : "Role assessment")} · {t(assessmentDecisionLabels[result.decision])}</strong></p>}
                         {result.assessed_at && <p className="ws-muted text-xs">{t("Assessed")} · {date(result.assessed_at, true)}</p>}
                         <p>{result.summary}</p>
                       </div>}
@@ -609,6 +615,7 @@ export default function RolePage({
         >
           <div className="ws-form">
             {assessment.assessment_stale && <div className="ws-warning"><p>{t("New evidence since this assessment. Revisit it before deciding.")}</p><button className="ws-link" onClick={() => reviewAssessment(assessment.person_id)}>{t("Review latest evidence")}</button></div>}
+            {assessmentDecisionLabels[(assessment.assessment as Assessment).decision] && <p><strong>{t(assessment.assessment_stale ? "Earlier role assessment" : "Role assessment")} · {t(assessmentDecisionLabels[(assessment.assessment as Assessment).decision])}</strong></p>}
             {(assessment.assessment as Assessment).assessed_at && <p className="ws-muted text-xs">{t("Assessed")} · {date((assessment.assessment as Assessment).assessed_at!, true)}</p>}
             <AgentText
               content={(assessment.assessment as Assessment).summary}
