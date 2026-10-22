@@ -1,5 +1,6 @@
 "use client";
 import { MessageRoleReference } from "./message-role-reference";
+import { DocumentReference } from "./document-reference";
 import { MessageCandidateReferences } from "./message-candidate-references";
 
 import { ConversationExports } from "./document-download";
@@ -90,6 +91,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                     </div>}
                     {message.role === "user" && (Array.isArray(message.metadata.role_references) ? message.metadata.role_references : [message.metadata.role_reference]).map((reference, index) => <MessageRoleReference key={index} reference={reference} onOpen={onSource} />)}
                     {message.role === "user" && <MessageCandidateReferences references={candidateReferences(message.metadata.candidate_references)} onOpen={onSource} />}
+                    {message.role === "user" && <DocumentReference reference={metadata.document_reference} atSend onOpen={onSource} />}
                     {!!parts.length && <TurnParts sourceLinks={sourceLinks} parts={parts} running={activeJob?.status === "queued" || activeJob?.status === "running"} onOpenLink={(href, label) => {
                       const source = metadata.sources?.find(item => item.href === href);
                       if (!viewedSourceFromHref(href)) return false;

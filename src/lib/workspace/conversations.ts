@@ -58,6 +58,7 @@ export type AssistantAction = {
   href?: string;
 };
 export type AssistantMeta = {
+  document_reference?: {id: string; title: string; version: number; href: string};
   recommendation_feedback?: {
     person_name: string; response: "interview" | "hold" | "decline" | "comment";
     comment: string; submitted_name: string; href: string;

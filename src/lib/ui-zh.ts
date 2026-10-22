@@ -317,6 +317,7 @@ export const uiZh: Record<string, string> = {
   "Your revised draft is saved.": "修订已应用，草稿已保存。",
   "Revision needs attention": "修订需要重试",
   "Saved document": "已保存的文档",
+  "Document at send": "发送时的文档",
   "This saved document is ready to discuss or revise. Tell me what you want to change.": "已带上这份文档，可以直接讨论或交代修改。",
   "Pick up where you left off": "接着上次的工作",
   "Saved drafts to review": "待审核的草稿",

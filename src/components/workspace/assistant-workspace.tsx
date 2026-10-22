@@ -3,6 +3,7 @@
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { MessageCandidateReferences } from "./message-candidate-references";
 import { ComposerReference } from "./composer-reference";
+import { DocumentReference } from "./document-reference";
 import { MessageRoleReference, type RoleReference } from "./message-role-reference";
 import { useContextReferences } from "./context-references";
 import { conversationTurnView } from "./conversation-turn-view";
@@ -743,6 +744,7 @@ export function AssistantWorkspace({
               }
             }}
           >
+            {currentDocument && !selectedContext && <DocumentReference reference={{title:currentDocument.title, version:currentDocument.version, href:currentDocument.kind === "search_update" ? `/app/roles/${currentDocument.role_id}/updates/${currentDocument.id}` : `/app/submissions/${currentDocument.id}`}} onOpen={setSource} />}
             {selectedContext && <div className="ws-composer-context-tags ws-composer-selected-source"><span className="ws-composer-context-tag">{revisionTarget ? <Pencil size={12} /> : <Paperclip size={12} />}<span>{t(revisionTarget ? "Revising" : "Discussing")}: {selectedContext.title}</span><button type="button" className="ws-icon" onClick={() => { setRevisionTarget(null); setSource(null); }} aria-label={t("Clear context")}><X size={12} /></button></span></div>}
             {!sending && mentions.picker}
             {!sending && mentions.tags}
