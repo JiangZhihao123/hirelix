@@ -1117,7 +1117,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     edit_document: define(
       "edit_document",
-      "Save exact text edits to an existing draft using its current version. Use for localized corrections when the rest must stay unchanged. Copy each old_text verbatim from read_document; it must occur exactly once. When using newly read notes or revised requirements, include their observed record IDs/versions and role version in sources so evidence is saved with this version; null retains existing sources. Sources may be linked even if the matching text stays unchanged. The same document and its history are preserved; this does not generate a new document or send it.",
+      "Save exact text edits to an existing draft using its current version. Use for localized corrections when the rest must stay unchanged. Copy each old_text verbatim from read_document; it must occur exactly once. When using newly read notes or revised requirements, include their observed record IDs/versions and role version in sources so evidence is saved with this version; null retains existing sources. Sources may be linked even if the matching text stays unchanged. To add, replace or remove selected CV attachments, set sources.file_ids to the complete desired list; null preserves attachments and [] removes them. For an attachment-only change use edits=[]. This changes attachments on the existing draft, so do not prepare another document just to attach a CV. The same document and its history are preserved; this does not generate a new document or send it.",
       z.object({ ...authorization, document_id:z.uuid(), expected_version:z.number().int().positive(), edits:documentEdits, sources:documentSourceSelection }),
       input => mutate("edit_document",input,input.authorization_quote,async tx=>{
         const document = documentSource(await editDocument(userId,input.document_id,input.expected_version,input.edits,tx,input.sources));
@@ -1126,7 +1126,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     revise_document: define(
       "revise_document",
-      "Generate a broad rewrite of an existing document and observe its saved version. When using newly read notes or revised requirements, select their observed record IDs/versions and role version in sources; these are added to the captured evidence supplied to the writer and saved with the revision. null uses only the existing snapshot. For localized changes, use edit_document to preserve all other text exactly. Preserve earlier versions; an export-only request must not revise text.",
+      "Generate a broad rewrite of an existing document and observe its saved version. When using newly read notes or revised requirements, select their observed record IDs/versions and role version in sources; these are added to the captured evidence supplied to the writer and saved with the revision. null uses only the existing snapshot. For localized changes or attachment-only changes, use edit_document to preserve all other text exactly. sources.file_ids optionally sets the complete desired CV list for candidates already in the document; null preserves attachments and [] removes them. Preserve earlier versions; an export-only request must not revise text.",
       z.object({
         ...authorization,
         document_id: z.uuid(),

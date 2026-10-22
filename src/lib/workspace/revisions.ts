@@ -18,16 +18,22 @@ import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { personalWritingPreferences, PERSONAL_MEMORY_USE_RULES } from "./memories";
 import type { Deliverable, Job, Role } from "./types";
 import type { JobHandler } from "./jobs";
-import { selectedDocumentRecord } from "./deliverables";
+import { selectedDocumentRecord, selectedDocumentFiles } from "./deliverables";
 
 export const documentSourceSelection = z.object({
+  file_ids: z.array(z.uuid()).max(50).nullable().optional().describe("The complete desired CV attachment list. Null or omitted preserves the current attachments; [] removes all. Use only CV files for candidates already in this document."),
   role_version: z.number().int().positive().nullable(),
   records: z.array(z.object({id:z.uuid(), version:z.number().int().positive()})).max(100).refine(items => new Set(items.map(item => item.id)).size === items.length, "Choose each record once"),
 }).nullable().default(null);
 
 async function revisionSources(userId: string, document: Deliverable, selection: z.infer<typeof documentSourceSelection>, tx: Runner) {
-  if (!selection) return {source:document.source_snapshot, recordIds:document.record_ids};
+  if (!selection) return {source:document.source_snapshot, recordIds:document.record_ids, fileIds:document.file_ids};
   const source = {...document.source_snapshot};
+  const fileIds = selection.file_ids ?? document.file_ids;
+  if (selection.file_ids != null) {
+    if (document.kind !== "submission") throw new WorkspaceError("CV attachments belong to candidate submissions");
+    source.files = await selectedDocumentFiles(userId, document.person_ids, fileIds, tx);
+  }
   if (selection.role_version !== null) {
     const role = await owned<Role>(userId, "role", document.role_id, tx);
     expectVersion(role.version, selection.role_version);
@@ -38,7 +44,7 @@ async function revisionSources(userId: string, document: Deliverable, selection:
   if (selection.records.length) source.records = [...records.values()];
   if (!isDeepStrictEqual(source, document.source_snapshot)) source.captured_at = new Date().toISOString();
   if (JSON.stringify(source).length > 240000) throw new WorkspaceError("Select fewer source records for this draft");
-  return {source, recordIds:[...new Set([...document.record_ids, ...selection.records.map(record => record.id)])]};
+  return {source, fileIds, recordIds:[...new Set([...document.record_ids, ...selection.records.map(record => record.id)])]};
 }
 
 const proposalSchema = z.object({
@@ -112,6 +118,7 @@ export async function requestRevision(
         content: document.content,
         source: selected.source,
         record_ids: selected.recordIds,
+        file_ids: selected.fileIds,
         source_selection: input.sources,
       },
       tx,
@@ -198,12 +205,12 @@ async function saveRevision(userId: string, id: string, job: Job, proposal: z.in
   expectVersion(document.version, z.number().parse(job.payload.expected_version));
   const captured = (job.payload.source || document.source_snapshot) as Record<string,unknown>;
   const source = proposal.audience ? { ...captured, audience: proposal.audience } : captured;
-  return persistDraftRevision(userId, document, proposal, source, tx, z.array(z.uuid()).parse(job.payload.record_ids ?? document.record_ids));
+  return persistDraftRevision(userId, document, proposal, source, tx, z.array(z.uuid()).parse(job.payload.record_ids ?? document.record_ids), z.array(z.uuid()).parse(job.payload.file_ids ?? document.file_ids));
 }
 
-async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner, recordIds = document.record_ids) {
+async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner, recordIds = document.record_ids, fileIds = document.file_ids) {
   const id = document.id;
-  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},record_ids=${uuidArray(recordIds)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},record_ids=${uuidArray(recordIds)},file_ids=${uuidArray(fileIds)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
   await snapshot(userId, "deliverable", updated, tx);
   return updated;
 }
@@ -211,7 +218,7 @@ async function persistDraftRevision(userId: string, document: Deliverable, propo
 export const documentEdits = z.array(z.object({
   old_text: z.string().min(1).max(100000),
   new_text: z.string().max(100000),
-})).min(1).max(20);
+})).max(20);
 
 // Exact edits use the evidence already read by the main agent. No second model
 // reinterprets the request against an older document snapshot.
@@ -227,6 +234,6 @@ export async function editDocument(userId:string, id:string, expectedVersion:num
   }
   if (!content.trim() || content.length > 100000) throw new WorkspaceError("The edited document must contain between 1 and 100000 characters");
   const selected = await revisionSources(userId, document, documentSourceSelection.parse(sources), tx);
-  if (content === document.content && isDeepStrictEqual(selected.source, document.source_snapshot) && isDeepStrictEqual(selected.recordIds, document.record_ids)) return document;
-  return persistDraftRevision(userId,document,{title:document.title,content},selected.source,tx,selected.recordIds);
+  if (content === document.content && isDeepStrictEqual(selected.source, document.source_snapshot) && isDeepStrictEqual(selected.recordIds, document.record_ids) && isDeepStrictEqual(selected.fileIds, document.file_ids)) return document;
+  return persistDraftRevision(userId,document,{title:document.title,content},selected.source,tx,selected.recordIds,selected.fileIds);
 }

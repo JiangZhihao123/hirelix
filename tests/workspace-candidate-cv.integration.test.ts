@@ -3,11 +3,12 @@ import {randomUUID} from "node:crypto";
 import {test} from "node:test";
 import {sql} from "drizzle-orm";
 import {db,closeDb} from "../src/db/client";
-import {owned,rows} from "../src/lib/workspace/database";
+import {owned,rows,json,snapshot,uuidArray} from "../src/lib/workspace/database";
 import {saveFile} from "../src/lib/workspace/files";
 import {addRecord,registerCandidateCv} from "../src/lib/workspace/records";
 import {prepareDeliverable} from "../src/lib/workspace/deliverables";
-import type {Person,SourceRecord} from "../src/lib/workspace/types";
+import {editDocument,requestRevision} from "../src/lib/workspace/revisions";
+import type {Person,SourceRecord,Deliverable} from "../src/lib/workspace/types";
 
 test("a saved resume can be selected as a CV without another person or source, with ownership and version checks",{skip:process.env.WORKSPACE_CANDIDATE_CV_INTEGRATION!=="true"},async()=>{
   const url=new URL(process.env.DATABASE_URL!);
@@ -44,6 +45,32 @@ test("a saved resume can be selected as a CV without another person or source, w
       const [old]=await rows<{kind:string}>(sql`SELECT snapshot->>'kind' AS kind FROM hirelix_private_versions WHERE user_id=${owner}::uuid AND entity_type='record' AND entity_id=${record.id}::uuid AND version=1`,tx);
       assert.equal(old.kind,"profile");
       assert.equal((await owned<SourceRecord>(owner,"record",note.id,tx)).kind,"call");
+      const [draft]=await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,person_ids,source_snapshot) VALUES(${owner}::uuid,${role}::uuid,'submission','QA internal recommendation','Keep this exact paragraph',${uuidArray([person])},${json({audience:"internal",files:[]})}) RETURNING *`,tx);
+      await snapshot(owner,"deliverable",draft,tx);
+      const unchanged: Array<{old_text:string;new_text:string}>=[];
+      const selection={role_version:null,records:[],file_ids:[file.id]};
+      const attached=await editDocument(owner,draft.id,1,unchanged,tx,selection);
+      assert.equal(attached.id,draft.id);assert.equal(attached.version,2);assert.equal(attached.content,draft.content);
+      assert.deepEqual(attached.file_ids,[file.id]);
+      assert.equal((attached.source_snapshot.files as Array<{sha256:string}>)[0].sha256,file.sha256);
+      assert.equal((await editDocument(owner,draft.id,2,unchanged,tx,selection)).version,2);
+      await assert.rejects(()=>editDocument(owner,draft.id,1,unchanged,tx,selection),/changed in another window/);
+      await assert.rejects(()=>editDocument(owner,draft.id,2,unchanged,tx,{...selection,file_ids:[file.id,file.id]}),/each CV once/);
+      const otherFile=await saveFile(owner,{name:"Other.txt",type:"text/plain",bytes:new TextEncoder().encode("Other fictional CV")},tx);
+      await addRecord(owner,{person_id:other,kind:"cv",title:"Other CV",file_id:otherFile.id,content:"Other fictional CV"},tx);
+      await assert.rejects(()=>editDocument(owner,draft.id,2,unchanged,tx,{...selection,file_ids:[otherFile.id]}),/not available/);
+      await assert.rejects(()=>editDocument(randomUUID(),draft.id,2,unchanged,tx,selection),/not found/);
+      const kept=await editDocument(owner,draft.id,2,[{old_text:draft.content,new_text:"Updated paragraph"}],tx);
+      assert.deepEqual(kept.file_ids,[file.id]);
+      const request=await requestRevision(owner,draft.id,{instructions:"Shorten",expected_version:3,request_key:randomUUID(),sources:{...selection,file_ids:[]}},tx);
+      assert.deepEqual(request.payload.file_ids,[]);
+      assert.deepEqual((request.payload.source as {files:unknown[]}).files,[]);
+      const removed=await editDocument(owner,draft.id,3,[{old_text:kept.content,new_text:kept.content}],tx,{...selection,file_ids:[]});
+      assert.equal(removed.content,kept.content);assert.deepEqual(removed.file_ids,[]);assert.deepEqual(removed.source_snapshot.files,[]);
+      const [priorDraft]=await rows<{snapshot:Deliverable}>(sql`SELECT snapshot FROM hirelix_private_versions WHERE user_id=${owner}::uuid AND entity_id=${draft.id}::uuid AND version=2`,tx);
+      assert.deepEqual(priorDraft.snapshot.file_ids,[file.id]);assert.equal(priorDraft.snapshot.content,draft.content);
+      await tx.execute(sql`UPDATE hirelix_private_deliverables SET status='submitted',submitted_at=now() WHERE id=${draft.id}::uuid`);
+      await assert.rejects(()=>editDocument(owner,draft.id,4,[{old_text:removed.content,new_text:removed.content}],tx,selection),/submitted copy/);
       throw rollback;
     });
   }catch(error){if(error!==rollback)throw error;}

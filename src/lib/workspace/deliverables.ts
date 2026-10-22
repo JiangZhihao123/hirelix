@@ -103,6 +103,28 @@ export async function selectedDocumentRecord(userId: string, id: string, context
   const day = recordLocalDate(record, timezone);
   return {id:record.id, version:record.version, title:record.title, content:record.content, kind:record.kind, person_id:record.person_id, occurred_at:record.occurred_at ? new Date(record.occurred_at).toISOString() : null, occurred_local_date:day, date_precision:record.occurred_at ? "timestamp" : day ? "day" : "unknown", source_url:record.source_url};
 }
+
+export async function selectedDocumentFiles(userId: string, personIds: string[], fileIds: string[], tx: Runner) {
+  if (new Set(fileIds).size !== fileIds.length) throw new WorkspaceError("Choose each CV once");
+  const files: SubmissionCv[] = [];
+  const coveredPeople = new Set<string>();
+  for (const id of fileIds) {
+    const [file] = await rows<SubmissionCv>(
+      sql`SELECT r.person_id,r.id AS record_id,f.id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_files f JOIN hirelix_private_records r ON r.user_id=f.user_id AND r.file_id=f.id WHERE f.user_id=${userId}::uuid AND f.id=${id}::uuid AND r.kind='cv' AND r.person_id = ANY(${uuidArray(personIds)}) AND lower(f.name) ~ '\\.(pdf|docx|txt|md)$' ORDER BY r.created_at DESC LIMIT 1`,
+      tx,
+    );
+    if (!file)
+      throw new WorkspaceError(
+        "A selected CV is not available for these candidates",
+      );
+    if (coveredPeople.has(file.person_id))
+      throw new WorkspaceError("Choose one CV version per candidate");
+    coveredPeople.add(file.person_id);
+    files.push(file);
+  }
+  return files;
+}
+
 export async function prepareDeliverable(
   userId: string,
   value: unknown,
@@ -166,22 +188,7 @@ export async function prepareDeliverable(
     for (const id of input.record_ids) {
       records.push(await selectedDocumentRecord(userId, id, input, tx));
     }
-    const files: SubmissionCv[] = [];
-    const coveredPeople = new Set<string>();
-    for (const id of input.file_ids) {
-      const [file] = await rows<SubmissionCv>(
-        sql`SELECT r.person_id,r.id AS record_id,f.id,f.name,f.media_type,f.byte_size,f.sha256 FROM hirelix_private_files f JOIN hirelix_private_records r ON r.user_id=f.user_id AND r.file_id=f.id WHERE f.user_id=${userId}::uuid AND f.id=${id}::uuid AND r.kind='cv' AND r.person_id = ANY(${uuidArray(input.person_ids)}) AND lower(f.name) ~ '\\.(pdf|docx|txt|md)$' ORDER BY r.created_at DESC LIMIT 1`,
-        tx,
-      );
-      if (!file)
-        throw new WorkspaceError(
-          "A selected CV is not available for these candidates",
-        );
-      if (coveredPeople.has(file.person_id))
-        throw new WorkspaceError("Choose one CV version per candidate");
-      coveredPeople.add(file.person_id);
-      files.push(file);
-    }
+    const files = await selectedDocumentFiles(userId, input.person_ids, input.file_ids, tx);
     const source = {
       role: {
         id: role.id,
