@@ -25,3 +25,23 @@ test("Word export preserves bilingual text and embeds the unchanged CJK font wit
   for (let i = 0; i < 32; i++) restored[i] ^= key[i % 16];
   assert.deepEqual(restored, await readFile("src/assets/fonts/NotoSansSC-Regular.ttf"));
 });
+
+test("English-only Word export does not embed the CJK font", async () => {
+  const bytes = await renderDocument(
+    "Senior Backend Engineer — Mara Voss",
+    "## Recommendation\nMara owns ledger and reconciliation services at Northpay.",
+    "docx",
+  );
+  const archive = unzipSync(bytes);
+  assert.equal(Object.keys(archive).some((name) => name.endsWith(".odttf")), false);
+  assert.ok(bytes.byteLength < 100_000, `expected a small document, got ${bytes.byteLength} bytes`);
+  const body = strFromU8(archive["word/document.xml"]);
+  assert.match(body, /ledger and reconciliation services/);
+  const styles = strFromU8(archive["word/styles.xml"]);
+  assert.match(styles, /w:eastAsia="Noto Sans SC"/);
+});
+
+test("Word export keeps embedding for documents with CJK punctuation only", async () => {
+  const archive = unzipSync(await renderDocument("推荐 · Mara", "Mara 的账本经验。", "docx"));
+  assert.equal(Object.keys(archive).some((name) => name.endsWith(".odttf")), true);
+});

@@ -25,6 +25,8 @@ function blocks(title: string, content: string) {
   ];
 }
 let fontBytes: Promise<Buffer> | undefined;
+// CJK ideographs, kana, hangul, CJK punctuation and full-width forms.
+const CJK_TEXT = /[\u2E80-\u303F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/;
 export async function renderDocument(
   title: string,
   content: string,
@@ -32,12 +34,15 @@ export async function renderDocument(
 ) {
   const paragraphs = blocks(title, content);
   if (format === "docx") {
-    fontBytes ??= readFile(
-      path.join(process.cwd(), "src/assets/fonts/NotoSansSC-Regular.ttf"),
-    );
-    const fontData = await fontBytes;
+    // The CJK font is ~10.6MB. Embed it only for documents that can actually
+    // render CJK glyphs; an English client document stays a few kilobytes.
+    const fontData = CJK_TEXT.test(`${title}\n${content}`)
+      ? await (fontBytes ??= readFile(
+          path.join(process.cwd(), "src/assets/fonts/NotoSansSC-Regular.ttf"),
+        ))
+      : undefined;
     const doc = new Document({
-      fonts: [{ name: "Noto Sans SC", data: fontData }],
+      ...(fontData ? { fonts: [{ name: "Noto Sans SC", data: fontData }] } : {}),
       creator: "Hirelix",
       title,
       styles: {
