@@ -26,4 +26,6 @@
 
 TypeScript、lint、git diff --check 通过；全量单测 507 项，492 通过、15 门控跳过、0 失败。入口展示变化以实际 Chrome 点击、刷新、消息和持久结果为主要证据，没有新增复刻按钮文案的单测。截图和只读检查在 `tmp/candidate-context-starters.png`、`tmp/reverse-opportunity-*`、`tmp/candidate-starters-*`，不提交 tmp。
 
+同轮发现 `e2e/seo.spec.ts` 的无 JavaScript 产品事实检查仍要求 Two or three resumes，实际首页已支持 Start with one resume。先运行该用例确认仅旧文案断言失败，再同步为当前一份简历起步的承诺；同一用例复验通过。执行使用 `PLAYWRIGHT_BASE_URL=http://localhost:3000 PLAYWRIGHT_REUSE_SERVER=1`、chromium 项目和该用例的 grep，仅运行 HTTP request 检查，复用原服务，没有启动第二个 worker。这项不冒充整套 E2E 或无登录注册流程验收。
+
 未推送、部署、外发或付款，未重启/清空数据库，保留 Owen 待定选择及既有提醒。
