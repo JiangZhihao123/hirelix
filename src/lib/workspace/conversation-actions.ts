@@ -166,12 +166,18 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       ? `/app/candidates?person=${record.person_id}&record=${record.id}`
       : `/app/roles/${record.role_id}?tab=activity&record=${record.id}`;
   } else if (action.kind === "update_sharing_permission" || action.kind === "update_relationship") {
-    const input = recordInput.parse(action.fields);
+    const existingEvidence = action.fields.evidence_record_id
+      ? await owned<SourceRecord>(userId, "record", z.uuid().parse(action.fields.evidence_record_id), tx, true)
+      : null;
+    if (existingEvidence && existingEvidence.version !== action.fields.evidence_record_version)
+      throw new WorkspaceError("This communication changed. Read it again before using it as evidence.", 409);
+    const input = existingEvidence || recordInput.parse(action.fields);
     if (
       !action.role_id || !action.person_id ||
       input.role_id !== action.role_id ||
       input.person_id !== action.person_id ||
-      input.file_id !== (action.fields.file_id || null)
+      (!existingEvidence && input.file_id !== (action.fields.file_id || null)) ||
+      !["note", "call", "email", "feedback"].includes(input.kind)
     )
       throw new WorkspaceError("The candidate and role association changed.");
     // Serialize missing-link creation as well as updates. A preview of an absent
@@ -185,7 +191,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     const permission = action.kind === "update_sharing_permission"
       ? z.enum(["confirmed", "declined"]).parse(action.fields.permission) : relationship.permission;
     const changes = z.object({interest: z.string().max(5000).nullable().optional(), notes: z.string().max(20000).nullable().optional()}).parse(action.fields.changes ?? {});
-    const record = await addRecord(userId, {
+    const record = existingEvidence ?? await addRecord(userId, {
       ...input,
       details: { ...input.details, source_message_id: action.fields.source_message_id },
     }, tx);

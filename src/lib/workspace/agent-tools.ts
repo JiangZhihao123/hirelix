@@ -858,7 +858,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     update_relationship: define(
       "update_relationship",
-      "Save role-specific interest or an explicitly reported sharing decision. Unknown permission stays unknown. Permission evidence contains only that decision; save other call facts separately.",
+      "Save role-specific interest or an explicitly reported sharing decision. Unknown permission stays unknown. Reuse an observed evidence_record_id when the communication is already saved for this candidate and role; do not create another event for the same call. Otherwise supply evidence to save the communication once, including its relevant facts and decision.",
       z.object({
         ...authorization,
         role_id: z.uuid(),
@@ -867,8 +867,10 @@ export function createAgentTools(ctx: AgentToolContext) {
         permission: z.enum(["confirmed", "declined"]).nullable(),
         interest: z.string().max(5000).nullable().describe("Use JSON null to preserve the current interest; an empty string clears it. Never write a literal null placeholder."),
         notes: z.string().max(20000).nullable().describe("Use JSON null to preserve current notes; an empty string clears them. Do not stringify null or invent notes."),
-        evidence: recordFact,
-      }),
+        evidence: recordFact.nullable().default(null).describe("A new communication, only when it has not already been saved. Null when reusing evidence_record_id."),
+        evidence_record_id: z.uuid().nullable().default(null).describe("Observed saved communication for this exact candidate and role. Reuse the record returned by save_record; evidence must then be null."),
+        evidence_record_version: z.number().int().positive().nullable().default(null).describe("Observed version of evidence_record_id; null for new evidence."),
+      }).refine(input => input.evidence_record_id ? !input.evidence && !!input.evidence_record_version : !!input.evidence && !input.evidence_record_version, "Supply either new evidence or an existing evidence_record_id and its version."),
       (input) =>
         mutate(
           "update_relationship",
@@ -884,9 +886,11 @@ export function createAgentTools(ctx: AgentToolContext) {
               input.permission
                 ? "update_sharing_permission"
                 : "update_relationship",
-              input.evidence.title,
+              input.evidence?.title || "Update candidate interest and sharing",
               {
-                ...fact(input.evidence, input.person_id, input.role_id),
+                ...(input.evidence ? fact(input.evidence, input.person_id, input.role_id) : {}),
+                evidence_record_id: input.evidence_record_id,
+                evidence_record_version: input.evidence_record_version,
                 permission: input.permission,
                 relationship_id: current?.id ?? null,
                 expected_version: input.expected_version,
