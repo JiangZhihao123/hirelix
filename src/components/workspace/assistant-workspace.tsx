@@ -694,7 +694,7 @@ export function AssistantWorkspace({
                 </div>
                 <h2>{t("What would you like me to take care of?")}</h2>
                 <p>{currentDocument ? t("This saved document is ready to discuss or revise. Tell me what you want to change.") : t("Your personal AI assistant for headhunting. Share the goal and the context; I’ll carry the work forward.")}</p>
-                {!currentDocument && !roleId && !linkedPersonId && !draft.trim() && !attachments.length && <ConversationStarters returning={!!roles.data?.roles.length} onChoose={prompt => { setDraft(prompt); composer.current?.focus(); }} />}
+                {!currentDocument && !roleId && !draft.trim() && !attachments.length && <ConversationStarters returning={!!roles.data?.roles.length} candidate={!!linkedPersonId} onChoose={prompt => { setDraft(prompt); composer.current?.focus(); }} />}
                 <button className="ws-link ws-home-memory" onClick={() => setMemoriesOpen(true)}>{t("What I remember")} <ArrowUpRight size={13} /></button>
               </div>
             ) : (

@@ -4,9 +4,13 @@ import { ArrowUpRight } from "lucide-react";
 import { useT } from "@/components/LanguageProvider";
 import { firstAssignmentPrompt } from "@/lib/landing-content";
 
-export function ConversationStarters({returning, onChoose}: {returning: boolean; onChoose: (prompt: string) => void}) {
+export function ConversationStarters({returning, candidate = false, onChoose}: {returning: boolean; candidate?: boolean; onChoose: (prompt: string) => void}) {
   const t = useT();
-  const examples = [
+  const examples = candidate ? [
+    {label:"Find roles for this candidate", prompt:"Use this candidate's latest saved resume and notes to review my existing roles. Explain which opportunities are worth discussing, the trade-offs and what still needs confirming. Keep this as analysis; do not change records or contact anyone."},
+    {label:"Prepare for a candidate call", prompt:"Use this candidate's saved resume, communication history and relevant role context to prepare a focused call brief. Highlight what has changed and the few questions worth confirming. Do not contact anyone or book a meeting."},
+    {label:"Review this candidate's history", prompt:"Review this candidate's saved sources, communication records and role-specific feedback. Summarize the current facts, open questions and recorded commitments, keeping dates and sources clear. Do not change records or contact anyone."},
+  ] : [
     returning
       ? {label:"Pick up my searches", prompt:"Review my active roles, recent client feedback and recorded commitments. What are the few most useful things for me to move forward today? Use saved evidence and explain what is still unknown."}
       : {label:"Compare candidates for a role", prompt:firstAssignmentPrompt},
@@ -16,7 +20,7 @@ export function ConversationStarters({returning, onChoose}: {returning: boolean;
       : {label:"Save my screening notes", prompt:"Save the screening notes I share against the relevant candidates and role. Preserve what was said, distinguish confirmed facts from open questions, and tell me what matters for the next conversation."},
   ];
   return <div className="ws-conversation-starters" aria-label={t("Ways to start working")}>
-    <p>{t(returning ? "Continue from your saved work, or start something new." : "Start with a real role, a resume or a few notes.")}</p>
+    <p>{t(candidate ? "Start with this candidate's saved context." : returning ? "Continue from your saved work, or start something new." : "Start with a real role, a resume or a few notes.")}</p>
     <div>{examples.map(example => <button key={example.label} type="button" onClick={() => onChoose(t(example.prompt))}>{t(example.label)}<ArrowUpRight size={13} aria-hidden="true" /></button>)}</div>
   </div>;
 }
