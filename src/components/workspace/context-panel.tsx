@@ -27,7 +27,7 @@ function OriginalFile({ id, title }: { id: string; title: string }) {
     </>}
     <div className="ws-actions">
       <a className="ws-link" href={`${href}?preview=1`} target="_blank" rel="noreferrer">{t("Open original file")} <ArrowUpRight size={13} /></a>
-      <a className="ws-link" href={href}>{t("Download original file")}</a>
+      <a className="ws-link" href={href} download={query.data?.name || title}>{t("Download original file")}</a>
     </div>
   </>;
 }

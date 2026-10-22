@@ -259,6 +259,7 @@ export function ImportCandidates() {
             <a
               className="ws-link ml-auto"
               href={`/api/workspace/files/${String(preview.data.job.payload.file_id)}`}
+              download
             >
               {t("Download original")}
             </a>
@@ -924,6 +925,7 @@ export function ConversationImport({
       )}
       <a
         className="ws-import-original"
+        download
         href={
           job
             ? `/api/workspace/files/${String(job.payload.file_id)}`

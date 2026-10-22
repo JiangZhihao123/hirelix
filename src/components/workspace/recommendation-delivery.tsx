@@ -587,6 +587,7 @@ export function RecommendationDelivery({
               <a
                 key={file.id}
                 href={`/api/workspace/files/${file.id}?download=1`}
+                download={file.name}
                 className="ws-link"
               >
                 <Download size={14} />

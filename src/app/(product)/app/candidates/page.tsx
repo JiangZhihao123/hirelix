@@ -909,6 +909,7 @@ function CandidateDetails({
                     <a
                       className="ws-link"
                       href={`/api/workspace/files/${item.file_id}`}
+                      download
                     >
                       {t("Download source file")}
                     </a>

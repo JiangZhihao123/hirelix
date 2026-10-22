@@ -102,6 +102,7 @@ function EventRow({ event }: { event: RecommendationEvent }) {
           <a
             key={file.id}
             href={`/api/workspace/files/${file.id}`}
+            download={file.name}
             className="ws-link"
           >
             {file.name} ↗
