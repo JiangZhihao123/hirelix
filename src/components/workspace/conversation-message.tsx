@@ -62,6 +62,8 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
   const remainingSources = metadata.sources?.filter(source => /^https?:\/\//.test(source.href) && !viewedSourceFromHref(source.href) && !displayedSources.has(source.href)) || [];
   const feedback = metadata.recommendation_feedback;
   const savedActions = [...new Map((metadata.actions || []).filter(action => action.status === "saved").map(action => [action.href || action.id, action])).values()];
+  const editedDocuments = [...new Map((metadata.document_edits || []).map(document => [document.id, document])).values()]
+    .filter(document => document.id !== metadata.exports?.document_id && document.id !== metadata.revision?.document_id);
   if (feedback) return <article className="ws-message ws-feedback-receipt" data-message-key={message.id} aria-label={t("Client feedback")}>
     <header><MessageSquare size={15} /><span>{t("Client feedback")}</span><time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time></header>
     <div className="ws-feedback-subject"><strong>{feedback.person_name}</strong><span>{t(feedbackLabels[feedback.response])}</span></div>
@@ -117,6 +119,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />
                     ))}
                     {metadata.exports && <ConversationExports documentId={metadata.exports.document_id} formats={metadata.exports.formats} />}
+                    {editedDocuments.map(document => <DocumentReference key={document.id} reference={document} onOpen={onSource} />)}
                     {metadata.recommendation_links?.map((link, index) => <div className="ws-recommendation-receipt" key={`${link.document_id}:${link.version}:${index}`}>
                       <a className="ws-link" href={link.href} target="_blank" rel="noopener noreferrer">{t("Open client recommendation")}<ArrowUpRight size={14} /></a>
                       <span className="ws-message-status">{t("Published copy")} · {t("Version")} {link.version}</span>

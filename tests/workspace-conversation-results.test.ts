@@ -54,3 +54,15 @@ test("saved objects are compact while an unresolved action stays directly action
   assert.match($(".ws-action-proposal button").text(), /Review &amp; save|Review & save/);
   assert.match($(".ws-message-prose").text(), /Profile updated/);
 });
+
+test("editing an existing document delivers an openable saved result even without export or preparation", () => {
+  const document = {id:"3c6c8bee-7507-47fe-823d-06f2bdf75b6e",title:"Internal recommendation",version:2,href:"/app/submissions/3c6c8bee-7507-47fe-823d-06f2bdf75b6e"};
+  const message = {id:"m",conversation_id:"c",role:"assistant",content:"Updated using the screening call.",created_at:"2026-10-22T10:00:00Z",metadata:{document_edits:[document,{...document,version:3}]}} as unknown as Message;
+  const render = (value:Message, running=false) => load(renderToStaticMarkup(React.createElement(ConversationMessage,{message:value,laterScheduleIds:[],onReady:()=>{},onRevise:()=>{},onMemories:()=>{},onSource:()=>{},onReview:()=>{},onCopy:()=>{},copiedId:null,...(running ? {activeJob:{status:"running",progress:"",error:null,result:{}}} : {})})));
+  const $=render(message);
+  assert.equal($(".ws-document-reference button").length,1);
+  assert.match($(".ws-document-reference").text(),/Saved document · v3Internal recommendation/);
+  assert.equal($("details .ws-document-reference").length,0,"The result is available without opening tool history");
+  assert.equal(render(message,true)(".ws-document-reference").length,0);
+  assert.equal(render({...message,metadata:{...message.metadata,exports:{document_id:document.id,formats:["pdf"]}}})(".ws-document-reference").length,0,"An export card already provides access to this result");
+});
