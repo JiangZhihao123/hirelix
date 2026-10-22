@@ -60,6 +60,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
   metadata.document_edits?.forEach(document => displayedSources.add(document.href));
   const remainingSources = metadata.sources?.filter(source => /^https?:\/\//.test(source.href) && !viewedSourceFromHref(source.href) && !displayedSources.has(source.href)) || [];
   const feedback = metadata.recommendation_feedback;
+  const savedActions = [...new Map((metadata.actions || []).filter(action => action.status === "saved").map(action => [action.href || action.id, action])).values()];
   if (feedback) return <article className="ws-message ws-feedback-receipt" data-message-key={message.id} aria-label={t("Client feedback")}>
     <header><MessageSquare size={15} /><span>{t("Client feedback")}</span><time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time></header>
     <div className="ws-feedback-subject"><strong>{feedback.person_name}</strong><span>{t(feedbackLabels[feedback.response])}</span></div>
@@ -128,14 +129,18 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                         <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}
                       </button>)}
                     </div>}
-                    {metadata.actions?.map((action) => (
+                    {!!savedActions.length && <details className="ws-saved-items">
+                      <summary><Check size={13} />{t("Saved items")} <span>· {savedActions.length}</span></summary>
+                      <ul>{savedActions.map(action => <li key={action.id}>{action.href
+                        ? <button type="button" onClick={() => onSource({title: t(action.title), href: action.href!})}>{t(action.title)}<ArrowUpRight size={13} /></button>
+                        : <span>{t(action.title)}</span>}</li>)}</ul>
+                    </details>}
+                    {metadata.actions?.filter(action => action.status !== "saved").map((action) => (
                       <div className="ws-action-proposal" key={action.id}>
                         <div>
                           <strong>{t(action.title)}</strong>
                           <small>
-                            {action.status === "saved"
-                              ? t("Saved to your workspace")
-                              : action.kind === "create_candidate" || action.kind === "update_candidate"
+                            {action.kind === "create_candidate" || action.kind === "update_candidate"
                                 ? t("Candidate changes ready to review")
                               : action.kind === "create_role"
                                 ? t("Review the role details before saving")
@@ -154,17 +159,9 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                                       )}
                           </small>
                         </div>
-                        {action.href && action.status === "saved" ? (
-                          <button className="ws-button" onClick={() => onSource({title: t(action.title), href: action.href!})}><Check size={13} />{t("Open saved item")}<ArrowUpRight size={13} /></button>
-                        ) : action.href ? (
+                        {action.href ? (
                           <Link className="ws-button" href={action.href}>
-                            {action.status === "saved" ? (
-                              <Check size={13} />
-                            ) : null}
-                            {action.status === "saved"
-                              ? t("Open saved item")
-                              : t("Prepare")}
-                            <ArrowUpRight size={13} />
+                            {t("Prepare")}<ArrowUpRight size={13} />
                           </Link>
                         ) : (
                           <button

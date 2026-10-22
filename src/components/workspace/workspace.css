@@ -3070,3 +3070,14 @@ button.ws-file-card:hover { border-color: #a9bcaa; box-shadow: 0 2px 8px #254a30
 .ws-feedback-page .ws-feedback-reports,.ws-feedback-page > .ws-actions,.ws-feedback-page > p { margin:0 32px 24px; }
 .ws-feedback-report pre { margin:16px 0; }
 .ws-feedback-report .ws-muted { margin:8px 0; font-size:12px; }
+
+/* Completed execution stays available without competing with the result. */
+.ws-turn-history, .ws-saved-items { color: var(--ws-muted); font-size: 12px; margin-top: 8px; }
+.ws-turn-history > summary, .ws-saved-items > summary { cursor: pointer; width: fit-content; max-width: 100%; padding: 4px 0; }
+.ws-saved-items > summary > svg { display: inline; vertical-align: -2px; margin-right: 5px; }
+.ws-turn-history > summary > span, .ws-saved-items > summary > span { color: #899286; }
+.ws-turn-history > .ws-turn-parts, .ws-saved-items > ul { border-left: 1px solid #e2e7e1; padding-left: 14px; margin: 8px 0 0 5px; }
+.ws-saved-items > ul { list-style: none; display: grid; gap: 8px; }
+.ws-saved-items > ul button { display: inline-flex; align-items: center; gap: 6px; color: var(--ws-green); text-align: left; }
+.ws-saved-items > ul button:hover { text-decoration: underline; }
+.ws-import-saved > .ws-chat-import { margin-top: 8px; }

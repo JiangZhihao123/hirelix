@@ -765,7 +765,7 @@ export function ConversationImport({
       setSaving(false);
     }
   }
-  return (
+  const content = (
     <section
       className="ws-chat-import"
       aria-label={t("Candidate import in conversation")}
@@ -947,4 +947,10 @@ export function ConversationImport({
       )}
     </section>
   );
+  if (embedded && job?.status === "done" && saved > 0 && remaining === 0 && !error && !preview.error)
+    return <details className="ws-saved-items ws-import-saved">
+      <summary><Check size={13} />{t("Saved to candidates")} · {saved}<span> · {String(job.payload.filename || "")}</span></summary>
+      {content}
+    </details>;
+  return content;
 }

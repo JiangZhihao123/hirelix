@@ -23,18 +23,28 @@ function groupParts(parts: TurnPart[]) {
   return groups;
 }
 
-export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = [] }: {
+export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = [], detailed = false }: {
   parts: TurnPart[];
   running?: boolean;
   onOpenLink?: (href: string, label: string) => boolean;
   sourceLinks?: readonly string[];
+  detailed?: boolean;
 }) {
   const t = useT(), {locale} = useLanguage();
+  const visible = visibleTurnParts(parts);
+  const lastTool = visible.findLastIndex(part => part.type === "tool");
+  const hasFinalReply = !running && lastTool >= 0 && visible.slice(lastTool + 1).some(part => part.type === "text" && part.text.trim());
+  // Keep the answer and actionable/error evidence in front. Completed calls
+  // and their earlier progress narration remain inspectable together.
+  const history = detailed ? [] : visible.filter((part, index) => part.type === "text"
+    ? hasFinalReply && index < lastTool
+    : part.status === "done" && !isMailbox(part) && !part.warning && !part.sources?.length);
+  const primary = visible.filter(part => !history.includes(part));
   const inventoryText = (part: ToolPart) => Object.entries(part.inventory || {}).map(([key, count]) => `${t(({roles: "Roles", candidates: "Candidates", preferences: "Preferences", reminders: "Reminders"} as Record<string, string>)[key])} ${count}`).join(" · ");
   const statusText = (part: ToolPart) => t(part.status === "done" ? "Completed" : part.status === "error" ? "Failed" : running && part.status === "running" ? "In progress" : "Interrupted");
   const statusIcon = (part: ToolPart) => part.status === "done" ? <Check size={13} /> : part.status === "error" ? <AlertCircle size={13} /> : running && part.status === "running" ? <Loader2 size={13} className="animate-spin" /> : <Minus size={13} />;
   return <div className="ws-turn-parts">
-    {groupParts(parts).map((group, index) => {
+    {groupParts(primary).map((group, index) => {
       if (group.type === "text") return <div className="ws-message-prose" key={`text-${index}`}><AgentText content={group.text} onOpenLink={onOpenLink} sourceLinks={[...sourceLinks, ...parts.flatMap(part => part.type === "tool" && part.href ? [part.href] : [])]} /></div>;
       const first = group.items[0];
       if (isMailbox(first)) {
@@ -87,5 +97,9 @@ export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = []
         {!!sources.length && <div className="ws-tool-source-preview">{sources.slice(0, 3).map(source => <a key={source.href} href={source.href} target="_blank" rel="noopener noreferrer" title={source.title}>{new URL(source.href).hostname}</a>)}<span>{t("Search results")} · {sources.length}</span></div>}
       </div>;
     })}
+    {!!history.length && <details className="ws-turn-history">
+      <summary>{t("Work details")} <span>· {history.filter(part => part.type === "tool").length}</span></summary>
+      <TurnParts parts={history} running={running} onOpenLink={onOpenLink} sourceLinks={sourceLinks} detailed />
+    </details>}
   </div>;
 }
