@@ -163,10 +163,30 @@ async function notifyPreviewRequest(params: {
   }
 }
 
+function requestOrigin(req: NextRequest) {
+  const host = getHeader(req, "x-forwarded-host") ?? getHeader(req, "host");
+  if (!host) return null;
+  const proto =
+    getHeader(req, "x-forwarded-proto") ??
+    req.nextUrl.protocol.replace(/:$/, "");
+  return `${proto}://${host}`;
+}
+
 export async function POST(req: NextRequest) {
   const origin = req.headers.get("origin");
-  if (origin && origin !== req.nextUrl.origin)
+  // nextUrl.origin can normalize the host (localhost vs 127.0.0.1, or a proxy
+  // host), which silently rejects every beacon. Accept the origin derived from
+  // the request's own host as well; a cross-site origin still fails both.
+  const allowedOrigins = new Set(
+    [req.nextUrl.origin, requestOrigin(req)].filter((value): value is string => Boolean(value)),
+  );
+  if (origin && !allowedOrigins.has(origin)) {
+    growthLandingLogger.warn(
+      { event: "growth_landing_origin_rejected", origin, expected: [...allowedOrigins] },
+      "rejected landing event from a different origin",
+    );
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
+  }
   if (Number(req.headers.get("content-length") || 0) > 16384)
     return NextResponse.json({ error: "Event too large" }, { status: 413 });
   let body: LandingEventBody;
