@@ -60,6 +60,7 @@ type Assessment = {
   unconfirmed: string[];
   scope: string;
   person_version: number;
+  assessed_at?: string;
 };
 export default function RolePage({
   params,
@@ -74,6 +75,12 @@ export default function RolePage({
   const requestedReturn = paramsQuery.get("returnTo") || "";
   const returnTo = /^\/app\/(roles|submissions)(\?|$)/.test(requestedReturn) ? requestedReturn : "/app/roles";
   function ask(prompt: string, person?: string) { router.push(`/app?role=${id}${person ? `&person=${person}` : ""}&prompt=${encodeURIComponent(prompt)}`); }
+  function reviewAssessment(personId: string) {
+    setAssessment(null);
+    ask(locale === "zh"
+      ? "结合这位候选人和当前职位的最新已保存资料，更新并保存职位评估，说明变化与仍需核实的事项。不要对外发送或分享。"
+      : "Review the latest saved evidence for this candidate and the current role. Update and save the role-specific assessment, explaining changes and remaining uncertainties. Do not send or share anything externally.", personId);
+  }
   const query = useQuery<Detail>(`/roles/${id}`);
   const requestedTab = paramsQuery.get("tab");
   const tab = requestedTab && ["brief", "candidates", "activity", "submissions"].includes(requestedTab)
@@ -355,7 +362,11 @@ export default function RolePage({
                         {link.interest ||
                           t("Interest in this role has not been recorded.")}
                       </p>
-                      {result.summary && <div className="mt-3 text-sm leading-7"><p>{result.summary}</p>{stale && <p className="ws-warning">{t("New evidence since this assessment. Revisit it before deciding.")}</p>}</div>}
+                      {result.summary && <div className="mt-3 text-sm leading-7">
+                        {stale && <div className="ws-warning"><p>{t("New evidence since this assessment. Revisit it before deciding.")}</p><button className="ws-link" onClick={() => reviewAssessment(link.person_id)}>{t("Review latest evidence")}</button></div>}
+                        {result.assessed_at && <p className="ws-muted text-xs">{t("Assessed")} · {date(result.assessed_at, true)}</p>}
+                        <p>{result.summary}</p>
+                      </div>}
                       {feedback && <div className="ws-notice mt-3">
                         <strong>{t("Latest client feedback")}{feedback.details.response && feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]] ? ` · ${t(feedbackLabels[feedback.details.response as (typeof feedbackResponses)[number]])}` : ""}</strong>
                         <p>{feedback.content}</p><small className="ws-muted">{date(feedback.occurred_at || feedback.created_at, true)}</small>
@@ -597,6 +608,8 @@ export default function RolePage({
           wide
         >
           <div className="ws-form">
+            {assessment.assessment_stale && <div className="ws-warning"><p>{t("New evidence since this assessment. Revisit it before deciding.")}</p><button className="ws-link" onClick={() => reviewAssessment(assessment.person_id)}>{t("Review latest evidence")}</button></div>}
+            {(assessment.assessment as Assessment).assessed_at && <p className="ws-muted text-xs">{t("Assessed")} · {date((assessment.assessment as Assessment).assessed_at!, true)}</p>}
             <AgentText
               content={(assessment.assessment as Assessment).summary}
             />

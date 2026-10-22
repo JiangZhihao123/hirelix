@@ -98,6 +98,8 @@ export const uiZh: Record<string, string> = {
   "Additional feedback": "补充意见",
   "Feedback received": "已收到反馈",
   "Review feedback and next steps": "分析反馈及下一步",
+  "Assessed": "评估时间",
+  "Review latest evidence": "结合最新资料重新评估",
   "New evidence since this assessment. Revisit it before deciding.": "这份评估之后有资料更新，请结合新信息重新判断。",
   "Recommendation-page feedback; submitted name is unverified.": "来自推荐页，提交人姓名未经验证。",
   "Listing candidates": "查看候选人列表",
