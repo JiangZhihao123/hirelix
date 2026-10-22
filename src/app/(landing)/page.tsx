@@ -66,7 +66,8 @@ export default function Home() {
       destination: "/app",
     });
     if (plan) query.set("plan", plan);
-    if (prompt) query.set("prompt", prompt);
+    const assignment = prompt ?? (signIn ? undefined : firstAssignmentPrompt);
+    if (assignment) query.set("prompt", assignment);
     if (!signIn) query.set("entry", "free_trial");
     router.push(`/app?${query.toString()}`);
   }

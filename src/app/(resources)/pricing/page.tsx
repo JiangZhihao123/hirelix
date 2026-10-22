@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AGENT_PLAN } from "@/lib/agent-plan";
+import { firstAssignmentPrompt } from "@/lib/landing-content";
 import { publicMetadata } from "@/lib/seo";
 
 export const metadata = publicMetadata(
@@ -47,7 +48,7 @@ export default function PricingPage() {
             </p>
             <Link
               className="ha-button"
-              href={`/app?entry=free_trial&plan=${plan.code}`}
+              href={`/app?entry=free_trial&plan=${plan.code}&prompt=${encodeURIComponent(firstAssignmentPrompt)}`}
             >
               Start free trial
             </Link>
