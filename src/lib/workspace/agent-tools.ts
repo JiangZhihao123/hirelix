@@ -30,7 +30,7 @@ import type {
   Deliverable,
 } from "./types";
 import { roleInput, recordInput } from "./types";
-import { roleDetails, linkPerson, findLikelyDuplicateRoles } from "./roles";
+import { roleDetails, linkPerson, linkCandidates, findLikelyDuplicateRoles } from "./roles";
 import { savedAssessmentsInput, saveAgentAssessments } from "./assessment";
 import { activeDocumentShare, publishDocument, revokeDocumentShare } from "./document-sharing";
 import { recommendationFeedbackContext } from "./recommendation-feedback-contract";
@@ -100,6 +100,7 @@ export const progressLabels: Record<string, string> = {
   update_role: "Updating role requirements",
   save_record: "Saving the communication",
   save_assessments: "Saving role-specific assessments",
+  link_candidates: "Adding candidates to the role",
   share_document: "Updating the recommendation link",
   update_record: "Correcting the saved communication",
   update_relationship: "Updating the candidate's role-specific details",
@@ -777,6 +778,16 @@ export function createAgentTools(ctx: AgentToolContext) {
             input.role_id,
           );
         }),
+    ),
+    link_candidates: define(
+      "link_candidates",
+      "Add one or more saved candidates to a role's working slate when the user delegates organizing or advancing that search. Reuse the returned candidate relationships; this does not rank people, record interest, grant sharing permission or mark a recommendation sent. An analysis-only comparison or search result alone does not authorize adding candidates. Choose only people within the delegated scope, not every library/search result. Already linked candidates remain unchanged.",
+      z.object({...authorization, role_id: z.uuid(), person_ids: z.array(z.uuid()).min(1).max(30)}),
+      input => mutate("link_candidates", input, input.authorization_quote, async tx => {
+        const result = await linkCandidates(userId, input.role_id, input.person_ids, tx);
+        cite(result.title, result.href);
+        return {output: result, metadata: {sources: [{title: result.title, href: result.href}]}};
+      }),
     ),
     save_assessments: define(
       "save_assessments",

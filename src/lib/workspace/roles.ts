@@ -22,6 +22,7 @@ import {
   type Deliverable,
   type Schedule,
   type Job,
+  type Person,
 } from "./types";
 
 // Shared evidence rules for consumers of a recruiter's reviewed role brief.
@@ -208,6 +209,21 @@ export async function linkPerson(
     );
     await snapshot(userId, "role_candidate", link, tx);
     return link;
+  };
+  return runner ? run(runner) : db.transaction(run);
+}
+
+// Adding a working slate changes only membership, never fit, interest or consent.
+export async function linkCandidates(userId: string, roleId: string, personIds: string[], runner?: Runner) {
+  const ids = z.array(z.uuid()).min(1).max(30).parse(personIds);
+  const run = async (tx: Runner) => {
+    // Validate the whole selection before writing any association.
+    const role = await owned<Role>(userId, "role", roleId, tx);
+    const people = [];
+    for (const id of new Set(ids)) people.push(await owned<Person>(userId, "person", id, tx));
+    const candidates = [];
+    for (const person of people) candidates.push({...await linkPerson(userId, role.id, person.id, tx), name: person.name});
+    return {role_id: role.id, title: `${role.client_name} · ${role.title}`, candidates, href: `/app/roles/${role.id}?tab=candidates`};
   };
   return runner ? run(runner) : db.transaction(run);
 }
