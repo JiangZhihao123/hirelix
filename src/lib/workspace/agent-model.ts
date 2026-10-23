@@ -13,7 +13,7 @@ import {
   resolveDeepSeekThinkingMode,
   resolveDeepSeekReasoningEffort,
 } from "@/lib/llm-client";
-import { consumeAgentCredits, reserveAgentCall } from "@/lib/agent-access";
+import { consumeAgentCredits, reserveAgentCall, releaseAgentCall, type AgentCallReservation } from "@/lib/agent-access";
 import {
   costToCreditUnits,
   creditMarkup,
@@ -52,6 +52,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     responseBody?: unknown,
     metadata: Record<string, unknown> = {},
     attempt = 1,
+    reservation?: AgentCallReservation,
   ) {
     const usage = {
       inputTokens: result.usage.inputTokens.total ?? 0,
@@ -92,8 +93,8 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     // Product metadata and structural format repairs are not extra user work.
     // Record their provider usage without overwriting the active reply's
     // reservation while the SDK is still parsing that reply's tool calls.
-    if (purpose !== "reply") return;
-    await consumeAgentCredits(job, costToCreditUnits(cost, multiplier), cost, {
+    if (!reservation) return;
+    await consumeAgentCredits(job, reservation, costToCreditUnits(cost, multiplier), cost, {
       stage,
       model: modelId,
       provider,
@@ -126,43 +127,43 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       errorMessage: error instanceof Error ? error.name : "Unknown", metadata});
     getLogger({component: "workspace_agent_model"}).warn({job_id: job.id, ...metadata, model_attempt: attempt, error_type: error instanceof Error ? error.name : "Unknown"}, "Agent model call failed");
   }
+  async function reserve(params: Parameters<typeof model.doGenerate>[0]) {
+    if (purpose !== "reply") return;
+    const rates = official ? deepSeekRates(modelId, new Date(), true) : {input: 20, output: 20};
+    const inputBound = Buffer.byteLength(JSON.stringify({prompt: params.prompt, tools: params.tools}), "utf8") + 512;
+    const reservation = await reserveAgentCall(job, costToCreditUnits(inputBound * rates.input / 1e6, multiplier),
+      params.maxOutputTokens ?? 16384, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
+    params.maxOutputTokens = reservation.maxOutputTokens;
+    return reservation;
+  }
   const middleware: LanguageModelMiddleware = {
     specificationVersion: "v3",
     transformParams: async ({ params }) => {
       await activeAgentJob(job);
-      params = {...params, tools: params.tools?.map(tool => tool.type === "function"
+      return {...params, tools: params.tools?.map(tool => tool.type === "function"
         ? {...tool, inputSchema: compactAgentToolSchema(tool.inputSchema) as typeof tool.inputSchema} : tool)};
-      if (purpose !== "reply") return params;
-      const rates = official
-        ? deepSeekRates(modelId, new Date(), true)
-        : { input: 20, output: 20 };
-      const inputBound =
-        Buffer.byteLength(
-          JSON.stringify({ prompt: params.prompt, tools: params.tools }),
-          "utf8",
-        ) + 512;
-      const maxOutputTokens = await reserveAgentCall(
-        job,
-        costToCreditUnits((inputBound * rates.input) / 1e6, multiplier),
-        params.maxOutputTokens ?? 16384,
-        (((rates.output / 1e6) * multiplier) / CREDIT_RETAIL_USD) *
-          CREDIT_UNITS,
-      );
-      return { ...params, maxOutputTokens };
     },
     wrapGenerate: async ({ doGenerate, params }) => {
       const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
-      let result;
-      try { result = await doGenerate(); }
-      catch (error) {await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); throw error;}
-      await account(result, startedAt, params.maxOutputTokens, result.response?.body, metadata, attempt);
-      return result;
+      const reservation = await reserve(params);
+      try {
+        let result;
+        try { result = await doGenerate(); }
+        catch (error) {await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); throw error;}
+        await account(result, startedAt, params.maxOutputTokens, result.response?.body, metadata, attempt, reservation);
+        return result;
+      } finally { if (reservation) await releaseAgentCall(job, reservation); }
     },
     wrapStream: async ({ doStream, params }) => {
       const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
+      const reservation = await reserve(params);
       let result;
       try { result = await doStream(); }
-      catch (error) {await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); throw error;}
+      catch (error) {
+        try { await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); }
+        finally { if (reservation) await releaseAgentCall(job, reservation); }
+        throw error;
+      }
       const reader = result.stream.getReader();
       return {
         ...result,
@@ -175,7 +176,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
                 if (done) break;
                 if (part.type === "finish") {
                   recorded = true;
-                  await account(part, startedAt, params.maxOutputTokens, undefined, metadata, attempt);
+                  await account(part, startedAt, params.maxOutputTokens, undefined, metadata, attempt, reservation);
                 } else if (part.type === "error") {
                   recorded = true;
                   await recordFailure(part.error, startedAt, metadata, attempt, params.maxOutputTokens);
@@ -183,13 +184,18 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
                 controller.enqueue(part);
               }
               if (!recorded) await recordFailure(new Error("StreamEndedWithoutUsage"), startedAt, metadata, attempt, params.maxOutputTokens);
+              if (reservation) await releaseAgentCall(job, reservation);
               controller.close();
             } catch (error) {
               if (!recorded) await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens);
+              if (reservation) await releaseAgentCall(job, reservation);
               controller.error(error);
             } finally {reader.releaseLock();}
           },
-          cancel(reason) {return reader.cancel(reason);},
+          async cancel(reason) {
+            try { await reader.cancel(reason); }
+            finally { if (reservation) await releaseAgentCall(job, reservation); }
+          },
         }),
       };
     },

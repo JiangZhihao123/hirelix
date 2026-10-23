@@ -1,3 +1,4 @@
+import { createToolScheduler } from "./agent-tool-scheduling";
 import { observeAgentTool } from "./agent-telemetry";
 import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
@@ -160,7 +161,7 @@ export function createAgentTools(ctx: AgentToolContext) {
   const { job, question } = ctx,
     userId = job.user_id,
     conversationId = ctx.conversation.id;
-  let serial: Promise<unknown> = Promise.resolve();
+  const schedule = createToolScheduler(ctx.signal);
   const retriedWork = new Set<string>();
   const files = new Map<
     string,
@@ -199,7 +200,7 @@ export function createAgentTools(ctx: AgentToolContext) {
       inputSchema: schema,
       execute: async (input, options) => {
         const queuedAt = Date.now();
-        const run = serial.then(() => observeAgentTool(job, name, options.toolCallId, Date.now()-queuedAt, async () => {
+        return schedule(name, () => observeAgentTool(job, name, options.toolCallId, Date.now()-queuedAt, async () => {
           ctx.signal.throwIfAborted();
           if (ctx.clarification)
             return {
@@ -258,8 +259,6 @@ export function createAgentTools(ctx: AgentToolContext) {
             };
           }
         }));
-        serial = run.catch(() => {});
-        return run;
       },
     });
   }

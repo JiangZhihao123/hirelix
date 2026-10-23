@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { agentCreditContext } from "@/lib/agent-credit-context";
-import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
+import { reserveAgentCall, consumeAgentCredits, releaseAgentCall, type AgentCallReservation } from "@/lib/agent-access";
 import { costToCreditUnits, creditMarkup, deepSeekRates, llmServiceCost, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import { CREDIT_RETAIL_USD, CREDIT_UNITS } from "@/lib/agent-plan";
 import { generateLlmText, getDefaultLlmModel, isUsingOfficialDeepSeek, type LlmJsonSchemaConfig } from "@/lib/llm-client";
@@ -25,37 +25,41 @@ export async function generateVisionText(options: {
   const rates = official ? deepSeekRates(model, startedAt, true)
     : {input: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20), output: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20)};
   let maxTokens = 12000;
+  let reservation: AgentCallReservation | undefined;
   if (job) {
     // Official Flash caps each image at 1024 input tokens. Reserve at peak
     // rates, then settle using the provider's actual text + image token usage.
     const bound = Buffer.byteLength(options.system + options.prompt + JSON.stringify(options.jsonSchema ?? {})) + options.images.length * (official ? 1024 : 65536) + 512;
-    maxTokens = await reserveAgentCall(job, costToCreditUnits(bound * rates.input / 1e6, multiplier), maxTokens, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
+    reservation = await reserveAgentCall(job, costToCreditUnits(bound * rates.input / 1e6, multiplier), maxTokens, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
+    maxTokens = reservation.maxOutputTokens;
   }
-  const response = await generateLlmText({
-    abortSignal: job?.signal,model, system: options.system, prompt: options.prompt,
-    images: options.images, jsonSchema: options.jsonSchema, maxOutputTokens: maxTokens, temperature: 0.1,
-    deepSeekThinking: "disabled", timeoutMs: 120000, onText: options.onText,
-    redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage, metadata: {...job?.trace, parent_model_call_id: job?.trace?.model_call_id ?? job?.trace?.parent_model_call_id, model_call_id: randomUUID()}},
-  });
-  const raw = response.rawResponse as {
-    choices?: Array<{message?: {content?: string}; finish_reason?: string}>;
-    usage?: {cost?: number};
-  };
-  const {inputTokens: input, outputTokens: output} = response.usage;
-  if (!Number.isSafeInteger(input) || !Number.isSafeInteger(output) || input <= 0 || output < 0)
-    throw new WorkspaceError("Image reading service returned no valid usage", 502);
-  const cost = official ? llmServiceCost(model, startedAt, response.usage) : raw.usage?.cost;
-  if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)
-    throw new WorkspaceError("Image reading service returned no valid cost", 502);
-  if (job) await consumeAgentCredits(job, costToCreditUnits(cost, multiplier), cost, {
-    stage: options.stage, provider: official ? "deepseek" : "openrouter", model, input_tokens: input, output_tokens: output,
-    cost_usd: cost, multiplier, pricing_version: CREDIT_PRICING_VERSION, started_at: startedAt.toISOString(),
-    ...(official ? {usage: response.usage} : {provider_reported_cost: true}),
-  });
-  const text = response.text;
-  if (!text?.trim() || raw.choices?.[0]?.finish_reason === "length")
-    throw new WorkspaceError("Image reading was incomplete. Split the material into smaller files and retry.", 502);
-  return {text};
+  try {
+    const response = await generateLlmText({
+      abortSignal: job?.signal,model, system: options.system, prompt: options.prompt,
+      images: options.images, jsonSchema: options.jsonSchema, maxOutputTokens: maxTokens, temperature: 0.1,
+      deepSeekThinking: "disabled", timeoutMs: 120000, onText: options.onText,
+      redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage, metadata: {...job?.trace, parent_model_call_id: job?.trace?.model_call_id ?? job?.trace?.parent_model_call_id, model_call_id: randomUUID()}},
+    });
+    const raw = response.rawResponse as {
+      choices?: Array<{message?: {content?: string}; finish_reason?: string}>;
+      usage?: {cost?: number};
+    };
+    const {inputTokens: input, outputTokens: output} = response.usage;
+    if (!Number.isSafeInteger(input) || !Number.isSafeInteger(output) || input <= 0 || output < 0)
+      throw new WorkspaceError("Image reading service returned no valid usage", 502);
+    const cost = official ? llmServiceCost(model, startedAt, response.usage) : raw.usage?.cost;
+    if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0)
+      throw new WorkspaceError("Image reading service returned no valid cost", 502);
+    if (job && reservation) await consumeAgentCredits(job, reservation, costToCreditUnits(cost, multiplier), cost, {
+      stage: options.stage, provider: official ? "deepseek" : "openrouter", model, input_tokens: input, output_tokens: output,
+      cost_usd: cost, multiplier, pricing_version: CREDIT_PRICING_VERSION, started_at: startedAt.toISOString(),
+      ...(official ? {usage: response.usage} : {provider_reported_cost: true}),
+    });
+    const text = response.text;
+    if (!text?.trim() || raw.choices?.[0]?.finish_reason === "length")
+      throw new WorkspaceError("Image reading was incomplete. Split the material into smaller files and retry.", 502);
+    return {text};
+  } finally { if (job && reservation) await releaseAgentCall(job, reservation); }
 }
 
 export async function transcribeImages(images: SourceImage[]) {

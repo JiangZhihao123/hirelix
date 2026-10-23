@@ -10,7 +10,7 @@ import {
   LlmOutputTruncatedError,
 } from "@/lib/llm-client";
 import { agentCreditContext } from "@/lib/agent-credit-context";
-import { reserveAgentCall, consumeAgentCredits, releaseAgentCall } from "@/lib/agent-access";
+import { reserveAgentCall, consumeAgentCredits, releaseAgentCall, type AgentCallReservation } from "@/lib/agent-access";
 import { costToCreditUnits, creditMarkup, deepSeekRates, llmServiceCost, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import { CREDIT_UNITS, CREDIT_RETAIL_USD } from "@/lib/agent-plan";
 import { getLogger } from "@/lib/logger";
@@ -58,13 +58,15 @@ export async function structured<T extends z.ZodType>(
     const callContext = {...job?.trace, parent_model_call_id: job?.trace?.model_call_id ?? job?.trace?.parent_model_call_id, model_call_id: callId, structured_attempt: attempt};
     const prompt = JSON.stringify(input), schemaJson = z.toJSONSchema(schema) as Record<string, unknown>;
     let maxOutputTokens = outputTokenBudget;
+    let reservation: AgentCallReservation | undefined;
     if (job && !images.length) {
       // Byte count overestimates input size; reserve at the peak tariff so a
       // call crossing a time boundary cannot overdraw the account.
       const maxRate = isUsingOfficialDeepSeek() ? deepSeekRates(model, startedAt, true)
         : { input: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20), output: Number(process.env.AGENT_OPENROUTER_COST_CEILING_PER_MILLION ?? 20) };
       const inputBound = Buffer.byteLength(instruction+prompt+JSON.stringify(schemaJson), "utf8")+512;
-      maxOutputTokens = await reserveAgentCall(job, costToCreditUnits(inputBound*maxRate.input/1e6,multiplier),maxOutputTokens,maxRate.output/1e6*multiplier/CREDIT_RETAIL_USD*CREDIT_UNITS);
+      reservation = await reserveAgentCall(job, costToCreditUnits(inputBound*maxRate.input/1e6,multiplier),maxOutputTokens,maxRate.output/1e6*multiplier/CREDIT_RETAIL_USD*CREDIT_UNITS);
+      maxOutputTokens = reservation.maxOutputTokens;
     }
     try {
       let response;
@@ -124,12 +126,12 @@ export async function structured<T extends z.ZodType>(
         ...(!result.success ? {issues: result.error.issues.map(issue => ({code: issue.code, path: issue.path}))} : {}),
       });
       if (result.success) {
-        if (job && !images.length && "rawResponse" in response && "usage" in response) {
+        if (job && reservation && !images.length && "rawResponse" in response && "usage" in response) {
           const standard = response as Awaited<ReturnType<typeof generateLlmText>>;
           const raw = response.rawResponse as { usage?: { cost?: number } };
           const cost = isUsingOfficialDeepSeek() ? llmServiceCost(model, startedAt, standard.usage) : raw.usage?.cost;
           if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0) throw new Error("AI provider returned no cost");
-          await consumeAgentCredits(job, costToCreditUnits(cost,multiplier),cost,{ stage,model,provider: isUsingOfficialDeepSeek() ? "deepseek" : "openrouter", cost_usd: cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,started_at:startedAt.toISOString(),usage:response.usage, ...callContext });
+          await consumeAgentCredits(job, reservation, costToCreditUnits(cost,multiplier),cost,{ stage,model,provider: isUsingOfficialDeepSeek() ? "deepseek" : "openrouter", cost_usd: cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,started_at:startedAt.toISOString(),usage:response.usage, ...callContext });
         }
         return result.data;
       }
@@ -140,7 +142,7 @@ export async function structured<T extends z.ZodType>(
         "Structured reply did not match its schema",
       );
     } finally {
-      if (job && !images.length) await releaseAgentCall(job);
+      if (job && reservation) await releaseAgentCall(job, reservation);
     }
   }
   throw new WorkspaceError(

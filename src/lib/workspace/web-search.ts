@@ -2,7 +2,7 @@ import { z } from "zod";
 import { setTimeout as delay } from "node:timers/promises";
 import { getLogger } from "@/lib/logger";
 import { agentCreditContext } from "@/lib/agent-credit-context";
-import { consumeAgentCredits, reserveAgentCall } from "@/lib/agent-access";
+import { consumeAgentCredits, reserveAgentCall, releaseAgentCall } from "@/lib/agent-access";
 import { costToCreditUnits, creditMarkup, DEEPSEEK_WEB_REQUEST_COST_USD, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import { WorkspaceError } from "./database";
 
@@ -59,45 +59,47 @@ async function requestWeb<T>(operation: "search" | "fetch", input: object, signa
   if (!key) throw new WorkspaceError("Web retrieval is not configured. A DeepSeek API key is required.", 503);
   const job = agentCreditContext.getStore(), multiplier = creditMarkup();
   const units = costToCreditUnits(DEEPSEEK_WEB_REQUEST_COST_USD, multiplier);
-  if (job) await reserveAgentCall(job, units, 1, 0);
-  const abortSignal = AbortSignal.any([signal, AbortSignal.timeout(90000)]);
-  const started = Date.now();
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    let response: Response;
-    try {
-      response = await fetch(`https://api.deepseek.com/v1/tools/${operation}`, {
-        method: "POST", redirect: "error", signal: abortSignal,
-        headers: {"content-type": "application/json", authorization: `Bearer ${key}`},
-        body: JSON.stringify(input),
-      });
-    } catch {
-      signal.throwIfAborted();
-      // A lost response may already have incurred provider cost. Do not blindly redispatch.
-      throw new WorkspaceError(abortSignal.aborted ? "Web retrieval timed out. Please retry." : "Could not connect to DeepSeek web retrieval. Please retry.", 502);
-    }
-    if (response.status !== 200) {
-      if (attempt === 1 && (response.status === 408 || response.status === 429 || response.status >= 500)) {
-        await response.body?.cancel();
-        await delay(1000, undefined, {signal: abortSignal});
-        continue;
+  const reservation = job ? await reserveAgentCall(job, units, 1, 0) : undefined;
+  try {
+    const abortSignal = AbortSignal.any([signal, AbortSignal.timeout(90000)]);
+    const started = Date.now();
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(`https://api.deepseek.com/v1/tools/${operation}`, {
+          method: "POST", redirect: "error", signal: abortSignal,
+          headers: {"content-type": "application/json", authorization: `Bearer ${key}`},
+          body: JSON.stringify(input),
+        });
+      } catch {
+        signal.throwIfAborted();
+        // A lost response may already have incurred provider cost. Do not blindly redispatch.
+        throw new WorkspaceError(abortSignal.aborted ? "Web retrieval timed out. Please retry." : "Could not connect to DeepSeek web retrieval. Please retry.", 502);
       }
-      throw new WorkspaceError(`DeepSeek ${operation} failed (HTTP ${response.status}). Please retry.`, 502);
+      if (response.status !== 200) {
+        if (attempt === 1 && (response.status === 408 || response.status === 429 || response.status >= 500)) {
+          await response.body?.cancel();
+          await delay(1000, undefined, {signal: abortSignal});
+          continue;
+        }
+        throw new WorkspaceError(`DeepSeek ${operation} failed (HTTP ${response.status}). Please retry.`, 502);
+      }
+      let raw: unknown;
+      try { raw = await response.json(); }
+      catch { throw new WorkspaceError(`DeepSeek ${operation} returned invalid JSON. Please retry.`, 502); }
+      const result = parse(raw);
+      const billable = operation === "search" ? (result as {billable: boolean}).billable : !!(result as {content: string}).content.trim();
+      if (job && reservation) await consumeAgentCredits(job, reservation, billable ? units : 0, billable ? DEEPSEEK_WEB_REQUEST_COST_USD : 0, {
+        stage: `private_web_${operation}`, provider: "deepseek", billing_unit: "successful_request", requests: billable ? 1 : 0,
+        cost_usd: billable ? DEEPSEEK_WEB_REQUEST_COST_USD : 0, request_price_usd: DEEPSEEK_WEB_REQUEST_COST_USD,
+        multiplier, pricing_version: CREDIT_PRICING_VERSION,
+      });
+      signal.throwIfAborted();
+      getLogger({component: "workspace_web_search"}).info({job_id: job?.id, operation, attempt, billable, latency_ms: Date.now() - started}, "Web retrieval completed");
+      return result;
     }
-    let raw: unknown;
-    try { raw = await response.json(); }
-    catch { throw new WorkspaceError(`DeepSeek ${operation} returned invalid JSON. Please retry.`, 502); }
-    const result = parse(raw);
-    const billable = operation === "search" ? (result as {billable: boolean}).billable : !!(result as {content: string}).content.trim();
-    if (job) await consumeAgentCredits(job, billable ? units : 0, billable ? DEEPSEEK_WEB_REQUEST_COST_USD : 0, {
-      stage: `private_web_${operation}`, provider: "deepseek", billing_unit: "successful_request", requests: billable ? 1 : 0,
-      cost_usd: billable ? DEEPSEEK_WEB_REQUEST_COST_USD : 0, request_price_usd: DEEPSEEK_WEB_REQUEST_COST_USD,
-      multiplier, pricing_version: CREDIT_PRICING_VERSION,
-    });
-    signal.throwIfAborted();
-    getLogger({component: "workspace_web_search"}).info({job_id: job?.id, operation, attempt, billable, latency_ms: Date.now() - started}, "Web retrieval completed");
-    return result;
-  }
-  throw new WorkspaceError("DeepSeek web retrieval failed. Please retry.", 502);
+    throw new WorkspaceError("DeepSeek web retrieval failed. Please retry.", 502);
+  } finally { if (job && reservation) await releaseAgentCall(job, reservation); }
 }
 
 export async function searchWeb(query: string, signal: AbortSignal, options: {count?: number; need_content?: boolean} = {}) {

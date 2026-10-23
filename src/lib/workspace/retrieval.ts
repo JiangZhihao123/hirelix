@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { agentCreditContext } from "@/lib/agent-credit-context";
-import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
+import { reserveAgentCall, consumeAgentCredits, releaseAgentCall } from "@/lib/agent-access";
 import { embeddingServiceCost, costToCreditUnits, creditMarkup, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import {
   generateEmbeddings,
@@ -210,11 +210,13 @@ export const retrieveJob: JobHandler = async (job, progress) => {
 export async function embedRetrievalQuery(query: string) {
   const model = getEmbeddingConfig().model;
   const creditJob = agentCreditContext.getStore(), multiplier = creditMarkup();
-  if (creditJob) await reserveAgentCall(creditJob,costToCreditUnits(embeddingServiceCost(model,Buffer.byteLength(query)+64),multiplier),512,0);
-  const output = await generateEmbeddings([query]);
-  if (creditJob) {
-    const cost = embeddingServiceCost(output.model,output.inputTokens);
-    await consumeAgentCredits(creditJob,costToCreditUnits(cost,multiplier),cost,{ stage:"private_semantic_search",provider:"siliconflow",model:output.model,cost_usd:cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,input_tokens:output.inputTokens,cny_per_usd:Number(process.env.AGENT_CREDIT_CNY_PER_USD ?? 7),input_cny_per_million:0.28 });
-  }
-  return output;
+  const reservation = creditJob ? await reserveAgentCall(creditJob,costToCreditUnits(embeddingServiceCost(model,Buffer.byteLength(query)+64),multiplier),512,0) : undefined;
+  try {
+    const output = await generateEmbeddings([query]);
+    if (creditJob && reservation) {
+      const cost = embeddingServiceCost(output.model,output.inputTokens);
+      await consumeAgentCredits(creditJob, reservation,costToCreditUnits(cost,multiplier),cost,{ stage:"private_semantic_search",provider:"siliconflow",model:output.model,cost_usd:cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,input_tokens:output.inputTokens,cny_per_usd:Number(process.env.AGENT_CREDIT_CNY_PER_USD ?? 7),input_cny_per_million:0.28 });
+    }
+    return output;
+  } finally { if (creditJob && reservation) await releaseAgentCall(creditJob, reservation); }
 }

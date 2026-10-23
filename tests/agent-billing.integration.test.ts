@@ -101,11 +101,11 @@ test("Concurrent service reservations cannot overspend a shared credit balance",
     assert.equal(calls.filter(call => call.status==='fulfilled').length,1);
     const winner = calls.findIndex(call => call.status==='fulfilled'), other = 1-winner;
     assert.equal((await getAgentAccess(owner)).remaining,1);
-    await consumeAgentCredits(jobs[winner],20000,0.0066666667,{ source:"synthetic-cost-regression" });
+    await consumeAgentCredits(jobs[winner],(calls[winner] as PromiseFulfilledResult<Awaited<ReturnType<typeof reserveAgentCall>>>).value,20000,0.0066666667,{ source:"synthetic-cost-regression" });
     assert.equal((await getAgentAccess(owner)).remaining,2);
-    await reserveAgentCall(jobs[other],30000,512,0);
+    const otherCall = await reserveAgentCall(jobs[other],30000,512,0);
     assert.equal((await getAgentAccess(owner)).remaining,0);
-    await consumeAgentCredits(jobs[other],30000,0.01,{ source:"synthetic-cost-regression" });
+    await consumeAgentCredits(jobs[other],otherCall,30000,0.01,{ source:"synthetic-cost-regression" });
     await db.execute(sql`UPDATE hirelix_private_jobs SET status='done' WHERE user_id=${owner}::uuid`);
     const access = await getAgentAccess(owner);
     assert.equal(access.used,200); assert.equal(access.reserved,0); assert.equal(access.remaining,0);

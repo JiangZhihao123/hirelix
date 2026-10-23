@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { AGENT_PLAN, isAgentPlan, type AgentAccess, CREDIT_UNITS } from "./agent-plan";
@@ -67,62 +68,77 @@ export async function reserveAgentCredits(userId: string, jobId: string, runner:
   await runner.execute(sql`INSERT INTO hirelix_agent_access(user_id) VALUES(${userId}::uuid) ON CONFLICT DO NOTHING`);
   const access = await getAgentAccess(userId, runner);
   if (!access.remaining) return false;
-  await runner.execute(sql`INSERT INTO hirelix_agent_credit_usage(job_id,user_id,reserved_units) VALUES(${jobId}::uuid,${userId}::uuid,${Math.min(CREDIT_UNITS, Math.round(access.remaining*CREDIT_UNITS))}) ON CONFLICT(job_id) DO UPDATE SET charged_at=now(),reserved_units=EXCLUDED.reserved_units,consumed_units=0`);
+  await runner.execute(sql`INSERT INTO hirelix_agent_credit_usage(job_id,user_id,reserved_units) VALUES(${jobId}::uuid,${userId}::uuid,${Math.min(CREDIT_UNITS, Math.round(access.remaining*CREDIT_UNITS))}) ON CONFLICT(job_id) DO UPDATE SET charged_at=now(),reserved_units=EXCLUDED.reserved_units,consumed_units=0,call_reservations='{}'::jsonb`);
   return true;
 }
 
 async function lockedCreditJob(job: Job, tx: Pick<typeof db, "execute">) {
+  // Match claim/stop lock order: job before account billing lock.
+  const current = await tx.execute(sql`SELECT id FROM hirelix_private_jobs
+    WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running'
+      AND lease_token=${job.lease_token}::uuid AND lease_until>now() FOR UPDATE`);
+  if (!current.length) throw new Error("AI credit execution lost its lease");
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
-  const records = await tx.execute(sql`
-    SELECT u.reserved_units,u.consumed_units FROM hirelix_private_jobs j
-    LEFT JOIN hirelix_agent_credit_usage u ON u.job_id=j.id
-    WHERE j.id=${job.id}::uuid AND j.user_id=${job.user_id}::uuid AND j.status='running'
-      AND j.lease_token=${job.lease_token}::uuid AND j.lease_until>now() FOR UPDATE OF j`);
-  if (!records.length) throw new Error("AI credit execution lost its lease");
-  if (records[0].reserved_units === null) return null; // Included indexing/import.
-  return { reserved: Number(records[0].reserved_units), consumed: Number(records[0].consumed_units) };
+  const [record] = await tx.execute(sql`SELECT reserved_units,consumed_units,call_reservations
+    FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid`);
+  if (!record) return null; // Included indexing/import.
+  return { reserved: Number(record.reserved_units), consumed: Number(record.consumed_units), calls: record.call_reservations as Record<string, number> };
 }
+
+export type AgentCallReservation = { id: string; maxOutputTokens: number };
 
 export async function reserveAgentCall(job: Job, inputUnits: number, maxOutputTokens: number, outputUnitsPerToken: number) {
   if (!Number.isSafeInteger(inputUnits) || inputUnits < 0 || !Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0 || !Number.isFinite(outputUnitsPerToken) || outputUnitsPerToken < 0)
     throw new Error("Invalid AI credit reservation");
+  const id = randomUUID();
   return db.transaction(async (tx) => {
     const ledger = await lockedCreditJob(job, tx);
-    if (!ledger) return maxOutputTokens;
+    if (!ledger) return {id, maxOutputTokens};
     const access = await getAgentAccess(job.user_id, tx);
     if (access.state === "expired") throw new AgentCreditError();
     // The enqueue period owns this reservation. Do not spend a new month's
     // allowance from an old queued job; the user can retry it in the new period.
     const [inPeriod] = await tx.execute(sql`SELECT charged_at>=${access.periodStart}::timestamptz AND charged_at<${access.periodEnd}::timestamptz AS valid FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid`);
     if (!inPeriod?.valid) throw new AgentCreditError();
-    const capacity = Math.round(access.remaining*CREDIT_UNITS) + ledger.reserved - ledger.consumed;
+    const held = Object.values(ledger.calls).reduce((sum, units) => sum + units, 0);
+    const capacity = Math.round(access.remaining*CREDIT_UNITS) + ledger.reserved - ledger.consumed - held;
     if (capacity < inputUnits) throw new AgentCreditError();
     const output = outputUnitsPerToken ? Math.min(maxOutputTokens, Math.floor((capacity-inputUnits)/outputUnitsPerToken)) : maxOutputTokens;
     if (output < Math.min(maxOutputTokens, 512)) throw new AgentCreditError();
-    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET reserved_units=${ledger.consumed + inputUnits + Math.ceil(output*outputUnitsPerToken)} WHERE job_id=${job.id}::uuid`);
-    return output;
+    const units = inputUnits + Math.ceil(output*outputUnitsPerToken);
+    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET reserved_units=${ledger.consumed + held + units},
+      call_reservations=call_reservations || ${JSON.stringify({[id]: units})}::jsonb WHERE job_id=${job.id}::uuid`);
+    return {id, maxOutputTokens: output};
   });
 }
 
-// Release unused capacity after every structured attempt, including format
-// failures. A replaced/cancelled lease may not alter its successor's ledger.
-export async function releaseAgentCall(job: Job) {
+// Release only this call, including failures and empty results. Stale executions
+// cannot release a successor's holds. Releasing an already settled call is harmless.
+export async function releaseAgentCall(job: Job, call: AgentCallReservation) {
   await db.transaction(async tx => {
+    const current = await tx.execute(sql`SELECT id FROM hirelix_private_jobs WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid
+      AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now() FOR UPDATE`);
+    if (!current.length) return;
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
-    await tx.execute(sql`UPDATE hirelix_agent_credit_usage u SET reserved_units=u.consumed_units
-      FROM hirelix_private_jobs j WHERE u.job_id=j.id AND j.id=${job.id}::uuid AND j.user_id=${job.user_id}::uuid
-        AND j.status='running' AND j.lease_token=${job.lease_token}::uuid AND j.lease_until>now()`);
+    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET
+      reserved_units=reserved_units-coalesce((call_reservations->>${call.id})::bigint,0),
+      call_reservations=call_reservations-${call.id} WHERE job_id=${job.id}::uuid`);
   });
 }
 
-// Only a validated response consumes credits. An invalid format is a product
-// retry; its provider usage stays in the diagnostic log, not the customer bill.
-export async function consumeAgentCredits(job: Job, units: number, costUsd: number, snapshot: Record<string, unknown>) {
-  if (!Number.isSafeInteger(units) || units < 0) throw new Error("Invalid credit consumption");
+// Only a validated response consumes credits. Settlement cannot borrow another
+// in-flight call's hold or settle the same call twice.
+export async function consumeAgentCredits(job: Job, call: AgentCallReservation, units: number, costUsd: number, snapshot: Record<string, unknown>) {
+  if (!Number.isSafeInteger(units) || units < 0 || !Number.isFinite(costUsd) || costUsd < 0) throw new Error("Invalid credit consumption");
   await db.transaction(async (tx) => {
     const ledger = await lockedCreditJob(job, tx);
     if (!ledger) return;
-    if (ledger.consumed + units > ledger.reserved) throw new AgentCreditError();
-    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=consumed_units+${units},reserved_units=consumed_units+${units},cost_nano_usd=cost_nano_usd+${Math.round(costUsd*1e9)},pricing_snapshot=pricing_snapshot || ${JSON.stringify([snapshot])}::jsonb WHERE job_id=${job.id}::uuid`);
+    const held = ledger.calls[call.id];
+    if (held === undefined) throw new Error("AI credit call is not reserved or already settled");
+    if (units > held) throw new AgentCreditError();
+    await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=consumed_units+${units},
+      reserved_units=reserved_units-${held}+${units},call_reservations=call_reservations-${call.id},
+      cost_nano_usd=cost_nano_usd+${Math.round(costUsd*1e9)},
+      pricing_snapshot=pricing_snapshot || ${JSON.stringify([{...snapshot, reservation_id: call.id}])}::jsonb WHERE job_id=${job.id}::uuid`);
   });
 }
