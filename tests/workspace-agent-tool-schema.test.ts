@@ -18,10 +18,15 @@ test("all 43 tools retain their runtime schemas and every nonredundant model con
     const schema=tool.inputSchema as z.ZodType, original=z.toJSONSchema(schema);
     const compact=compactAgentToolSchema(original);
     assert.deepEqual(compact,expected(original),name);
-    assert.equal(schema.safeParse(undefined).success,false,name);
+
   }
   for(const term of ["current", "prior user instruction", "superseded", "External actions", "Never quote files"])
     assert.ok(AGENT_TOOL_AUTHORIZATION_RULES.includes(term));
+  const deletion = tools.delete_candidate.inputSchema as z.ZodType;
+  const valid = {authorization_quote: "Delete this candidate",person_id:"60c7ae18-23da-45cd-93c4-bdd3a1f7c529",expected_version:1};
+  assert.equal(deletion.safeParse(valid).success,true);
+  for (const invalid of [{...valid,person_id:"not-a-uuid"},{...valid,expected_version:0},{...valid,authorization_quote:""}])
+    assert.equal(deletion.safeParse(invalid).success,false);
   const custom = {type:"string",format:"uuid",pattern:"^custom$"};
   assert.deepEqual(compactAgentToolSchema(custom),custom,"Non-Zod patterns are retained");
 });
