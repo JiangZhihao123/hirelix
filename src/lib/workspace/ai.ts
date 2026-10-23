@@ -10,12 +10,16 @@ import {
   LlmOutputTruncatedError,
 } from "@/lib/llm-client";
 import { agentCreditContext } from "@/lib/agent-credit-context";
-import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
+import { reserveAgentCall, consumeAgentCredits, releaseAgentCall } from "@/lib/agent-access";
 import { costToCreditUnits, creditMarkup, deepSeekRates, llmServiceCost, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
 import { CREDIT_UNITS, CREDIT_RETAIL_USD } from "@/lib/agent-plan";
 import { getLogger } from "@/lib/logger";
 import { WorkspaceError } from "./database";
 import { generateVisionText, type SourceImage } from "./vision";
+
+// Output ceilings cover reasoning + JSON prose, and are still constrained by
+// the existing allowance reservation. Only document writers select this budget.
+export const DOCUMENT_OUTPUT_TOKENS = 16384;
 
 export async function structured<T extends z.ZodType>(
   userId: string,
@@ -25,10 +29,11 @@ export async function structured<T extends z.ZodType>(
   input: unknown,
   onAnswer?: (answer: string) => Promise<void>,
   images: SourceImage[] = [],
+  options: {maxOutputTokens?: number} = {},
 ): Promise<z.infer<T>> {
   let lastIssue: "invalid_json" | "invalid_schema" = "invalid_json";
   let validationFeedback = "";
-  let outputTokenBudget = 7000;
+  let outputTokenBudget = options.maxOutputTokens ?? 7000;
   for (let attempt = 1; attempt <= 2; attempt++) {
     // Keep the first preview while validating or repairing the structured
     // response. A retry is replacement prose, not an extension of that preview;
@@ -54,6 +59,7 @@ export async function structured<T extends z.ZodType>(
       const inputBound = Buffer.byteLength(instruction+prompt+JSON.stringify(schemaJson), "utf8")+512;
       maxOutputTokens = await reserveAgentCall(job, costToCreditUnits(inputBound*maxRate.input/1e6,multiplier),maxOutputTokens,maxRate.output/1e6*multiplier/CREDIT_RETAIL_USD*CREDIT_UNITS);
     }
+    try {
     let response;
     try {
       response = images.length ? await generateVisionText({
@@ -81,7 +87,11 @@ export async function structured<T extends z.ZodType>(
       if (!(error instanceof LlmOutputTruncatedError)) throw error;
       getLogger({ component: "workspace_ai" }).warn({ stage, attempt, max_output_tokens: maxOutputTokens }, "Structured response exhausted its output budget");
       if (attempt === 2) throw new WorkspaceError("The assistant could not finish the answer. Your input is saved; retry the task.", 502);
-      outputTokenBudget = 14000;
+      // Repeating a quota-clipped ceiling cannot fix truncation. Preserve the
+      // input and stop rather than paying for the same incomplete generation.
+      if (maxOutputTokens < outputTokenBudget)
+        throw new WorkspaceError("The available AI credits cannot complete this answer. Your input is saved; check Billing before retrying.", 402);
+      outputTokenBudget *= 2;
       continue;
     }
     const extracted = extractJsonText(response.text);
@@ -108,7 +118,7 @@ export async function structured<T extends z.ZodType>(
         const raw = response.rawResponse as { usage?: { cost?: number } };
         const cost = isUsingOfficialDeepSeek() ? llmServiceCost(model, startedAt, standard.usage) : raw.usage?.cost;
         if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0) throw new Error("AI provider returned no cost");
-        await consumeAgentCredits(job, costToCreditUnits(cost,multiplier),cost,{ stage,model,provider: isUsingOfficialDeepSeek() ? "deepseek" : "openrouter", cost_usd: cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,started_at:startedAt.toISOString(),usage:response.usage });
+        await consumeAgentCredits(job, costToCreditUnits(cost,multiplier),cost,{ stage,model,provider: isUsingOfficialDeepSeek() ? "deepseek" : "openrouter", cost_usd: cost,multiplier,pricing_version:CREDIT_PRICING_VERSION,started_at:startedAt.toISOString(),usage:response.usage, ...job.trace, structured_attempt: attempt });
       }
       return result.data;
     }
@@ -118,6 +128,9 @@ export async function structured<T extends z.ZodType>(
       { stage, attempt, issue: lastIssue },
       "Structured reply did not match its schema",
     );
+    } finally {
+      if (job && !images.length) await releaseAgentCall(job);
+    }
   }
   throw new WorkspaceError(
     lastIssue === "invalid_json"

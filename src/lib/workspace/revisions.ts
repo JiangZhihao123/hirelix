@@ -13,7 +13,7 @@ import {
   WorkspaceError,
   type Runner,
 } from "./database";
-import { structured } from "./ai";
+import { structured, DOCUMENT_OUTPUT_TOKENS } from "./ai";
 import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { personalWritingPreferences, PERSONAL_MEMORY_USE_RULES } from "./memories";
 import type { Deliverable, Job, Role } from "./types";
@@ -157,6 +157,7 @@ export const generateRevision: JobHandler = async (job, progress) => {
       instructions: job.payload.instructions,
       personal_working_preferences: await personalWritingPreferences(job.user_id),
     },
+    undefined, [], {maxOutputTokens: DOCUMENT_OUTPUT_TOKENS},
   );
   return {
     result: {

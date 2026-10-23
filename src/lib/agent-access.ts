@@ -104,6 +104,17 @@ export async function reserveAgentCall(job: Job, inputUnits: number, maxOutputTo
   });
 }
 
+// Release unused capacity after every structured attempt, including format
+// failures. A replaced/cancelled lease may not alter its successor's ledger.
+export async function releaseAgentCall(job: Job) {
+  await db.transaction(async tx => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
+    await tx.execute(sql`UPDATE hirelix_agent_credit_usage u SET reserved_units=u.consumed_units
+      FROM hirelix_private_jobs j WHERE u.job_id=j.id AND j.id=${job.id}::uuid AND j.user_id=${job.user_id}::uuid
+        AND j.status='running' AND j.lease_token=${job.lease_token}::uuid AND j.lease_until>now()`);
+  });
+}
+
 // Only a validated response consumes credits. An invalid format is a product
 // retry; its provider usage stays in the diagnostic log, not the customer bill.
 export async function consumeAgentCredits(job: Job, units: number, costUsd: number, snapshot: Record<string, unknown>) {
