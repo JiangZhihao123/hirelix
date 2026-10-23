@@ -2,7 +2,7 @@ import { workErrorDiagnostics } from "./error-diagnostics";
 import { turnParts } from "./turn-progress";
 import { isIncludedTask } from "./database";
 import { reserveAgentCredits, AgentCreditError } from "@/lib/agent-access";
-import { agentCreditContext } from "@/lib/agent-credit-context";
+import { agentCreditContext, executionTrace } from "@/lib/agent-credit-context";
 import { CREDIT_UNITS } from "@/lib/agent-plan";
 import { getLogger } from "@/lib/logger";
 import { IndexProviderError } from "@/lib/candidate-index/provider-request";
@@ -172,8 +172,9 @@ export async function processJob(
     }
   }, 30000);
   let phase = "prepare";
+  const trace = executionTrace(job);
   try {
-    const prepared = await agentCreditContext.run(job, () => handlers[job.kind]!(job, async (message) => {
+    const prepared = await agentCreditContext.run({...job, trace}, () => handlers[job.kind]!(job, async (message) => {
       if (leaseLost) throw new LostLease();
       await heartbeat(job, message);
     }));
@@ -182,6 +183,7 @@ export async function processJob(
     await finishJob(job, prepared);
   } catch (error) {
     const fields = {
+      ...trace,
       job_id: job.id,
       kind: job.kind,
       attempt: job.attempts,

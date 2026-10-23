@@ -383,7 +383,7 @@ export function createAgentTools(ctx: AgentToolContext) {
   }
   async function attachChild(tx: Runner, child: Job) {
     await tx.execute(
-      sql`UPDATE hirelix_private_jobs SET payload=payload || ${json({ conversation_id: conversationId, parent_chat_job_id: job.id })} WHERE id=${child.id}::uuid AND user_id=${userId}::uuid`,
+      sql`UPDATE hirelix_private_jobs SET payload=payload || ${json({ conversation_id: conversationId, parent_chat_job_id: job.id, parent_trace: agentCreditContext.getStore()?.trace })} WHERE id=${child.id}::uuid AND user_id=${userId}::uuid`,
     );
   }
   return {
@@ -947,6 +947,7 @@ export function createAgentTools(ctx: AgentToolContext) {
                 save_new_candidates: true,
                 request: {locale: ctx.locale, timezone: ctx.timezone},
                 parent_chat_job_id: job.id,
+                parent_trace: agentCreditContext.getStore()?.trace,
               },
               tx,
             );

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { getLogger } from "@/lib/logger";
@@ -13,11 +12,12 @@ export type AgentTraceContext = {
   model_call_id?: string;
   tool_call_id?: string;
   parent_job_id?: string;
+  parent_execution_id?: string;
+  parent_model_call_id?: string;
+  parent_step?: number;
 };
 
-export function executionTrace(job: Job): AgentTraceContext {
-  return {execution_id: randomUUID(), job_attempt: job.attempts};
-}
+export { executionTrace } from "@/lib/agent-credit-context";
 
 // Append under the active lease. Never replace a preceding execution's evidence.
 // Events contain identifiers, timing and structural outcomes only.

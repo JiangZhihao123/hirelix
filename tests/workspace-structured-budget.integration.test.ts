@@ -17,11 +17,13 @@ test("mock provider + real PG: document ceiling, truncation retry, format failur
   const owner = randomUUID();
   try {
     process.env.AI_PROVIDER = "deepseek";
+    process.env.DEEPSEEK_THINKING = "enabled";
     process.env.DEEPSEEK_MODEL = "deepseek-flash";
     process.env.OPENROUTER_BASE_URL = "https://api.deepseek.com";
     const sent = await sendMessage(owner,{message:"Budget QA",request_key:randomUUID()});
     const job = (await claimJob(["chat"],{id:sent.job.id,userId:owner}))!;
-    let responses: Array<{text: string; finish: string}>=[], ceilings: number[]=[], modes: string[]=[];
+    let responses: Array<{text: string; finish: string}>=[], ceilings: number[]=[];
+    const modes: string[]=[];
     globalThis.fetch = async (_input, init) => {
       const body = JSON.parse(String(init?.body)); ceilings.push(body.max_tokens); modes.push(body.thinking.type);
       const next = responses.shift(); assert.ok(next,"Unexpected provider retry");
@@ -31,7 +33,7 @@ test("mock provider + real PG: document ceiling, truncation retry, format failur
     responses=[{text:'{"answer":"complete"}',finish:"stop"}];
     await run(); assert.deepEqual(ceilings,[7000],"Small schemas retain their existing ceiling");
     ceilings=[]; responses=[{text:'{"answer":"partial',finish:"length"},{text:'{"answer":"complete"}',finish:"stop"}];
-    await run(DOCUMENT_OUTPUT_TOKENS); assert.deepEqual(ceilings,[16384,32768]); assert.deepEqual(modes.slice(-2),["disabled","disabled"]);
+    await run(DOCUMENT_OUTPUT_TOKENS); assert.deepEqual(ceilings,[32768,65536]); assert.deepEqual(modes.slice(-2),["enabled","enabled"]);
     const [settled] = await db.execute(sql`SELECT * FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid`);
     assert.equal(settled.reserved_units,settled.consumed_units);
     assert.equal((settled.pricing_snapshot as unknown[]).length,2,"Truncation does not charge the user");

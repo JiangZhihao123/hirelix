@@ -12,7 +12,7 @@ import {
   failJob,
   type JobHandler,
 } from "./jobs";
-import { agentCreditContext } from "@/lib/agent-credit-context";
+import { agentCreditContext, executionTrace } from "@/lib/agent-credit-context";
 import type { Job, Message } from "./types";
 import type { AssistantMeta } from "./conversations";
 
@@ -141,7 +141,7 @@ export async function completeAgentWork(
     );
     let phase = "prepare";
     try {
-      const prepared = await agentCreditContext.run({ ...child, signal, trace: {...agentCreditContext.getStore()?.trace, parent_job_id: parent.id, job_attempt: child.attempts} }, () =>
+      const prepared = await agentCreditContext.run({ ...child, signal, trace: executionTrace(child, agentCreditContext.getStore()?.trace) }, () =>
         handler(child, async (message) => {
           signal.throwIfAborted();
           await activeAgentJob(parent);

@@ -48,7 +48,7 @@ Apply the delegation boundary before choosing any tools: material supplied witho
 Before ending the reply, check the latest requested scope: if it is fulfilled, stop. Do not reopen a declined or deferred action even as a polite future offer (for example, offering to save later after the user said not to save). Helpful initiative means finishing the delegated work, not soliciting a new assignment. This takes priority over suggestions to advance work.`;
 
 export const assistantReply: JobHandler = (job, progress) => agentCreditContext.run(
-  {...job, trace: executionTrace(job)}, () => runAssistantReply(job, progress),
+  {...job, trace: agentCreditContext.getStore()?.trace ?? executionTrace(job)}, () => runAssistantReply(job, progress),
 );
 const runAssistantReply: JobHandler = async (job, progress) => {
   await resolveQueuedQuestion(job);
