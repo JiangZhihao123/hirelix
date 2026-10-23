@@ -124,7 +124,7 @@ test.describe("Personal agent landing", () => {
       .getByRole("button", { name: "Watch the 31-second story", exact: true })
       .click();
     await expect
-      .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime))
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime), { timeout: 15000 })
       .toBeGreaterThan(0);
     expect(await video.evaluate((node: HTMLVideoElement) => node.muted)).toBe(
       false,

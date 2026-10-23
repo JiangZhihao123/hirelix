@@ -1,4 +1,8 @@
-import { test, expect } from "@playwright/test";
+import { test, expect as baseExpect } from "@playwright/test";
+
+// This real local flow compiles several routes on first use.
+const expect = baseExpect.configure({ timeout: 15000 });
+test.setTimeout(120000);
 
 test("real local collector records public navigation once, strips query data, and reads back through the protected dashboard", async ({
   page,
@@ -27,14 +31,14 @@ test("real local collector records public navigation once, strips query data, an
   await page.goto(
     `/?utm_source=${source}&utm_medium=qa&private_prompt=never-collect-this`,
   );
-  await expect.poll(async () => (await read()).traffic.page_views).toBe(1);
+  await expect.poll(async () => (await read()).traffic.page_views, { timeout: 15000 }).toBe(1);
   await page
-    .getByRole("link", { name: "Prepare a client recommendation", exact: true })
+    .getByRole("link", { name: "How recommendations work", exact: true })
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
     "candidate submissions",
   );
-  await expect.poll(async () => (await read()).traffic.page_views).toBe(2);
+  await expect.poll(async () => (await read()).traffic.page_views, { timeout: 15000 }).toBe(2);
   const saved = await read();
   expect(saved.sources[0].source).toBe(source);
   expect(

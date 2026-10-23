@@ -36,7 +36,7 @@ export function TurnParts({ parts, running = false, onOpenLink, sourceLinks = []
   const hasFinalReply = !running && lastTool >= 0 && visible.slice(lastTool + 1).some(part => part.type === "text" && part.text.trim());
   // Keep the answer and actionable/error evidence in front. Completed calls
   // and their earlier progress narration remain inspectable together.
-  const history = detailed ? [] : visible.filter((part, index) => part.type === "text"
+  const history = detailed || running ? [] : visible.filter((part, index) => part.type === "text"
     ? hasFinalReply && index < lastTool
     : part.status === "done" && !isMailbox(part) && !part.warning && !part.sources?.length);
   const primary = visible.filter(part => !history.includes(part));

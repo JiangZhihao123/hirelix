@@ -36,6 +36,10 @@ test("running work, interruptions and partial search warnings remain visible", (
   for (const running of [true, false]) {
     const $ = load(renderToStaticMarkup(React.createElement(TurnParts, {parts,running})));
     const history = $("details.ws-turn-history");
+    if (running) {
+      assert.equal(history.length, 0, "Keep completed tools in place until the running turn finishes");
+      assert.ok($('.ws-tool-status[aria-label="Completed"]').length > 0);
+    }
     assert.doesNotMatch(history.text(), /Preparing your document|Some searches failed/);
     assert.ok($(`.ws-tool-status[aria-label="${running ? "In progress" : "Interrupted"}"]`).length > 0);
     assert.equal($(".ws-tool-partial").length, 1);

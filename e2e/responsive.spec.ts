@@ -5,15 +5,15 @@ test.describe("Responsive - Landing Page", () => {
 
   test("shows the personal agent hero and usable primary actions", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your personal AI agent for headhunting.");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your Personal Agent.Built for headhunters.");
     await expect(page.getByTestId("hero-primary-cta")).toBeVisible();
-    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Get started/);
+    await expect(page.getByTestId("nav-primary-cta")).toHaveText(/Start free trial/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
   test("shows current monthly and annual plans without retired sourcing forms", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("#pricing").getByRole("heading", { name: "Personal Agent", exact: true })).toHaveCount(2);
+    await expect(page.locator("#pricing").getByRole("heading", { name: "Hirelix Pro", exact: true })).toHaveCount(2);
     await expect(page.locator("#pricing").getByRole("button", { name: /Start free trial/ })).toHaveCount(2);
     await expect(page.getByPlaceholder("Paste a real client job description here...")).toHaveCount(0);
     await expect(page.locator('a[href*="search/new"]')).toHaveCount(0);
@@ -28,11 +28,11 @@ test.describe("Responsive - Landing Page", () => {
 
   test("keeps workflow examples and FAQs usable on mobile", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "What’s on your desk?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "A real role. The people you know. Start there." })).toBeVisible();
     const faq = page.locator("summary").filter({ hasText: "Can I export or delete candidate information?" });
     await faq.click();
     await expect(page.locator("details").filter({ has: faq })).toHaveAttribute("open", "");
-    await expect(page.getByRole("heading", { name: /Ten years of relationships/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your next role. Your Personal Agent." })).toBeVisible();
   });
 });
 
