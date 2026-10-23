@@ -43,6 +43,43 @@ test.describe("Personal agent landing", () => {
     );
   });
 
+  test("entry links keep their destination and campaign before JavaScript loads", async ({
+    browser, baseURL,
+  }) => {
+    const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+    try {
+      const page = await context.newPage();
+      await page.goto("/?utm_source=landing-qa&utm_campaign=cold-entry&gclid=qa-click", {
+        waitUntil: "domcontentloaded",
+      });
+      const entries = page.locator('a[href^="/app?"]');
+      await expect(entries).toHaveCount(7);
+      for (const href of await entries.evaluateAll((links) =>
+        links.map((link) => link.getAttribute("href")!),
+      )) {
+        const url = new URL(href, baseURL);
+        expect(url.searchParams.get("utm_source")).toBe("landing-qa");
+        expect(url.searchParams.get("utm_campaign")).toBe("cold-entry");
+        expect(url.searchParams.get("gclid")).toBe("qa-click");
+        const signIn = url.searchParams.get("entry") === "signin";
+        expect(url.searchParams.get("prompt")).toBe(signIn ? null : firstAssignmentPrompt);
+      }
+      const plans = await page.locator('.ha-pricing-options a[href^="/app?"]').evaluateAll((links) =>
+        links.map((link) => new URL(link.getAttribute("href")!, location.origin).searchParams.get("plan")),
+      );
+      expect(plans).toEqual(["agent_monthly", "agent_annual"]);
+      await expect(page.getByTestId("hero-primary-cta")).toHaveRole("link");
+      await page.getByTestId("hero-primary-cta").click();
+      await expect(page).toHaveURL(/\/app\?/);
+      const destination = new URL(page.url());
+      expect(destination.searchParams.get("entry")).toBe("free_trial");
+      expect(destination.searchParams.get("utm_campaign")).toBe("cold-entry");
+      expect(destination.searchParams.get("prompt")).toBe(firstAssignmentPrompt);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("reads the complete recommendation and selected resume without signing in", async ({
     page,
   }) => {
