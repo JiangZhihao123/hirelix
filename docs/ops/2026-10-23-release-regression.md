@@ -38,4 +38,20 @@ VPS 与 origin/main 为 `1afae7d`。Vercel 正式域名部署 `dpl_5MtYmMEekGALY
 
 首版十三项功能以既有 1.0.0 放行记录为基线，本次复验累计代码改动影响的行为。此前真实 Google/OTP、Gmail 发送、Outlook 读发、分享/反馈/撤销、提醒和 Live 月付证据仍属历史；没有将本轮模拟登录或签名账单合同说成新增真实付款、重新授权或邮件实收。Gmail 读取仍不支持，未实购年付和不配置自动异地备份继续遵循既有产品决定。
 
-生产部署与冒烟结果在完成后补记；本节之前的通过结论不替代部署后结果。
+以下记录实际生产部署与冒烟结果；本节之前的通过结论不替代部署后结果。
+
+## 本次生产部署与冒烟
+
+产品提交 `e62e9963c38651a75c4fed1f8a19d9d8a1b75c7a` 已推送 main。GitHub Actions [39921914767](https://github.com/JiangZhihao123/hirelix/actions/runs/39921914767) 的 build-and-test 与 deploy-scheduler 均成功。Vercel `dpl_DsdFjbASbDeQGNyh3GhqUm2shY1N` 为 READY，构建日志明确记录该提交，正式域名已指向该部署；VPS `/opt/hirelix` 完整 SHA 相同。
+
+真实 Chrome 使用现有测试账号登录态检查：4 位候选人及 Mara 详情、职位 v2 和原 JD、两个关联候选人、职位三项起点及可编辑草稿、推荐列表、提醒空态、订阅用量及邮箱连接能力说明均可加载。没有重新付款、授权邮箱或发送邮件。清空了未发送的职位检查草稿。
+
+从 Mara 候选人详情进入 Agent，点击 Review this candidate's history 后发送默认只读要求，生产任务 `87c968fd-8228-4526-a638-719c356b6a1e` 在 2026-10-23 08:08:26–08:08:53 UTC 完成（attempts=1、done/Complete、error 为空）。对话 `cc73449b-dc11-4932-bd2e-98a33194545c` 刷新后保留结果。观察到读取候选人、职位、提醒和历史对话共五个工具结果；任务引用实际 CV、最新五人管理门槛和旧 JD 的三人门槛差异，没有强制模型的工具顺序或业务结论。
+
+生产只读前后九张业务表的条数与完整 JSON 指纹一致，候选人、职位、资料、推荐、分享、邮件、版本和文件均未改变。账本只有对应 job 的一行，reserved_units=consumed_units=52426，剩余额度从 187.81 到 182.57，与界面相符；预留的未消耗部分已释放。截图、AX、账本及指纹在 `tmp/release-20261023/production-agent-result.png`、`prod-result-ax.txt`、`prod-job-final.csv`、`prod-fingerprint-{before,after}.txt`。
+
+生产视频首次检查在拖动后 5 秒等待期内未完成缓冲，另一次并发运行挂起已终止，原日志保留。独立真实 Chrome 探针证实 CDN 206/Range 正常，21 秒位置约 6 秒恢复，随后播完和重播均成功；没有媒体错误。视频回归改为 15 秒缓冲上限、60 秒用例上限，并避免等待没有自身时限的 play() Promise，继续以真实播放状态验证。这个后续调整仅影响测试和本记录，不改变产品运行字节。
+
+生产健康复核 scheduler active/NRestarts=0，stalled=0，backup 与 health service 均 Result=success / ExecMainStatus=0。上述通过不扩展本文件“发布边界”中列明的历史提供商验证范围。
+
+生产公开页面 21 项功能断言均通过（`production-e2e-final.log`，无重试），包含真实视频播放/拖动/播完/重播、样例 CV、价格/FAQ、登录入口/来源、SEO 与匿名边界。该次运行在所有用例输出通过后退出阶段挂起，已终止，不能将其记为进程 exit 0；另以单 worker、有全局时限的运行复核。原先失败的缓冲日志和退出挂起日志继续保留。

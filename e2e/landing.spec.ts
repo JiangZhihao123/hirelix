@@ -112,6 +112,7 @@ test.describe("Personal agent landing", () => {
   test("loads the film only on request and supports playback and seeking", async ({
     page,
   }) => {
+    test.setTimeout(60_000);
     const video = page.locator("video");
     await expect(video).toHaveAttribute("preload", "none");
     expect(await video.evaluate((node: HTMLVideoElement) => node.paused)).toBe(
@@ -138,17 +139,17 @@ test.describe("Personal agent landing", () => {
       node.currentTime = 21;
     });
     await expect
-      .poll(() => video.evaluate((node: HTMLVideoElement) => node.readyState))
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.readyState), { timeout: 15000 })
       .toBeGreaterThanOrEqual(2);
     expect(
       await video.evaluate((node: HTMLVideoElement) => node.currentTime),
     ).toBeCloseTo(21, 1);
     await video.evaluate((node: HTMLVideoElement) => {
       node.currentTime = 30.9;
-      return node.play();
+      void node.play();
     });
     await expect
-      .poll(() => video.evaluate((node: HTMLVideoElement) => node.ended))
+      .poll(() => video.evaluate((node: HTMLVideoElement) => node.ended), { timeout: 15000 })
       .toBe(true);
     await page
       .getByRole("button", { name: "Watch the 31-second story", exact: true })
