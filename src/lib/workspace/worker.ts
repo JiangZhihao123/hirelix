@@ -23,18 +23,24 @@ export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
 };
 const logger = getLogger({ component: "private_workspace_worker" });
 let started = false;
+let stopping = false;
+let workers: Promise<void>[] = [];
+let scheduleTimer: ReturnType<typeof setInterval> | undefined;
+let scheduling: Promise<void> | undefined;
 export function startWorkspaceWorker() {
   if (started || process.env.PRIVATE_WORKSPACE_WORKER_ENABLED === "false")
     return;
   started = true;
+  stopping = false;
   const concurrency = Math.max(
     1,
     Math.min(4, Number(process.env.PRIVATE_WORKSPACE_WORKER_CONCURRENCY) || 2),
   );
   async function loop(workerIndex: number) {
-    for (;;) {
+    while (!stopping) {
       try {
         await reclaimJobs();
+        if (stopping) break;
         if (!(await processJob(workspaceHandlers)))
           await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch (error) {
@@ -50,16 +56,28 @@ export function startWorkspaceWorker() {
       }
     }
   }
-  for (let index = 0; index < concurrency; index++) void loop(index + 1);
-  let scheduling = false;
-  const scheduleTick = async () => {
-    if (scheduling) return;
-    scheduling = true;
-    try { await deliverReminders(); await queueScheduledDrafts(); await notifyProductFeedback(); }
-    catch (error) { logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "Scheduled draft queue failed"); }
-    finally { scheduling = false; }
+  workers = Array.from({ length: concurrency }, (_, index) => loop(index + 1));
+  const scheduleTick = () => {
+    if (scheduling || stopping) return;
+    scheduling = (async () => {
+      try {
+        await deliverReminders();
+        if (!stopping) await queueScheduledDrafts();
+        if (!stopping) await notifyProductFeedback();
+      }
+      catch (error) { logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "Scheduled draft queue failed"); }
+      finally { scheduling = undefined; }
+    })();
   };
-  void scheduleTick();
-  setInterval(() => void scheduleTick(), 15000);
+  scheduleTick();
+  scheduleTimer = setInterval(scheduleTick, 15000);
   logger.info({ concurrency }, "Private workspace worker started");
+}
+
+export async function stopWorkspaceWorker() {
+  stopping = true;
+  clearInterval(scheduleTimer);
+  // Active jobs retain their heartbeats until their real result is committed.
+  await Promise.all([...workers, scheduling]);
+  started = false;
 }

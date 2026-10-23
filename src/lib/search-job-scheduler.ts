@@ -12,7 +12,10 @@ const schedulerLogger = getLogger({ component: "search_job_scheduler" });
 
 type SchedulerState = {
   started: boolean;
+  stopping: boolean;
   startPromise: Promise<void[]> | null;
+  reclaimTimer?: ReturnType<typeof setInterval>;
+  reclaiming?: Promise<void>;
 };
 
 declare global {
@@ -23,6 +26,7 @@ function getSchedulerState(): SchedulerState {
   if (!globalThis.__hirelixSearchJobSchedulerState__) {
     globalThis.__hirelixSearchJobSchedulerState__ = {
       started: false,
+      stopping: false,
       startPromise: null,
     };
   }
@@ -64,13 +68,15 @@ async function runSchedulerLoop(workerIndex: number) {
     DEFAULT_ERROR_BACKOFF_MS,
   );
 
-  for (;;) {
+  const state = getSchedulerState();
+  while (!state.stopping) {
     try {
       const result = await processNextSearchJob();
       if (result.processed || result.hasMore) {
         continue;
       }
 
+      if (state.stopping) break;
       const publicEvidenceResult = await processNextPublicEvidenceJob();
       if (!publicEvidenceResult.processed && !publicEvidenceResult.hasMore) {
         await sleep(idlePollMs);
@@ -87,13 +93,17 @@ async function runSchedulerLoop(workerIndex: number) {
 const RECLAIM_INTERVAL_MS = 60_000;
 
 function startReclaimTimer() {
-  setInterval(async () => {
-    try {
-      await reclaimStaleRunningJobs();
-      await reclaimStalePublicEvidenceJobs();
-    } catch (error) {
-      schedulerLogger.error({ err: error }, "reclaim timer failed");
-    }
+  const state = getSchedulerState();
+  state.reclaimTimer = setInterval(() => {
+    if (state.stopping || state.reclaiming) return;
+    state.reclaiming = (async () => {
+      try {
+        await reclaimStaleRunningJobs();
+        if (!state.stopping) await reclaimStalePublicEvidenceJobs();
+      } catch (error) {
+        schedulerLogger.error({ err: error }, "reclaim timer failed");
+      } finally { state.reclaiming = undefined; }
+    })();
   }, RECLAIM_INTERVAL_MS);
 }
 
@@ -109,6 +119,7 @@ export function startSearchJobScheduler() {
   }
 
   state.started = true;
+  state.stopping = false;
   startReclaimTimer();
   const concurrency = getConfiguredConcurrency();
   schedulerLogger.info({ concurrency }, "in-process scheduler started");
@@ -120,4 +131,13 @@ export function startSearchJobScheduler() {
     schedulerLogger.error({ err: error }, "scheduler exited");
     throw error;
   });
+}
+
+export async function stopSearchJobScheduler() {
+  const state = getSchedulerState();
+  state.stopping = true;
+  clearInterval(state.reclaimTimer);
+  await Promise.all([state.startPromise, state.reclaiming]);
+  state.started = false;
+  state.startPromise = null;
 }

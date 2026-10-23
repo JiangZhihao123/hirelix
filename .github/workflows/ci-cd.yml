@@ -69,6 +69,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT || '22' }}
           envs: DEPLOY_SHA
+          command_timeout: 30m
           script: |
             set -eu
             echo "=== 开始部署调度器 ==="
@@ -84,6 +85,9 @@ jobs:
             sudo npm ci
 
             # 重启调度器
+            sudo mkdir -p /etc/systemd/system/hirelix-scheduler.service.d
+            sudo install -m 644 deploy/systemd/hirelix-scheduler.service.d/stop.conf /etc/systemd/system/hirelix-scheduler.service.d/stop.conf
+            sudo systemctl daemon-reload
             sudo systemctl restart hirelix-scheduler
 
             # 检查持续存活；短暂 active 不能证明启动成功。

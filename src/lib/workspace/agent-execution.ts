@@ -10,6 +10,7 @@ import {
   finishJob,
   heartbeat,
   failJob,
+  withJobLease,
   type JobHandler,
 } from "./jobs";
 import { agentCreditContext, executionTrace } from "@/lib/agent-credit-context";
@@ -135,24 +136,22 @@ export async function completeAgentWork(
     throw new WorkspaceError("This work belongs to another request.", 403);
   const child = await claimJob([original.kind], { id, userId: parent.user_id });
   if (child) {
-    const timer = setInterval(
-      () => void heartbeat(child).catch(() => {}),
-      20000,
-    );
     let phase = "prepare";
     try {
-      const prepared = await agentCreditContext.run({ ...child, signal, trace: executionTrace(child, agentCreditContext.getStore()?.trace) }, () =>
-        handler(child, async (message) => {
-          signal.throwIfAborted();
-          await activeAgentJob(parent);
-          await heartbeat(child, message);
-          await heartbeat(parent, message);
-        }),
-      );
-      signal.throwIfAborted();
-      await activeAgentJob(parent);
-      phase = "persist";
-      await finishJob(child, prepared);
+      await withJobLease(child, async (childSignal, progress) => {
+        const prepared = await agentCreditContext.run({ ...child, signal: childSignal, trace: executionTrace(child, agentCreditContext.getStore()?.trace) }, () =>
+          handler(child, async (message) => {
+            childSignal.throwIfAborted();
+            await activeAgentJob(parent);
+            await progress(message);
+            await heartbeat(parent, message);
+          }),
+        );
+        childSignal.throwIfAborted();
+        await activeAgentJob(parent);
+        phase = "persist";
+        await finishJob(child, prepared);
+      }, signal);
     } catch (error) {
       if (error instanceof LostLease || signal.aborted) throw error;
       getLogger({ component: "workspace_agent_work" }).error(
@@ -177,8 +176,6 @@ export async function completeAgentWork(
             "This work did not finish. Its original input is saved and can be retried using resume_work.",
             502,
           );
-    } finally {
-      clearInterval(timer);
     }
   }
   for (let attempt = 0; attempt < 240; attempt++) {

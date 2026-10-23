@@ -104,6 +104,11 @@ const runAssistantReply: JobHandler = async (job, progress) => {
             messageAttachments(m.metadata).length,
         );
   const controller = new AbortController();
+  // The worker's renewal failure must stop this runtime and nested tool calls.
+  const workerSignal = agentCreditContext.getStore()?.signal;
+  const abortFromWorker = () => controller.abort(workerSignal!.reason);
+  if (workerSignal?.aborted) abortFromWorker();
+  else workerSignal?.addEventListener("abort", abortFromWorker, { once: true });
   let checking = false;
   const timer = setInterval(async () => {
     if (checking) return;
@@ -159,7 +164,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
         providerOptions: { deepseek: { thinking: { type: "disabled" } } },
         maxOutputTokens: 512,
         maxRetries: 0,
-        abortSignal: AbortSignal.any([titleController.signal, AbortSignal.timeout(30000)]),
+        abortSignal: AbortSignal.any([controller.signal, titleController.signal, AbortSignal.timeout(30000)]),
       }).then(async ({ output }) => {
         const title = output.title;
         if (!title || titleController.signal.aborted) return;
@@ -470,6 +475,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
       if (!(error instanceof LostLease)) getLogger({component: "workspace_agent"}).error({job_id: job.id, error_type: error instanceof Error ? error.name : "Unknown"}, "Execution evidence could not be finalized");
     });
     clearInterval(timer);
+    workerSignal?.removeEventListener("abort", abortFromWorker);
     controller.abort();
     await writeReply.close();
     if (!replyPrepared) titleController.abort();

@@ -31,7 +31,10 @@ export class LostLease extends Error {
 export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:string}): Promise<Job | null> {
   if (!kinds.length) return null;
   return db.transaction(async (tx) => {
-    const eligible = sql`(j.kind<>'chat' OR (
+    const eligible = sql`(j.payload->>'parent_chat_job_id' IS NULL OR EXISTS (
+      SELECT 1 FROM hirelix_private_jobs parent WHERE parent.id::text=j.payload->>'parent_chat_job_id'
+      AND parent.user_id=j.user_id AND parent.kind='chat' AND parent.status='running' AND parent.lease_until>now()
+    )) AND (j.kind<>'chat' OR (
       EXISTS(SELECT 1 FROM hirelix_private_conversations c WHERE c.user_id=j.user_id AND c.id::text=j.payload->>'conversation_id' AND NOT c.stopped)
       AND NOT EXISTS(SELECT 1 FROM hirelix_private_jobs other WHERE other.user_id=j.user_id AND other.kind='chat' AND other.payload->>'conversation_id'=j.payload->>'conversation_id' AND other.id<>j.id AND (other.status='running' OR (other.status='queued' AND (
         coalesce((other.payload->>'priority')::int,0)>coalesce((j.payload->>'priority')::int,0) OR (coalesce((other.payload->>'priority')::int,0)=coalesce((j.payload->>'priority')::int,0) AND (other.created_at,other.id)<(j.created_at,j.id))
@@ -39,6 +42,14 @@ export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:strin
     ))`;
     const candidates = await rows<Job>(sql`SELECT j.* FROM hirelix_private_jobs j WHERE j.status='queued' AND j.kind IN (${sql.join(kinds.map(kind=>sql`${kind}`),sql`, `)}) ${exact ? sql`AND j.id=${exact.id}::uuid AND j.user_id=${exact.userId}::uuid` : sql``} AND ${eligible} ORDER BY CASE WHEN j.kind='index' THEN 1 ELSE 0 END,j.created_at,j.id LIMIT 20`,tx);
     for (const candidate of candidates) {
+      // A child belongs to the parent's current execution, not merely its ID.
+      // Use the same parent-before-child lock order as finish/stop.
+      let parentLease: string | undefined;
+      if (typeof candidate.payload.parent_chat_job_id === "string") {
+        const [parent] = await rows<{lease_token: string}>(sql`SELECT lease_token FROM hirelix_private_jobs WHERE id=${candidate.payload.parent_chat_job_id}::uuid AND user_id=${candidate.user_id}::uuid AND kind='chat' AND status='running' AND lease_until>now() FOR UPDATE SKIP LOCKED`, tx);
+        if (!parent) continue;
+        parentLease = parent.lease_token;
+      }
       // Same lock order as send/stop/edit: conversation, job, then billing.
       if(candidate.kind==='chat') {
         const locked = await rows(sql`SELECT id FROM hirelix_private_conversations WHERE user_id=${candidate.user_id}::uuid AND id=${String(candidate.payload.conversation_id)}::uuid FOR UPDATE SKIP LOCKED`,tx);
@@ -51,7 +62,7 @@ export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:strin
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
       await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
       const [claimed] = await rows<Job>(
-        sql`UPDATE hirelix_private_jobs SET status='running',result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+        sql`UPDATE hirelix_private_jobs SET status='running',payload=payload || ${json(parentLease ? {parent_chat_lease_token: parentLease} : {})},result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
         tx,
       );
       if (claimed.kind === "chat") {
@@ -67,9 +78,37 @@ export async function heartbeat(job: Job, message?: string) {
     sql`UPDATE hirelix_private_jobs SET lease_until=now()+${LEASE_SECONDS}*interval '1 second',
       result=CASE WHEN ${message ?? null}::text IS NOT NULL AND progress IS DISTINCT FROM ${message ?? null}
         THEN jsonb_set(coalesce(result,'{}'::jsonb),'{activity}',coalesce(result->'activity','[]'::jsonb) || jsonb_build_array(jsonb_build_object('label',${message ?? null}::text,'at',now()))) ELSE result END,
-      progress=coalesce(${message ?? null},progress),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now() RETURNING id`,
+      progress=coalesce(${message ?? null},progress),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now()
+      ${typeof job.payload.parent_chat_job_id === "string" ? sql`AND EXISTS (SELECT 1 FROM hirelix_private_jobs parent WHERE parent.id=${job.payload.parent_chat_job_id}::uuid AND parent.user_id=${job.user_id}::uuid AND parent.status='running' AND parent.lease_token::text=${String(job.payload.parent_chat_lease_token)} AND parent.lease_until>now())` : sql``} RETURNING id`,
   );
   if (!updated.length) throw new LostLease();
+}
+
+// Queue workers and inline children share one lease owner. Losing renewal must
+// abort provider calls too, rather than just rejecting their eventual commit.
+export async function withJobLease<T>(job: Job, run: (signal: AbortSignal, progress: (message: string) => Promise<void>) => Promise<T>, parentSignal?: AbortSignal): Promise<T> {
+  const controller = new AbortController();
+  const signal = parentSignal ? AbortSignal.any([parentSignal, controller.signal]) : controller.signal;
+  let renewing = false;
+  const renew = async (message?: string) => {
+    signal.throwIfAborted();
+    try { await heartbeat(job, message); }
+    catch (error) { controller.abort(error); throw error; }
+  };
+  const timer = setInterval(async () => {
+    if (renewing || signal.aborted) return;
+    renewing = true;
+    try { await renew(); }
+    catch { /* renew already propagated the failure through the signal. */ }
+    finally { renewing = false; }
+  }, 30000);
+  try {
+    signal.throwIfAborted();
+    return await run(signal, message => renew(message));
+  } catch (error) {
+    if (signal.aborted) throw signal.reason;
+    throw error;
+  } finally { clearInterval(timer); }
 }
 export { liveReplyWriter } from "./live-reply";
 export async function finishJob(job: Job, prepared: PreparedJob) {
@@ -77,7 +116,7 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
     if(job.kind === "chat") await owned(job.user_id,"conversation",String(job.payload.conversation_id),tx,true);
     if (typeof job.payload.parent_chat_job_id === "string") {
       const parent = await owned<Job>(job.user_id,"job",job.payload.parent_chat_job_id,tx,true);
-      if (parent.status !== "running" || !parent.lease_until || new Date(parent.lease_until).getTime() <= Date.now()) throw new LostLease();
+      if (parent.status !== "running" || parent.lease_token !== job.payload.parent_chat_lease_token || !parent.lease_until || new Date(parent.lease_until).getTime() <= Date.now()) throw new LostLease();
     }
     const current = await owned<Job>(job.user_id, "job", job.id, tx, true);
     if (
@@ -146,7 +185,7 @@ export async function retryJob(userId: string, id: string, parent?: Job) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);
     }
     const [result] = await rows<Job>(
-      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence'-'paused',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
+      sql`UPDATE hirelix_private_jobs SET status='queued',payload=(payload-'parent_chat_job_id'-'parent_chat_lease_token') || ${json(parent ? {parent_chat_job_id:parent.id} : {})},result=coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence'-'paused',progress='Queued for retry',error=NULL,attempts=0,updated_at=now() WHERE id=${id}::uuid AND user_id=${userId}::uuid RETURNING *`,
       tx,
     );
     if(job.kind === "chat") await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=false WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${userId}::uuid`);
@@ -158,29 +197,15 @@ export async function processJob(
 ) {
   const job = await claimJob(Object.keys(handlers) as JobKind[]);
   if (!job) return false;
-  let leaseLost = false,
-    heartbeatRunning = false;
-  const timer = setInterval(async () => {
-    if (heartbeatRunning) return;
-    heartbeatRunning = true;
-    try {
-      await heartbeat(job);
-    } catch {
-      leaseLost = true;
-    } finally {
-      heartbeatRunning = false;
-    }
-  }, 30000);
   let phase = "prepare";
   const trace = executionTrace(job);
   try {
-    const prepared = await agentCreditContext.run({...job, trace}, () => handlers[job.kind]!(job, async (message) => {
-      if (leaseLost) throw new LostLease();
-      await heartbeat(job, message);
-    }));
-    if (leaseLost) throw new LostLease();
-    phase = "persist";
-    await finishJob(job, prepared);
+    await withJobLease(job, async (signal, progress) => {
+      const prepared = await agentCreditContext.run({...job, trace, signal}, () => handlers[job.kind]!(job, progress));
+      signal.throwIfAborted();
+      phase = "persist";
+      await finishJob(job, prepared);
+    });
   } catch (error) {
     const fields = {
       ...trace,
@@ -207,8 +232,6 @@ export async function processJob(
           : "This task could not finish. Your source material is saved. Retry the task or review the input.",
       );
     }
-  } finally {
-    clearInterval(timer);
   }
   return true;
 }
