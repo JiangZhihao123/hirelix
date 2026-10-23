@@ -1,0 +1,55 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { after, test } from "node:test";
+import { sql } from "drizzle-orm";
+import { closeDb } from "../../src/db/client";
+import { createAgentTools } from "../../src/lib/workspace/agent-tools";
+import { sendMessage, conversationDetails } from "../../src/lib/workspace/conversations";
+import { claimJob, cancelJob, heartbeat } from "../../src/lib/workspace/jobs";
+import { json, owned, rows, snapshot } from "../../src/lib/workspace/database";
+import type { Deliverable } from "../../src/lib/workspace/types";
+
+const url = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
+assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) && url.port !== "15432" && url.pathname.startsWith("/hirelix_workspace_qa_"));
+const owner = randomUUID();
+after(async () => { await closeDb(); });
+
+test("real PG/tool contract: edit receipt retains applied text and source refs; full evidence remains readable and replay does not save twice", async () => {
+  const [role] = await rows<{id:string}>(sql`INSERT INTO hirelix_private_roles(user_id,title,client_name,jd_text) VALUES(${owner}::uuid,'Product lead','Receipt QA','Lead three PMs') RETURNING id`);
+  const [record] = await rows<{id:string;version:number}>(sql`INSERT INTO hirelix_private_records(user_id,role_id,kind,title,content) VALUES(${owner}::uuid,${role.id}::uuid,'note','Client call','Tuesday and Thursday attendance confirmed') RETURNING id,version`);
+  const original = {audience:"internal",role:{id:role.id,version:1},records:[],people:[{name:"Fictional source",summary:"Detailed retained evidence. ".repeat(1000)}]};
+  const content = "Office attendance unknown.\n\n" + "Retain this evidence and uncertainty. ".repeat(500);
+  const [document] = await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,source_snapshot) VALUES(${owner}::uuid,${role.id}::uuid,'submission','Receipt QA briefing',${content},${json(original)}) RETURNING *`);
+  await snapshot(owner,"deliverable",document);
+  const sent = await sendMessage(owner,{message:"Update and save the confirmed office attendance in this briefing",document_id:document.id,request_key:randomUUID()});
+  const job = await claimJob(["chat"],{id:sent.job.id,userId:owner}); assert(job);
+  const details = await conversationDetails(owner,sent.conversation_id);
+  const makeTools = () => createAgentTools({job,conversation:details.conversation,question:details.messages.find(m=>m.id===job.payload.message_id)!,messages:details.messages,document,attachments:[],locale:"en",timezone:"UTC",signal:new AbortController().signal,progress:message=>heartbeat(job,message),sources:new Map(),clarification:null});
+  const call = async (name:"read_document"|"edit_document",input:unknown) => {
+    const result = await (makeTools()[name] as unknown as {execute:(input:unknown,options:unknown)=>Promise<{ok:boolean;result:Record<string,unknown>}>}).execute(input,{toolCallId:randomUUID(),messages:[]});
+    assert.equal(result.ok,true,JSON.stringify(result));
+    return result.result;
+  };
+  const input = {authorization_quote:"Update and save",document_id:document.id,expected_version:1,edits:[{old_text:"Office attendance unknown.",new_text:"Tuesday and Thursday office attendance confirmed."}],sources:{role_version:1,records:[record]}};
+  const saved = await call("edit_document",input);
+  const stored = await owned<Deliverable>(owner,"deliverable",document.id);
+  const receipt = saved.document as Record<string,unknown>;
+  assert.equal(saved.status,"saved");
+  assert.equal(receipt.id,document.id); assert.equal(receipt.version,2); assert.equal(receipt.status,"draft");
+  assert.equal(receipt.href,`/app/submissions/${document.id}`);
+  assert.equal(receipt.content,undefined); assert.equal(receipt.source_snapshot,undefined);
+  assert.deepEqual(saved.applied_edits,[{index:1,new_text:input.edits[0].new_text}]);
+  assert.deepEqual((saved.sources as {selected:unknown}).selected,input.sources);
+  assert.equal(stored.content,content.replace(input.edits[0].old_text,input.edits[0].new_text));
+  assert.deepEqual(stored.source_snapshot.people,original.people);
+  assert.equal((stored.source_snapshot.records as Array<{content:string}>)[0].content,"Tuesday and Thursday attendance confirmed");
+  assert.ok(Buffer.byteLength(JSON.stringify(saved)) < Buffer.byteLength(JSON.stringify(stored))/20);
+  assert.deepEqual(await call("edit_document",input),saved);
+  assert.equal((await owned<Deliverable>(owner,"deliverable",document.id)).version,2);
+  const read = await call("read_document",{id:document.id});
+  assert.equal(read.content,stored.content); assert.deepEqual(read.source_snapshot,stored.source_snapshot);
+  const versions = await rows<{snapshot:Deliverable}>(sql`SELECT snapshot FROM hirelix_private_versions WHERE user_id=${owner}::uuid AND entity_id=${document.id}::uuid ORDER BY version`);
+  assert.equal(versions.length,2); assert.equal(versions[0].snapshot.content,content); assert.equal(versions[1].snapshot.content,stored.content);
+  assert.ok((await conversationDetails(owner,sent.conversation_id)).messages.some(m=>Array.isArray(m.metadata.document_edits)));
+  await cancelJob(owner,job.id);
+});

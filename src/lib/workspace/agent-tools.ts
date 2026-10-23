@@ -1111,11 +1111,18 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     edit_document: define(
       "edit_document",
-      "Apply exact localized edits using the observed version. Copy old_text from read_document; each must occur once. Preserve all other text/history. Include newly read record IDs/versions and role version in sources to retain evidence, even without text changes; null preserves prior sources. sources.file_ids is the complete desired CV list: null preserves, [] removes. Use edits=[] for attachment-only changes; do not generate another document or send email.",
+      "Apply exact localized edits using the observed version. Copy old_text from read_document; each must occur once. Preserve all other text/history. Include newly read record IDs/versions and role version in sources to retain evidence, even without text changes; null preserves prior sources. sources.file_ids is the complete desired CV list: null preserves, [] removes. Use edits=[] for attachment-only changes; do not generate another document or send email. The receipt confirms saved version, applied replacements and selected sources; read_document provides the full saved text and evidence when needed.",
       z.object({ ...authorization, document_id:z.uuid(), expected_version:z.number().int().positive(), edits:documentEdits, sources:documentSourceSelection }),
       input => mutate("edit_document",input,input.authorization_quote,async tx=>{
         const document = documentSource(await editDocument(userId,input.document_id,input.expected_version,input.edits,tx,input.sources));
-        return {output:{status:"saved",document},metadata:{document_edits:[{id:document.id,title:document.title,version:document.version,href:document.href}],sources:[{title:document.title,href:document.href}]}};
+        const {id,title,kind,status,version,href,whitespace_word_count} = document;
+        // The exact edit and source-version checks already committed above.
+        // Keep their evidence, without returning the whole document/snapshot
+        // again after the agent has just read them and supplied replacements.
+        return {output:{status:"saved",document:{id,title,kind,status,version,href,whitespace_word_count},
+          applied_edits:input.edits.map((edit,index)=>({index:index+1,new_text:edit.new_text})),
+          sources:{selected:input.sources,record_ids:document.record_ids,file_ids:document.file_ids,captured_at:document.source_snapshot.captured_at ?? null}},
+          metadata:{document_edits:[{id,title,version,href}],sources:[{title,href}]}};
       }),
     ),
     revise_document: define(
