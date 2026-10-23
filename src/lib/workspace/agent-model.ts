@@ -1,3 +1,4 @@
+import { compactAgentToolSchema } from "./agent-tool-schema";
 import { randomUUID } from "node:crypto";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { getLogger } from "@/lib/logger";
@@ -129,6 +130,8 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     specificationVersion: "v3",
     transformParams: async ({ params }) => {
       await activeAgentJob(job);
+      params = {...params, tools: params.tools?.map(tool => tool.type === "function"
+        ? {...tool, inputSchema: compactAgentToolSchema(tool.inputSchema) as typeof tool.inputSchema} : tool)};
       if (purpose !== "reply") return params;
       const rates = official
         ? deepSeekRates(modelId, new Date(), true)
