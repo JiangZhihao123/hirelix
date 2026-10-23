@@ -1,3 +1,4 @@
+import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
 import { ToolLoopAgent, stepCountIs, generateText, Output, type ModelMessage } from "ai";
 import { sql } from "drizzle-orm";
@@ -189,10 +190,6 @@ export const assistantReply: JobHandler = async (job, progress) => {
         email: {providers: ["google", "microsoft"], send_with_confirmation: true, read_inbox: "Check mailbox_status; requires explicit read permission and provider availability", monitor_replies: false},
         uploaded_files: "Retained conversation attachments; separate from candidate and role records.",
       },
-      selected_source: question.metadata.viewed_source || null,
-      candidate_references: question.metadata.candidate_references || [],
-      role_reference: question.metadata.role_reference || null,
-      role_references: question.metadata.role_references || [],
       conversation: {
         id,
       },
@@ -221,52 +218,18 @@ export const assistantReply: JobHandler = async (job, progress) => {
         instruction: job.payload.resuming
           ? "The user explicitly chose Continue. Resume unfinished work, respecting the latest requirements and completed receipts. Do not repeat completed writes or sends. Messages still in the queue are not part of this request."
           : "The user explicitly chose to interrupt and handle the latest message now. That message is the current request, even if it was originally queued or described as a next task. Do not finish the interrupted response first. Retain completed receipts and avoid repeating writes or sends; continue earlier work only if the latest request asks for it.",
-        previous_output: persisted.result?.previous_parts ?? null,
+        // Completed receipts are supplied above; visible prose is in messages.
       }});
     }
-    const messages: ModelMessage[] = details.messages
-      .filter(
-        (m) =>
-          m.metadata.delivery !== "queued" && m.metadata.delivery !== "removed" &&
-          (m.metadata.turn_status !== "cancelled" ||
-            !!m.content.trim() ||
-            m.metadata.committed_tools ||
-            m.metadata.actions ||
-            m.metadata.work ||
-            m.metadata.import_job_ids) &&
-          new Date(m.created_at) <= new Date(question!.created_at),
-      )
-      .slice(-30)
-      .map((m) => ({
-        role: m.role as "user" | "assistant",
-        content:
-          m.id === question!.id
-            ? question!.content
-            : m.role === "assistant"
-              ? JSON.stringify({
-                  reply: m.metadata.turn_status === "cancelled" ? undefined : m.content,
-                  unfinished_reply: m.metadata.turn_status === "cancelled" ? m.content : undefined,
-                  saved_receipts: {
-                    ...m.metadata,
-                    agent: undefined,
-                    activity: undefined,
-                    parts: undefined,
-                  },
-                })
-              : m.metadata.work_document_id || m.metadata.viewed_source || m.metadata.candidate_references || m.metadata.role_references || m.metadata.role_reference
-                ? JSON.stringify({
-                    message: m.content,
-                    selected_source: m.metadata.viewed_source,
-                    candidate_references: m.metadata.candidate_references,
-                    role_reference: m.metadata.role_reference,
-                    role_references: m.metadata.role_references,
-                    document_context: {
-                      id: m.metadata.work_document_id,
-                      title: m.metadata.work_document_title,
-                    },
-                  })
-                : m.content,
-      }));
+    const history = modelConversationMessages(
+      details.messages.map(message => message.id === question.id ? question : message),
+      {through: question.created_at},
+    );
+    const messages: ModelMessage[] = history.messages.map(message => ({
+      role: message.role as "user" | "assistant",
+      content: JSON.stringify(message),
+    }));
+    Object.assign(context, {history: {has_more: history.has_more, before_message_id: history.before_message_id}});
     if (job.payload.resuming && previousText) {
       messages.push({role: "assistant", content: previousText});
       messages.push({role: "user", content: "Continue from exactly where the interrupted answer above ends. Its text is already visible and will be preserved. Output only the missing continuation; do not repeat the title, introduction, completed sections, or recap. If the last sentence is incomplete, finish it first. Completed tool receipts remain valid; do not repeat committed actions."});

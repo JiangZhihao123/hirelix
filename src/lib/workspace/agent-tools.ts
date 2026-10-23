@@ -1,3 +1,4 @@
+import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
 import { recommendations } from "./recommendations";
 import { fetchWeb, searchWeb, webFetchInput, webSearchInput } from "./web-search";
@@ -574,21 +575,14 @@ export function createAgentTools(ctx: AgentToolContext) {
     read_conversation: define(
       "read_conversation",
       "Read an earlier conversation to recover context. Current domain records and tool receipts determine what actually happened.",
-      z.object({ id: z.uuid() }),
+      z.object({ id: z.uuid(), before_message_id: z.uuid().optional().describe("Returned page boundary; omit for the latest 30 messages.") }),
       async (input) => {
         const details = await conversationDetails(userId, input.id);
+        if (input.before_message_id && !details.messages.some(message => message.id === input.before_message_id))
+          throw new WorkspaceError("Conversation page boundary is unavailable", 404);
         return {
           conversation: details.conversation,
-          messages: details.messages
-            .filter(
-              (m) =>
-                m.metadata.turn_status !== "cancelled" ||
-                m.metadata.committed_tools ||
-                m.metadata.actions ||
-                m.metadata.work ||
-                m.metadata.import_job_ids,
-            )
-            .slice(-30),
+          ...modelConversationMessages(details.messages, {before: input.before_message_id}),
         };
       },
     ),
