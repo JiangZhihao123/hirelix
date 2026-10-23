@@ -8,6 +8,7 @@ import {
   isUsingOfficialDeepSeek,
   assertLlmOutputComplete,
   LlmOutputTruncatedError,
+  type DeepSeekThinkingMode,
 } from "@/lib/llm-client";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { reserveAgentCall, consumeAgentCredits, releaseAgentCall } from "@/lib/agent-access";
@@ -20,6 +21,9 @@ import { generateVisionText, type SourceImage } from "./vision";
 // Output ceilings cover reasoning + JSON prose, and are still constrained by
 // the existing allowance reservation. Only document writers select this budget.
 export const DOCUMENT_OUTPUT_TOKENS = 16384;
+// ReAct selects sources and makes judgments before drafting. The writer keeps
+// the same source/evidence contract without spending its prose ceiling on CoT.
+export const DOCUMENT_GENERATION_OPTIONS = {maxOutputTokens: DOCUMENT_OUTPUT_TOKENS, deepSeekThinking: "disabled" as const};
 
 export async function structured<T extends z.ZodType>(
   userId: string,
@@ -29,7 +33,7 @@ export async function structured<T extends z.ZodType>(
   input: unknown,
   onAnswer?: (answer: string) => Promise<void>,
   images: SourceImage[] = [],
-  options: {maxOutputTokens?: number} = {},
+  options: {maxOutputTokens?: number; deepSeekThinking?: DeepSeekThinkingMode} = {},
 ): Promise<z.infer<T>> {
   let lastIssue: "invalid_json" | "invalid_schema" = "invalid_json";
   let validationFeedback = "";
@@ -77,6 +81,7 @@ export async function structured<T extends z.ZodType>(
         strict: true,
       },
       maxOutputTokens,
+      deepSeekThinking: options.deepSeekThinking,
       timeoutMs: 120000,
       abortSignal: job?.signal,
       redactUsagePayload: true,

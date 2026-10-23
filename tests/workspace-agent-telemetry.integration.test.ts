@@ -43,3 +43,37 @@ test("PG execution evidence survives retries, correlates tools and rejects stale
     await assert.rejects(appendAgentEvidence(second,"agent_steps",{step:999}),LostLease);
   } finally {await closeDb();}
 });
+
+test("mock transport + real PG: failed SDK model attempt remains correlated after a successful retry", {skip: process.env.AGENT_TELEMETRY_INTEGRATION !== "true"}, async () => {
+  const {generateText} = await import("ai");
+  const {agentModel} = await import("../src/lib/workspace/agent-model");
+  const {flushPendingLlmUsageEvents} = await import("../src/lib/search/persistence");
+  const originalFetch=globalThis.fetch, originalEnv={...process.env};
+  const owner=randomUUID();
+  try {
+    process.env.AI_PROVIDER="deepseek"; process.env.DEEPSEEK_MODEL="deepseek-flash";
+    process.env.OPENROUTER_BASE_URL="https://api.deepseek.com";
+    const sent=await sendMessage(owner,{message:"Transport QA",request_key:randomUUID()});
+    const job=(await claimJob(["chat"],{id:sent.job.id,userId:owner}))!;
+    let calls=0;
+    globalThis.fetch=async () => {
+      if(++calls===1)return new Response(JSON.stringify({error:{message:"PRIVATE_PROVIDER_BODY"}}),{status:500,headers:{"content-type":"application/json"}});
+      return new Response(JSON.stringify({id:"qa",created:1,model:"deepseek-flash",choices:[{index:0,message:{role:"assistant",content:"complete"},finish_reason:"stop"}],usage:{prompt_tokens:100,completion_tokens:100,total_tokens:200,completion_tokens_details:{reasoning_tokens:80}}}),{headers:{"content-type":"application/json"}});
+    };
+    const trace={...executionTrace(job),step:1};
+    await agentCreditContext.run({...job,trace},()=>generateText({model:agentModel(job),prompt:"QA",maxRetries:1,maxOutputTokens:512}));
+    await flushPendingLlmUsageEvents();
+    const events=await db.execute(sql`SELECT status,attempt,metadata,error_message,request_payload,response_payload FROM hirelix_llm_usage_events WHERE job_id=${job.id}::uuid ORDER BY created_at`);
+    assert.deepEqual(events.map(e=>e.status),["error","success"]);
+    assert.deepEqual(events.map(e=>e.attempt),[1,2]);
+    const contexts=events.map(e=>e.metadata as Record<string,unknown>);
+    assert.equal(contexts[0].execution_id,contexts[1].execution_id);
+    assert.notEqual(contexts[0].model_call_id,contexts[1].model_call_id);
+    assert.ok(!JSON.stringify(events).includes("PRIVATE_PROVIDER_BODY"));
+    assert.ok(events.every(e=>e.request_payload===null&&e.response_payload===null));
+  } finally {
+    globalThis.fetch=originalFetch;
+    for(const key of Object.keys(process.env))if(!(key in originalEnv))delete process.env[key];
+    Object.assign(process.env,originalEnv); await closeDb();
+  }
+});
