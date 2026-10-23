@@ -141,7 +141,7 @@ export async function completeAgentWork(
     );
     let phase = "prepare";
     try {
-      const prepared = await agentCreditContext.run({ ...child, signal }, () =>
+      const prepared = await agentCreditContext.run({ ...child, signal, trace: {...agentCreditContext.getStore()?.trace, parent_job_id: parent.id, job_attempt: child.attempts} }, () =>
         handler(child, async (message) => {
           signal.throwIfAborted();
           await activeAgentJob(parent);

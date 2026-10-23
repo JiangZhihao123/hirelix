@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { partialAnswer } from "@/lib/llm-stream";
 import { z } from "zod";
 import {
@@ -73,7 +74,7 @@ export async function structured<T extends z.ZodType>(
       timeoutMs: 120000,
       abortSignal: job?.signal,
       redactUsagePayload: true,
-      usageEvent: { userId, jobId: job?.id, stage: attempt === 1 ? stage : `${stage}_format_retry` },
+      usageEvent: { userId, jobId: job?.id, stage: attempt === 1 ? stage : `${stage}_format_retry`, metadata: {...job?.trace, parent_model_call_id: job?.trace?.model_call_id, model_call_id: randomUUID(), structured_attempt: attempt} },
     });
       if ("rawResponse" in response) assertLlmOutputComplete(response.rawResponse, maxOutputTokens);
     } catch (error) {

@@ -1,3 +1,5 @@
+import { agentCreditContext } from "@/lib/agent-credit-context";
+import { appendAgentEvidence, executionTrace } from "./agent-telemetry";
 import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
 import { ToolLoopAgent, stepCountIs, generateText, Output, type ModelMessage } from "ai";
@@ -45,7 +47,10 @@ Apply the delegation boundary before choosing any tools: material supplied witho
 
 Before ending the reply, check the latest requested scope: if it is fulfilled, stop. Do not reopen a declined or deferred action even as a polite future offer (for example, offering to save later after the user said not to save). Helpful initiative means finishing the delegated work, not soliciting a new assignment. This takes priority over suggestions to advance work.`;
 
-export const assistantReply: JobHandler = async (job, progress) => {
+export const assistantReply: JobHandler = (job, progress) => agentCreditContext.run(
+  {...job, trace: executionTrace(job)}, () => runAssistantReply(job, progress),
+);
+const runAssistantReply: JobHandler = async (job, progress) => {
   await resolveQueuedQuestion(job);
   const id = z.uuid().parse(job.payload.conversation_id),
     details = await conversationDetails(job.user_id, id);
@@ -85,6 +90,8 @@ export const assistantReply: JobHandler = async (job, progress) => {
         authorization_quote: null,
       },
     });
+  const execution = agentCreditContext.getStore()!.trace!;
+  await appendAgentEvidence(job, "agent_events", {...execution, event: "execution_started", started_at: new Date().toISOString()});
   const currentFiles = messageAttachments(question.metadata);
   const source = currentFiles.length
     ? question
@@ -282,17 +289,20 @@ export const assistantReply: JobHandler = async (job, progress) => {
       },
       prepareStep: async () => {
         stepStarted = Date.now();
+        execution.step = trace.length + 1;
         return {};
       },
       onStepFinish: async (step) => {
         trace.push({
+          ...execution,
           step: trace.length + 1,
           tools: step.toolCalls.map((call) => call.toolName),
           results: [
             ...step.toolResults.map((result) => ({
               tool: result.toolName,
+              tool_call_id: result.toolCallId,
               ok: (result.output as { ok?: unknown })?.ok,
-              error: (result.output as { error?: unknown })?.error,
+              error_code: (result.output as { error?: {code?: number} })?.error?.code,
             })),
             ...step.content
               .filter((part) => part.type === "tool-error")
@@ -302,6 +312,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
                 const parsed = schema?.safeParse(part.input);
                 return {
                   tool: part.toolName,
+                  tool_call_id: part.toolCallId,
                   ok: false,
                   error: {
                     type: part.error instanceof Error ? part.error.name : "ToolError",
@@ -317,9 +328,7 @@ export const assistantReply: JobHandler = async (job, progress) => {
           ...(inputRepairs.length ? { input_repairs: inputRepairs.splice(0) } : {}),
         });
         await activeAgentJob(job);
-        await rows(
-          sql`UPDATE hirelix_private_jobs SET result=jsonb_set(result,'{agent_steps}',${json(trace)}),updated_at=now() WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid AND status='running' AND lease_token=${job.lease_token}::uuid AND lease_until>now()`,
-        );
+        await appendAgentEvidence(job, "agent_steps", trace.at(-1)!);
       },
     });
     const result = await agent.stream({
@@ -453,10 +462,13 @@ export const assistantReply: JobHandler = async (job, progress) => {
         await tx.execute(
           sql`UPDATE hirelix_private_conversations SET updated_at=now() WHERE id=${id}::uuid AND user_id=${job.user_id}::uuid`,
         );
-        return { message_id: saved.id, agent_steps: trace };
+        return { message_id: saved.id };
       },
     };
   } finally {
+    await appendAgentEvidence(job, "agent_events", {...execution, event: "execution_finished", status: replyPrepared ? "response_prepared" : controller.signal.aborted ? "interrupted" : "error", finished_at: new Date().toISOString()}).catch(error => {
+      if (!(error instanceof LostLease)) getLogger({component: "workspace_agent"}).error({job_id: job.id, error_type: error instanceof Error ? error.name : "Unknown"}, "Execution evidence could not be finalized");
+    });
     clearInterval(timer);
     controller.abort();
     await writeReply.close();

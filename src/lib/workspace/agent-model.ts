@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { agentCreditContext } from "@/lib/agent-credit-context";
+import { getLogger } from "@/lib/logger";
 import { wrapLanguageModel, type LanguageModelMiddleware } from "ai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -46,6 +49,8 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     startedAt: Date,
     maxOutputTokens?: number,
     responseBody?: unknown,
+    metadata: Record<string, unknown> = {},
+    attempt = 1,
   ) {
     const usage = {
       inputTokens: result.usage.inputTokens.total ?? 0,
@@ -58,6 +63,8 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       userId: job.user_id,
       jobId: job.id,
       stage,
+      attempt,
+      metadata: {...metadata, finish_reason: result.finishReason.unified, reasoning_tokens: result.usage.outputTokens.reasoning},
       model: modelId,
       provider,
       status: complete ? "success" : "error",
@@ -94,7 +101,29 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       pricing_version: CREDIT_PRICING_VERSION,
       started_at: startedAt.toISOString(),
       usage,
+      ...metadata,
     });
+  }
+  let lastStep: number | undefined, modelAttempt = 0;
+  function callMetadata(params: {prompt: unknown; tools?: unknown}) {
+    const trace = agentCreditContext.getStore()?.trace;
+    if (trace?.step !== lastStep) {lastStep = trace?.step; modelAttempt = 0;}
+    const callId = randomUUID();
+    if (trace && purpose === "reply") trace.model_call_id = callId;
+    const prompt = params.prompt as Array<{role: string}>;
+    return {attempt: ++modelAttempt, metadata: {...trace, model_call_id: callId,
+      input_bytes: {
+        system: Buffer.byteLength(JSON.stringify(prompt.filter(message => message.role === "system"))),
+        messages: Buffer.byteLength(JSON.stringify(prompt.filter(message => message.role !== "system"))),
+        tools: Buffer.byteLength(JSON.stringify(params.tools ?? [])),
+      },
+    }};
+  }
+  async function recordFailure(error: unknown, startedAt: Date, metadata: Record<string, unknown>, attempt: number, maxOutputTokens?: number) {
+    await recordLlmUsageEvent({userId: job.user_id, jobId: job.id, stage, model: modelId, provider,
+      status: "error", attempt, maxOutputTokens, latencyMs: Date.now()-startedAt.getTime(),
+      errorMessage: error instanceof Error ? error.name : "Unknown", metadata});
+    getLogger({component: "workspace_agent_model"}).warn({job_id: job.id, ...metadata, model_attempt: attempt, error_type: error instanceof Error ? error.name : "Unknown"}, "Agent model call failed");
   }
   const middleware: LanguageModelMiddleware = {
     specificationVersion: "v3",
@@ -119,30 +148,46 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       return { ...params, maxOutputTokens };
     },
     wrapGenerate: async ({ doGenerate, params }) => {
-      const startedAt = new Date();
-      const result = await doGenerate();
-      await account(
-        result,
-        startedAt,
-        params.maxOutputTokens,
-        result.response?.body,
-      );
+      const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
+      let result;
+      try { result = await doGenerate(); }
+      catch (error) {await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); throw error;}
+      await account(result, startedAt, params.maxOutputTokens, result.response?.body, metadata, attempt);
       return result;
     },
     wrapStream: async ({ doStream, params }) => {
-      const startedAt = new Date();
-      const result = await doStream();
+      const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
+      let result;
+      try { result = await doStream(); }
+      catch (error) {await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens); throw error;}
+      const reader = result.stream.getReader();
       return {
         ...result,
-        stream: result.stream.pipeThrough(
-          new TransformStream({
-            async transform(part, controller) {
-              if (part.type === "finish")
-                await account(part, startedAt, params.maxOutputTokens);
-              controller.enqueue(part);
-            },
-          }),
-        ),
+        stream: new ReadableStream({
+          async start(controller) {
+            let recorded = false;
+            try {
+              while (true) {
+                const {done, value: part} = await reader.read();
+                if (done) break;
+                if (part.type === "finish") {
+                  recorded = true;
+                  await account(part, startedAt, params.maxOutputTokens, undefined, metadata, attempt);
+                } else if (part.type === "error") {
+                  recorded = true;
+                  await recordFailure(part.error, startedAt, metadata, attempt, params.maxOutputTokens);
+                }
+                controller.enqueue(part);
+              }
+              if (!recorded) await recordFailure(new Error("StreamEndedWithoutUsage"), startedAt, metadata, attempt, params.maxOutputTokens);
+              controller.close();
+            } catch (error) {
+              if (!recorded) await recordFailure(error, startedAt, metadata, attempt, params.maxOutputTokens);
+              controller.error(error);
+            } finally {reader.releaseLock();}
+          },
+          cancel(reason) {return reader.cancel(reason);},
+        }),
       };
     },
   };

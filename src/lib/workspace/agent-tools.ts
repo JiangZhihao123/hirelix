@@ -1,3 +1,4 @@
+import { observeAgentTool } from "./agent-telemetry";
 import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
 import { recommendations } from "./recommendations";
@@ -199,8 +200,9 @@ export function createAgentTools(ctx: AgentToolContext) {
     return tool({
       description,
       inputSchema: schema,
-      execute: async (input) => {
-        const run = serial.then(async () => {
+      execute: async (input, options) => {
+        const queuedAt = Date.now();
+        const run = serial.then(() => observeAgentTool(job, name, options.toolCallId, Date.now()-queuedAt, async () => {
           ctx.signal.throwIfAborted();
           if (ctx.clarification)
             return {
@@ -216,7 +218,7 @@ export function createAgentTools(ctx: AgentToolContext) {
           try {
             if ((job.payload.request as {resume_after_mailbox_message_id?:string})?.resume_after_mailbox_message_id && !mailboxResumeAllowsTool(name,input)) throw new WorkspaceError("Connecting a mailbox only resumes email preparation. Sending, sharing and other changes need a new user instruction.",409);
             const result = await agentCreditContext.run(
-              { ...job, signal: ctx.signal },
+              { ...job, signal: ctx.signal, trace: agentCreditContext.getStore()?.trace },
               () => execute(schema.parse(input)),
             );
             return { ok: true, result, local_times: localTimeEvidence(result, ctx.timezone) };
@@ -258,7 +260,7 @@ export function createAgentTools(ctx: AgentToolContext) {
               },
             };
           }
-        });
+        }));
         serial = run.catch(() => {});
         return run;
       },

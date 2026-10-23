@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { reserveAgentCall, consumeAgentCredits } from "@/lib/agent-access";
 import { costToCreditUnits, creditMarkup, deepSeekRates, llmServiceCost, CREDIT_PRICING_VERSION } from "@/lib/agent-credit-pricing";
@@ -34,7 +35,7 @@ export async function generateVisionText(options: {
     abortSignal: job?.signal,model, system: options.system, prompt: options.prompt,
     images: options.images, jsonSchema: options.jsonSchema, maxOutputTokens: maxTokens, temperature: 0.1,
     deepSeekThinking: "disabled", timeoutMs: 120000, onText: options.onText,
-    redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage},
+    redactUsagePayload: true, usageEvent: {userId: job?.user_id, jobId: job?.id, stage: options.stage, metadata: {...job?.trace, parent_model_call_id: job?.trace?.model_call_id, model_call_id: randomUUID()}},
   });
   const raw = response.rawResponse as {
     choices?: Array<{message?: {content?: string}; finish_reason?: string}>;

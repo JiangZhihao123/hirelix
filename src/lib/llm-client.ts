@@ -73,6 +73,7 @@ type LlmTextResult = {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    reasoningTokens?: number;
     cachedInputTokens: number;
     cacheMissInputTokens: number;
   };
@@ -606,7 +607,11 @@ function buildUsage(usage: unknown) {
     readNumericField(usage, ["prompt_cache_miss_tokens"]) ??
     Math.max(0, inputTokens - cachedInputTokens);
 
+  const details = usage && typeof usage === "object"
+    ? (usage as Record<string, unknown>).completion_tokens_details ?? (usage as Record<string, unknown>).completionTokensDetails : null;
+  const reasoning = readNumericField(details, ["reasoning_tokens", "reasoningTokens"]);
   return {
+    ...(reasoning !== null ? {reasoningTokens: reasoning} : {}),
     inputTokens,
     outputTokens,
     totalTokens,
@@ -652,7 +657,16 @@ async function recordUsageFromExit(params: {
       thinking: params.thinking ?? null,
       reasoningEffort: params.reasoningEffort ?? null,
       latencyMs: params.latencyMs,
-      errorMessage: params.errorMessage ?? null,
+      errorMessage: params.options.redactUsagePayload && params.errorMessage ? "Private model request failed" : params.errorMessage ?? null,
+      metadata: {
+        ...usageEvent?.metadata,
+        reasoning_tokens: params.usage?.reasoningTokens,
+        ...(params.options.redactUsagePayload ? {input_bytes: {
+          system: Buffer.byteLength(params.options.system ?? ""),
+          messages: Buffer.byteLength(JSON.stringify(params.options.messages ?? params.options.prompt ?? "")),
+          schema: Buffer.byteLength(JSON.stringify(params.options.jsonSchema ?? {})),
+        }} : {}),
+      },
       requestHash: sha256Json(requestPayload),
       responseHash: responsePayload ? sha256Json(responsePayload) : null,
       requestPayload: params.options.redactUsagePayload ? null : requestPayload,
