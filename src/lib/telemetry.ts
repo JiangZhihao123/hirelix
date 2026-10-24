@@ -1,3 +1,5 @@
+import { ATTRIBUTION_FIELDS, acquisitionLabel } from "./growth-attribution";
+
 /** Shared, content-free first-party telemetry contract. Never collect form values. */
 export const TELEMETRY_VERSION = 2;
 export const TELEMETRY_EVENTS = new Set([
@@ -15,6 +17,7 @@ export const TELEMETRY_EVENTS = new Set([
   "document_copy",
 ]);
 const strings = new Set([
+  ...ATTRIBUTION_FIELDS.flatMap(key => [`first_${key}`, `latest_${key}`]),
   "traffic_source",
   "utm_source",
   "utm_medium",
@@ -75,6 +78,11 @@ export function telemetryMetadata(input: Record<string, unknown>) {
   const result: Record<string, string | number | boolean | null> = {};
   for (const [key, value] of Object.entries(input)) {
     if (strings.has(key) && typeof value === "string") {
+      if ((ATTRIBUTION_FIELDS as readonly string[]).includes(key) || /^(first|latest)_/.test(key)) {
+        const label = acquisitionLabel(value);
+        if (label) result[key] = label;
+        continue;
+      }
       result[key] = ["route", "endpoint", "destination"].includes(key)
         ? telemetryRoute(value)
         : value.slice(0, 120);

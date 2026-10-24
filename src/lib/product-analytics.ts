@@ -11,6 +11,9 @@ export type AnalyticsFilters = {
   to: string;
   timezone: string;
   source: string;
+  campaign: string;
+  content: string;
+  attribution: "first" | "latest";
   device: string;
   page: string;
   includeInternal: boolean;
@@ -34,11 +37,16 @@ export function parseAnalyticsFilters(
   )
     throw new Error("Invalid range");
   new Intl.DateTimeFormat("en", { timeZone: timezone });
+  const attribution = params.get("attribution") || "latest";
+  if (attribution !== "first" && attribution !== "latest") throw new Error("Invalid attribution model");
   return {
     from: start.toISOString(),
     to: end.toISOString(),
     timezone,
     source: (params.get("source") || "all").slice(0, 120),
+    campaign: (params.get("campaign") || "all").slice(0, 120),
+    content: (params.get("content") || "all").slice(0, 120),
+    attribution,
     device: (params.get("device") || "all").slice(0, 20),
     page: (params.get("page") || "all").slice(0, 240),
     includeInternal: params.get("internal") === "1",
@@ -51,6 +59,11 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
   const internal = internalAnalyticsUsers();
   const local = await analyticsDatabaseIsLocal();
   const excluded = sql`SELECT id FROM "user" WHERE id IN (SELECT jsonb_array_elements_text(${JSON.stringify(internal.ids)}::jsonb)) OR lower(email) IN (SELECT jsonb_array_elements_text(${JSON.stringify(internal.emails)}::jsonb))`;
+  const dimension = (field: string, fallback: string) => f.attribution === "first"
+    ? sql`coalesce(nullif(e.metadata->>${"first_" + field},''),${fallback})`
+    : sql`coalesce(nullif(e.metadata->>${"latest_" + field},''),nullif(e.metadata->>${field},''),${fallback})`;
+  const source = dimension("traffic_source", "unattributed"), campaign = dimension("utm_campaign", "none"),
+    content = dimension("utm_content", "none"), medium = dimension("utm_medium", "none");
   // An authenticated event links earlier anonymous events from the same visit.
   // A visitor id remains an estimated browser, never a unique person.
   const base = sql`WITH identities AS (
@@ -59,18 +72,21 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
     FROM hirelix_growth_landing_events WHERE metadata->>'telemetry_version'='2'
       AND created_at>=${f.from}::timestamptz AND created_at<${f.to}::timestamptz GROUP BY session_id
   ), events AS (
-    SELECT e.*, coalesce(e.metadata->>'user_id',i.account_id) AS account_id, coalesce(nullif(e.metadata->>'traffic_source',''),'direct') AS source,
+    SELECT e.*, coalesce(e.metadata->>'user_id',i.account_id) AS account_id, ${source} AS source,
+      ${campaign} AS campaign,${content} AS content,${medium} AS medium,
       coalesce(e.metadata->>'device_type','unknown') AS device,
       regexp_replace(e.page_url,'^https?://[^/]+','','i') AS route
     FROM hirelix_growth_landing_events e LEFT JOIN identities i ON i.session_id=e.session_id
     WHERE e.metadata->>'telemetry_version'='2' AND e.created_at>=${f.from}::timestamptz AND e.created_at<${f.to}::timestamptz
-      AND (${f.includeInternal} OR (NOT coalesce(i.internal,false) AND coalesce(e.metadata->>'user_id',i.account_id,'') NOT IN (${excluded})))
-      AND (${f.source}='all' OR e.metadata->>'traffic_source'=${f.source})
+      AND (${f.includeInternal} OR (NOT coalesce(i.internal,false) AND NOT coalesce((e.metadata->>'internal')::boolean,false) AND coalesce(e.metadata->>'user_id',i.account_id,'') NOT IN (${excluded})))
+      AND (${f.source}='all' OR ${source}=${f.source})
+      AND (${f.campaign}='all' OR ${campaign}=${f.campaign})
+      AND (${f.content}='all' OR ${content}=${f.content})
       AND (${f.device}='all' OR e.metadata->>'device_type'=${f.device})
       AND (${f.page}='all' OR regexp_replace(e.page_url,'^https?://[^/]+','','i')=${f.page})
   )`;
   const qualifyUser = sql`(${f.includeInternal} OR (${!local} AND u.id NOT IN (${excluded}))) AND
-    (${f.source}='all' AND ${f.device}='all' AND ${f.page}='all' OR u.id IN (SELECT account_id FROM events))`;
+    (${f.source}='all' AND ${f.campaign}='all' AND ${f.content}='all' AND ${f.device}='all' AND ${f.page}='all' OR u.id IN (SELECT account_id FROM events))`;
   const work = sql`, users AS (SELECT u.id,u."createdAt" AS created_at FROM "user" u WHERE ${qualifyUser}),
     outcomes AS (
       SELECT d.user_id::text AS user_id,d.created_at,'recommendation' AS kind FROM hirelix_private_deliverables d
@@ -146,8 +162,31 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
       count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_conversations p WHERE p.user_id=c.user_id AND p.created_at<c.created_at))::int AS subsequent_conversations
       FROM hirelix_private_conversations c JOIN users u ON u.id=c.user_id::text WHERE c.created_at>=${f.from}::timestamptz AND c.created_at<${f.to}::timestamptz`),
     analyticsCoverage(),
-    db.execute(sql`${base} SELECT source,coalesce(metadata->>'utm_medium','none') AS medium,coalesce(metadata->>'utm_campaign','none') AS campaign,
-      count(DISTINCT session_id)::int AS sessions,count(DISTINCT account_id)::int AS accounts FROM events GROUP BY source,medium,campaign ORDER BY sessions DESC`),
+    db.execute(sql`${base}${work}, registered AS (
+      SELECT DISTINCT ON (u.id) u.id,u.created_at,e.source,e.medium,e.campaign,e.content
+      FROM events e JOIN users u ON u.id=e.account_id
+      WHERE e.event_type='signup_success' AND e.metadata->>'registration_verified'='true'
+        AND u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz
+      ORDER BY u.id,e.created_at,e.id
+    ), traffic AS (
+      SELECT source,medium,campaign,content,count(*)::int AS page_views,count(DISTINCT visitor_id)::int AS visitors,
+        count(DISTINCT session_id)::int AS sessions FROM events WHERE event_type='page_view' GROUP BY source,medium,campaign,content
+    ), conversions AS (
+      SELECT r.source,r.medium,r.campaign,r.content,count(*)::int AS registrations,
+        count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_private_jobs j WHERE j.user_id::text=r.id
+          AND j.kind IN ('import','assessment','deliverable','revision','brief_proposal','retrieval') AND j.status='done'
+          AND j.created_at>=r.created_at AND j.updated_at<${f.to}::timestamptz))::int AS task_accounts,
+        count(*) FILTER(WHERE EXISTS(SELECT 1 FROM activity a WHERE a.user_id=r.id AND a.created_at>=r.created_at+interval '24 hours'
+          AND a.created_at<${f.to}::timestamptz))::int AS returned_accounts,
+        count(*) FILTER(WHERE EXISTS(SELECT 1 FROM hirelix_billing_events b WHERE b.user_id::text=r.id AND b.event_type='transaction.completed'
+          AND b.created_at>=r.created_at AND b.created_at<${f.to}::timestamptz))::int AS transaction_accounts
+      FROM registered r GROUP BY r.source,r.medium,r.campaign,r.content
+    ) SELECT coalesce(t.source,c.source) AS source,coalesce(t.medium,c.medium) AS medium,coalesce(t.campaign,c.campaign) AS campaign,
+      coalesce(t.content,c.content) AS content,coalesce(t.visitors,0)::int AS visitors,coalesce(t.sessions,0)::int AS sessions,
+      coalesce(t.page_views,0)::int AS page_views,coalesce(c.registrations,0)::int AS registrations,
+      coalesce(c.task_accounts,0)::int AS task_accounts,coalesce(c.returned_accounts,0)::int AS returned_accounts,
+      coalesce(c.transaction_accounts,0)::int AS transaction_accounts
+      FROM traffic t FULL JOIN conversions c USING(source,medium,campaign,content) ORDER BY sessions DESC,registrations DESC,source,content`),
     db.execute(sql`${base}${work} SELECT coalesce(d.snapshot->>'provider','google') AS provider,d.status,count(*)::int AS emails,count(DISTINCT d.user_id)::int AS accounts
       FROM hirelix_private_email_deliveries d JOIN users u ON u.id=d.user_id::text WHERE d.created_at>=${f.from}::timestamptz AND d.created_at<${f.to}::timestamptz GROUP BY provider,d.status ORDER BY emails DESC`),
     db.execute(
@@ -158,10 +197,12 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
     ),
     db.execute(sql`${base}, visits AS (SELECT session_id,min(created_at) AS started_at,max(account_id) AS account_id,
       bool_or(event_type IN ('personal_agent_cta_click','try_for_free_click')) AS cta,
-      bool_or(event_type='google_signin_click') AS login FROM events GROUP BY session_id)
-      SELECT count(*)::int AS visits,count(*) FILTER(WHERE cta)::int AS cta_visits,count(*) FILTER(WHERE login)::int AS login_visits,
-      count(*) FILTER(WHERE u."createdAt">=v.started_at AND u."createdAt"<${f.to}::timestamptz)::int AS signup_visits
-      FROM visits v LEFT JOIN "user" u ON u.id=v.account_id`),
+      bool_or(event_type='google_signin_click') AS login,
+      bool_or(event_type='page_view') AS page_view,
+      bool_or(event_type='signup_success' AND metadata->>'registration_verified'='true') AS signup
+      FROM events WHERE session_id IS NOT NULL GROUP BY session_id)
+      SELECT count(*) FILTER(WHERE page_view)::int AS visits,count(*) FILTER(WHERE cta)::int AS cta_visits,count(*) FILTER(WHERE login)::int AS login_visits,
+      count(*) FILTER(WHERE signup)::int AS signup_visits FROM visits`),
   ]);
   return {
     filters: f,

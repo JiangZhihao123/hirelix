@@ -19,6 +19,7 @@ import { getDb } from "@/db/client";
 import * as schema from "@/db/schema";
 import { AuthConfigurationError, AUTH_UNAVAILABLE_PAYLOAD, missingAuthSettings } from "./auth-status";
 import { getLogger } from "./logger";
+import { recordAcquisitionSignup } from "./growth-signup";
 
 const authLogger = getLogger({ component: "auth_configuration" });
 
@@ -118,6 +119,11 @@ function createAuth() {
     secret: readEnv("BETTER_AUTH_SECRET"),
     baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL,
     trustedOrigins: getTrustedOrigins(),
+    databaseHooks: {
+      user: { create: { after: async (user, context) => {
+        await recordAcquisitionSignup(user, context?.headers || context?.request?.headers);
+      } } },
+    },
     // Missing/consumed OAuth state must start a fresh flow, never skip validation.
     onAPIError: { errorURL: "/auth/retry" },
     // Manual linking requires the active Hirelix session and OAuth state. Never

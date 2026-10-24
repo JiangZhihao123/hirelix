@@ -10,12 +10,18 @@
 import { createAuthClient } from "better-auth/react";
 import { emailOTPClient } from "better-auth/client/plugins";
 import { authTransportFetch } from "./auth-status";
+import { syncAcquisitionCookie } from "./analytics";
 
 export const authClient = createAuthClient({
   // Same-origin: API routes are served at `/api/auth/*` on whichever host is
   // serving the SPA, so we don't need to set baseURL explicitly.
   plugins: [emailOTPClient()],
-  fetchOptions: { customFetchImpl: authTransportFetch },
+  fetchOptions: { customFetchImpl: (input, init) => {
+    if (typeof window !== "undefined" && window.__hirelixGrowthIdentity) {
+      syncAcquisitionCookie(window.__hirelixGrowthIdentity);
+    }
+    return authTransportFetch(input, init);
+  } },
 });
 
 export const {
