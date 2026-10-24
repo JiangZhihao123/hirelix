@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2, Loader2, Mail, ShieldCheck, Sparkles, Users } from "lucide-react";
 
 import { authClient, useSession } from "@/lib/auth-client";
-import { markGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 
 type InviteActivationClientProps = {
@@ -89,7 +89,6 @@ export function InviteActivationClient({
         invite_code: inviteCode,
         auth_method: "google",
       });
-      markGrowthGoogleSignInStarted();
       const result = await authClient.signIn.social({
         provider: "google",
         callbackURL: `/invite/${encodeURIComponent(inviteCode)}`,
@@ -141,12 +140,6 @@ export function InviteActivationClient({
         name: email.trim().split("@")[0],
       });
       if (result?.error) throw new Error("Invalid code.");
-      await trackGrowthEvent("signup_success", {
-        route: window.location.pathname,
-        invite_code: inviteCode,
-        has_email: true,
-        auth_result: "email_otp",
-      }, { awaitResponse: true });
       await activateSeat();
     } catch {
       setFormError("That code did not work. Please check the email and try again.");

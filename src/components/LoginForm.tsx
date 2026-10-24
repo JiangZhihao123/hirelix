@@ -8,7 +8,7 @@ import { ANALYTICS_EVENTS, getAnalyticsContextFromBrowser, trackEvent } from "@/
 import { authClient } from "@/lib/auth-client";
 import { authUnavailableMessage } from "@/lib/auth-status";
 import { useAuth } from "./AuthProvider";
-import { markGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
+import { trackGrowthEvent } from "@/lib/growth-client";
 import { GoogleAuthButton } from "./auth/GoogleAuthButton";
 import { getLoginFormStyles } from "./auth/loginStyles";
 
@@ -67,7 +67,6 @@ export function LoginForm({
         auth_method: "google",
         route: window.location.pathname,
       });
-      markGrowthGoogleSignInStarted();
       // better-auth handles the OAuth dance: it 302s us to Google, then
       // redirects back to `callbackURL` once the session cookie is set.
       const result = await authClient.signIn.social({
@@ -148,22 +147,9 @@ export function LoginForm({
         ...getAnalyticsContextFromBrowser(),
         auth_method: "email_otp",
       });
-      trackEvent(ANALYTICS_EVENTS.signupSuccess, {
-        ...getAnalyticsContextFromBrowser(),
-        auth_method: "email_otp",
-        auth_result: "email_otp",
-        has_email: true,
-      });
       await trackGrowthEvent("email_otp_verified", {
         auth_method: "email_otp",
         route: window.location.pathname,
-      }, { awaitResponse: true });
-      await trackGrowthEvent("signup_success", {
-        auth_method: "email_otp",
-        route: window.location.pathname,
-        has_email: true,
-        auth_result: "email_otp",
-        invite_code: window.__hirelixGrowthIdentity?.invite_code ?? null,
       }, { awaitResponse: true });
       redirectAfterEmailSignIn();
     } catch (error) {

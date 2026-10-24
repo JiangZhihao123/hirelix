@@ -7,9 +7,6 @@ export function flushGrowthEvents() {
   pending.splice(0).forEach((send) => send());
 }
 
-const GOOGLE_SIGNIN_STARTED_KEY = "hirelix.growth.google_signin_started_at";
-const GOOGLE_SIGNIN_WINDOW_MS = 10 * 60 * 1000;
-
 function isOpsRoute() {
   if (typeof window === "undefined") return false;
   return window.location.pathname.startsWith("/ops/");
@@ -59,20 +56,4 @@ export function trackGrowthEvent(
 export function getGrowthIdentity() {
   if (typeof window === "undefined") return null;
   return window.__hirelixGrowthIdentity ?? null;
-}
-
-export function markGrowthGoogleSignInStarted() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(GOOGLE_SIGNIN_STARTED_KEY, String(Date.now()));
-}
-
-export function consumeRecentGrowthGoogleSignInStarted() {
-  if (typeof window === "undefined") return false;
-  const rawValue = window.sessionStorage.getItem(GOOGLE_SIGNIN_STARTED_KEY);
-  if (!rawValue) return false;
-  window.sessionStorage.removeItem(GOOGLE_SIGNIN_STARTED_KEY);
-
-  const startedAt = Number.parseInt(rawValue, 10);
-  if (!Number.isFinite(startedAt)) return false;
-  return Date.now() - startedAt <= GOOGLE_SIGNIN_WINDOW_MS;
 }

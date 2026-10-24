@@ -1,16 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
 import { authClient, useSession } from "@/lib/auth-client";
 import { authUnavailableMessage } from "@/lib/auth-status";
-import {
-  ANALYTICS_EVENTS,
-  getAnalyticsContextFromBrowser,
-  isRecentSignup,
-  trackEvent,
-} from "@/lib/analytics";
-import { consumeRecentGrowthGoogleSignInStarted, trackGrowthEvent } from "@/lib/growth-client";
+
 
 /**
  * Subset of the better-auth user shape that the rest of the app reads.
@@ -45,7 +39,6 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { data, isPending, error } = useSession();
-  const trackedUserIdRef = useRef<string | null>(null);
 
   const user: AppUser | null = data?.user
     ? {
@@ -59,25 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       }
     : null;
-
-  useEffect(() => {
-    if (isPending || !user?.id || trackedUserIdRef.current === user.id) return;
-    if (!consumeRecentGrowthGoogleSignInStarted()) return;
-    trackedUserIdRef.current = user.id;
-    if (!isRecentSignup(user.created_at)) return;
-    trackEvent(ANALYTICS_EVENTS.signupSuccess, {
-      ...getAnalyticsContextFromBrowser(),
-      auth_method: "google_oauth",
-      auth_result: "google_oauth_callback",
-      has_email: Boolean(user.email),
-    });
-    void trackGrowthEvent("signup_success", {
-      route: window.location.pathname,
-      has_email: Boolean(user.email),
-      auth_result: "google_oauth_callback",
-      invite_code: window.__hirelixGrowthIdentity?.invite_code ?? null,
-    });
-  }, [isPending, user?.created_at, user?.email, user?.id]);
 
   const signOut = async () => {
     if (typeof window !== "undefined") {

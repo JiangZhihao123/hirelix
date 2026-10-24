@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { flushGrowthEvents } from "@/lib/growth-client";
-import { getAnalyticsContextFromBrowser } from "@/lib/analytics";
+import { getAnalyticsContextFromBrowser, getAcquisitionMetadataFromBrowser, syncAcquisitionCookie } from "@/lib/analytics";
 import {
   telemetryMetadata,
   telemetryRoute,
@@ -57,6 +57,8 @@ export function GrowthTracker() {
       session_id: sessionId,
     };
     const attribution = getAnalyticsContextFromBrowser();
+    const acquisition = getAcquisitionMetadataFromBrowser();
+    syncAcquisitionCookie({ visitor_id: visitorId, session_id: sessionId });
     const pageId = crypto.randomUUID(),
       pagePath = telemetryRoute(pathname);
     const started = performance.now();
@@ -91,6 +93,7 @@ export function GrowthTracker() {
         metadata: {
           ...telemetryMetadata({
             ...attribution,
+            ...acquisition,
             device_type: innerWidth < 768 ? "mobile" : "desktop",
             ...metadata,
           }),

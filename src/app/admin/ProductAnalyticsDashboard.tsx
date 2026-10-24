@@ -57,6 +57,9 @@ export function ProductAnalyticsDashboard() {
   const [days, setDays] = useState("7"),
     [timezone, setTimezone] = useState("Asia/Shanghai"),
     [source, setSource] = useState("all"),
+    [campaign, setCampaign] = useState("all"),
+    [content, setContent] = useState("all"),
+    [attribution, setAttribution] = useState("latest"),
     [device, setDevice] = useState("all"),
     [page, setPage] = useState(""),
     [internal, setInternal] = useState(false);
@@ -69,19 +72,25 @@ export function ProductAnalyticsDashboard() {
     days: "7",
     timezone: "Asia/Shanghai",
     source: "all",
+    campaign: "all",
+    content: "all",
+    attribution: "latest",
     device: "all",
     page: "",
     internal: false,
   });
   useEffect(() => {
     const controller = new AbortController();
-    const { days, timezone, source, device, page, internal } = applied;
+    const { days, timezone, source, campaign, content, attribution, device, page, internal } = applied;
     const end = new Date();
     const params = new URLSearchParams({
       from: new Date(+end - Number(days) * 86400000).toISOString(),
       to: end.toISOString(),
       timezone,
       source,
+      campaign,
+      content,
+      attribution,
       device,
       page: page || "all",
       internal: internal ? "1" : "0",
@@ -175,7 +184,7 @@ export function ProductAnalyticsDashboard() {
             setLoading(true);
             setError("");
             setData(null);
-            setApplied({ days, timezone, source, device, page, internal });
+            setApplied({ days, timezone, source, campaign, content, attribution, device, page, internal });
           }}
           className="flex flex-wrap items-end gap-4 rounded-xl border bg-white p-4"
         >
@@ -221,6 +230,21 @@ export function ProductAnalyticsDashboard() {
               value={source}
               onChange={(e) => setSource(e.target.value || "all")}
             />
+          </label>
+          <label className="text-sm">
+            活动 campaign
+            <input aria-label="活动 campaign" className="ml-2 w-44 rounded border p-2" value={campaign} onChange={e => setCampaign(e.target.value || "all")} />
+          </label>
+          <label className="text-sm">
+            内容 content
+            <input aria-label="内容 content" className="ml-2 w-44 rounded border p-2" value={content} onChange={e => setContent(e.target.value || "all")} />
+          </label>
+          <label className="text-sm">
+            归因口径
+            <select aria-label="归因口径" className="ml-2 rounded border p-2" value={attribution} onChange={e => setAttribution(e.target.value)}>
+              <option value="latest">最近非直接来源</option>
+              <option value="first">首次来源</option>
+            </select>
           </label>
           <label className="text-sm">
             设备
@@ -343,7 +367,7 @@ export function ProductAnalyticsDashboard() {
                           visits: "访问会话",
                           cta_visits: "点击试用的会话",
                           login_visits: "发起 Google 登录的会话",
-                          signup_visits: "关联到新注册的会话",
+                          signup_visits: "服务端确认新注册的会话",
                         } as Record<string, string>
                       )[key],
                       count: Number(value),
@@ -398,7 +422,7 @@ export function ProductAnalyticsDashboard() {
               <>
                 <Table
                   title="来源"
-                  note="来源依据 referrer / UTM；缺失 referrer 的访问按 direct 记录，不能推断为 AI 推荐。"
+                  note="按所选首次 / 最近非直接来源汇总；只有缺少 UTM、外部 referrer 和可用来源记录的新浏览器才记为 direct。不能推断为 AI 推荐或邮件真人点击。"
                   rows={data.sources}
                   columns={[
                     ["source", "来源"],
@@ -410,13 +434,20 @@ export function ProductAnalyticsDashboard() {
                 />
                 <Table
                   title="推广活动 UTM"
+                  note="按所选首次 / 最近非直接来源分组；来源在浏览器保留最多 90 天，站内导航、刷新和直接回访不会覆盖。访问是网站采集量，不能证明真人点击了邮件。注册来自服务端实际建号并按账号去重；只有本次采集启用后的注册有归因，不补造历史。任务指已完成的业务 job（排除聊天和后台索引），不代表成果质量；再次使用指注册 24 小时后发消息，观察不足时仍可能为 0。完成交易回调包含 Sandbox，不等于 Live 实收。"
                   rows={data.campaigns}
                   columns={[
                     ["source", "来源"],
                     ["medium", "媒介"],
                     ["campaign", "活动"],
-                    ["sessions", "会话"],
-                    ["accounts", "关联账号"],
+                    ["content", "内容"],
+                    ["visitors", "浏览器访客"],
+                    ["sessions", "访问会话"],
+                    ["page_views", "浏览量"],
+                    ["registrations", "新注册账号"],
+                    ["task_accounts", "完成业务任务账号"],
+                    ["returned_accounts", "再次使用账号"],
+                    ["transaction_accounts", "完成交易回调账号"],
                   ]}
                 />
                 <Table

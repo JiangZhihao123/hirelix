@@ -1,3 +1,5 @@
+import { ATTRIBUTION_COOKIE, ATTRIBUTION_MAX_AGE, ATTRIBUTION_STORAGE, acquisitionMetadata, readAcquisitionState, resolveAcquisition, type AcquisitionState } from "./growth-attribution";
+
 // Google supported search domains, verified 2026-10-19.
 // Source: https://www.google.com/supported_domains
 const GOOGLE_SEARCH_DOMAINS = "google.com google.ad google.ae google.com.af google.com.ag google.al google.am google.co.ao google.com.ar google.as google.at google.com.au google.az google.ba google.com.bd google.be google.bf google.bg google.com.bh google.bi google.bj google.com.bn google.com.bo google.com.br google.bs google.bt google.co.bw google.by google.com.bz google.ca google.cd google.cf google.cg google.ch google.ci google.co.ck google.cl google.cm google.cn google.com.co google.co.cr google.com.cu google.cv google.com.cy google.cz google.de google.dj google.dk google.dm google.com.do google.dz google.com.ec google.ee google.com.eg google.es google.com.et google.fi google.com.fj google.fm google.fr google.ga google.ge google.gg google.com.gh google.com.gi google.gl google.gm google.gr google.com.gt google.gy google.com.hk google.hn google.hr google.ht google.hu google.co.id google.ie google.co.il google.im google.co.in google.iq google.is google.it google.je google.com.jm google.jo google.co.jp google.co.ke google.com.kh google.ki google.kg google.co.kr google.com.kw google.kz google.la google.com.lb google.li google.lk google.co.ls google.lt google.lu google.lv google.com.ly google.co.ma google.md google.me google.mg google.mk google.ml google.com.mm google.mn google.com.mt google.mu google.mv google.mw google.com.mx google.com.my google.co.mz google.com.na google.com.ng google.com.ni google.ne google.nl google.no google.com.np google.nr google.nu google.co.nz google.com.om google.com.pa google.com.pe google.com.pg google.com.ph google.com.pk google.pl google.pn google.com.pr google.ps google.pt google.com.py google.com.qa google.ro google.ru google.rw google.com.sa google.com.sb google.sc google.se google.com.sg google.sh google.si google.sk google.com.sl google.sn google.so google.sm google.sr google.st google.com.sv google.td google.tg google.co.th google.com.tj google.tl google.tm google.tn google.to google.com.tr google.tt google.com.tw google.co.tz google.com.ua google.co.ug google.co.uk google.com.uy google.co.uz google.com.vc google.co.ve google.co.vi google.com.vn google.vu google.ws google.rs google.co.za google.co.zm google.co.zw google.cat".split(" ");
@@ -331,24 +333,51 @@ function writeStoredAttribution(attribution: StoredAttribution) {
   }
 }
 
+let attributionWindow: Window | undefined;
+let acquisition: AcquisitionState | undefined;
+function readBrowserAcquisition() {
+  try { return readAcquisitionState(JSON.parse(window.localStorage.getItem(ATTRIBUTION_STORAGE) || "null")); } catch { return null; }
+}
+
 export function getAttributionFromBrowser(): StoredAttribution {
   if (typeof window === "undefined") {
     return { traffic_source: "direct" };
   }
 
-  const params = new URLSearchParams(window.location.search);
-  if (hasExplicitAttribution(params)) {
-    const attribution = getAttributionFromParams(params, getExternalReferrer());
-    writeStoredAttribution(attribution);
-    return attribution;
+  // Resolve once per document. Query changes and copied UTM on internal links
+  // must not become new acquisition touches.
+  if (attributionWindow !== window || !acquisition) {
+    attributionWindow = window;
+    const params = new URLSearchParams(window.location.search);
+    const referrer = getExternalReferrer();
+    const previous = readBrowserAcquisition();
+    const internal = Boolean(document.referrer && !referrer);
+    const candidate = getAttributionFromParams(params, referrer);
+    acquisition = resolveAcquisition(previous, candidate, !internal && (hasExplicitAttribution(params) || Boolean(referrer)));
+    // Preserve the existing callback query contract, but do not add click IDs or
+    // search terms to the acquisition cookie or first/latest snapshots.
+    writeStoredAttribution({ ...acquisition.latest, gclid: candidate.gclid, utm_term: candidate.utm_term });
+    try { window.localStorage.setItem(ATTRIBUTION_STORAGE, JSON.stringify(acquisition)); } catch { /* Tracking cannot block navigation. */ }
   }
+  return readStoredAttribution() || acquisition.latest;
+}
 
-  const stored = readStoredAttribution();
-  if (stored) return stored;
+export function getAcquisitionMetadataFromBrowser() {
+  getAttributionFromBrowser();
+  return acquisition ? acquisitionMetadata(acquisition) : {};
+}
 
-  const attribution = getAttributionFromParams(params, getExternalReferrer());
-  writeStoredAttribution(attribution);
-  return attribution;
+export function syncAcquisitionCookie(identity: { visitor_id: string; session_id: string }) {
+  getAttributionFromBrowser();
+  if (!acquisition) return;
+  // Another tab may have seen a newer campaign. Use that browser-wide touch,
+  // but bind the auth request to the session of the tab actually signing in.
+  const shared = readBrowserAcquisition();
+  const state = shared && shared.latest.at > acquisition.latest.at ? shared : acquisition;
+  const value = encodeURIComponent(JSON.stringify({ ...state, ...identity }));
+  try {
+    document.cookie = `${ATTRIBUTION_COOKIE}=${value}; Path=/; Max-Age=${ATTRIBUTION_MAX_AGE}; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+  } catch { /* A blocked analytics cookie must not prevent sign-in. */ }
 }
 
 export function getAnalyticsContextFromParams(
