@@ -11,7 +11,7 @@ test.describe("Personal agent landing", () => {
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your Personal Agent.Built for headhunters.",
+      "Your next shortlist.Already in your network.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(
@@ -39,7 +39,7 @@ test.describe("Personal agent landing", () => {
       "Hirelix | Your Personal AI Agent for Headhunting",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your Personal Agent.Built for headhunters.",
+      "Your next shortlist.Already in your network.",
     );
   });
 

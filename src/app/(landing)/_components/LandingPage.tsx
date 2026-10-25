@@ -143,14 +143,14 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
           <div className="ha-hero-copy">
             <p className="ha-eyebrow">FOR NORTH AMERICAN HEADHUNTERS</p>
             <h1>
-              Your Personal Agent.
+              Your next shortlist.
               <br />
-              <span>Built for headhunters.</span>
+              <span>Already in your network.</span>
             </h1>
             <p className="ha-lead">
-              Turn a client brief and your candidate resumes into a shortlist
-              you can explain. Prepare the recommendation, bring back feedback,
-              and keep the search moving with the same personal agent.
+              Match a new JD against your own candidate library, explain the fit,
+              and prepare recommendations for your client. Your personal AI agent
+              builds on the resumes, notes, and feedback you save.
             </p>
             <div className="ha-hero-actions">
               <a
