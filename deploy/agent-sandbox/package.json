@@ -1,0 +1,15 @@
+{
+  "name": "hirelix-agent-sandbox",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "csv-parse": "7.0.2",
+    "csv-stringify": "6.8.3",
+    "docx": "9.7.2",
+    "exceljs": "4.4.0",
+    "fflate": "0.8.3",
+    "mammoth": "1.12.3",
+    "pdf-lib": "1.17.1"
+  }
+}
