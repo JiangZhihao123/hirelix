@@ -6,7 +6,7 @@ import { db, closeDb } from "../../src/db/client";
 import { rows, owned } from "../../src/lib/workspace/database";
 import { conversationDetails, sendMessage } from "../../src/lib/workspace/conversations";
 import { readFile, saveFile } from "../../src/lib/workspace/files";
-import { claimJob, finishJob, LostLease, retryJob } from "../../src/lib/workspace/jobs";
+import { cancelJob, claimJob, finishJob, LostLease, retryJob } from "../../src/lib/workspace/jobs";
 import { enqueueRecordBatch, prepareRecordBatch } from "../../src/lib/workspace/record-batches";
 import { createPerson } from "../../src/lib/workspace/people";
 import { addRecord } from "../../src/lib/workspace/records";
@@ -184,6 +184,62 @@ test("real PG: replacing a child lease stops the next chunk without rolling back
   const [records] = await rows<{count: number}>(sql`SELECT count(*)::int AS count FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid`);
   assert.equal(records.count, 25);
   await finishJob(parent, {result: {tested: true}});
+});
+
+test("real PG: stopping and creating a role acquire conversation before batch jobs", {timeout: 15000}, async () => {
+  const owner = randomUUID();
+  owners.push(owner);
+  const row = {input: {operation: "create", role: {title: `Stop role ${owner}`, client_name: "QA", jd_text: "JD", brief: {priorities: [], flexible: [], unknowns: []}}, source_file_id: null, notes: [], create_anyway: false}, source: {file_id: null, archive_path: null, page: null, row: null, sheet: null}};
+  const file = await saveFile(owner, {name: "role.jsonl", type: "application/x-ndjson", bytes: Buffer.from(`${JSON.stringify(row)}\n`)});
+  const sent = await sendMessage(owner, {message: "Save this role", request_key: randomUUID()});
+  const parent = await claimJob(["chat"], {id: sent.job.id, userId: owner});
+  assert.ok(parent);
+  const conversation = await conversationDetails(owner, sent.conversation_id);
+  const question = conversation.messages.find(message => message.id === parent.payload.message_id)!;
+  const queued = await db.transaction(tx => enqueueRecordBatch(parent, question, {write_operation: "save_role", input_file: {file_id: file.id, sha256: file.sha256}}, randomUUID(), tx));
+  const active = await claimJob(["import"], {id: queued.id, userId: owner});
+  assert.ok(active);
+  let release!: () => void, ready!: (pid: number) => void;
+  const gate = new Promise<void>(resolve => {release = resolve;});
+  const locked = new Promise<number>(resolve => {ready = resolve;});
+  const holder = db.transaction(async tx => {
+    await owned(owner, "conversation", sent.conversation_id, tx, true);
+    const [backend] = await rows<{pid: number}>(sql`SELECT pg_backend_pid() AS pid`, tx);
+    ready(backend.pid);
+    await gate;
+  });
+  const holderPid = await locked;
+  async function blockedCount() {
+    const [result] = await rows<{count: number}>(sql`WITH RECURSIVE blockers(pid) AS (
+      SELECT ${holderPid}::int UNION
+      SELECT activity.pid FROM pg_stat_activity activity JOIN blockers parent ON parent.pid=ANY(pg_blocking_pids(activity.pid))
+    ) SELECT count(*)::int AS count FROM blockers WHERE pid<>${holderPid}::int`);
+    return result.count;
+  }
+  async function waitForBlocked(count: number) {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      if (await blockedCount() >= count) return;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error(`Expected ${count} blocked transactions`);
+  }
+  const stopped = cancelJob(owner, parent.id).then(value => value, error => error);
+  let batch: Promise<unknown> | undefined;
+  try {
+    await waitForBlocked(1);
+    batch = prepareRecordBatch(active, async () => {}).then(value => value, error => error);
+    await waitForBlocked(2);
+    const available = await db.transaction(tx => rows(sql`SELECT id FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND id=${parent.id}::uuid FOR UPDATE SKIP LOCKED`, tx));
+    assert.equal(available.length, 1, "the waiting batch must not hold the parent job while waiting for the conversation");
+  } finally {
+    release();
+    await holder;
+  }
+  const stopResult = await stopped;
+  assert.equal((stopResult as Job).status, "cancelled");
+  assert.ok((await batch) instanceof LostLease);
+  const [roles] = await rows<{count: number}>(sql`SELECT count(*)::int AS count FROM hirelix_private_roles WHERE user_id=${owner}::uuid`);
+  assert.equal(roles.count, 0);
 });
 
 test("real PG, controlled agent tool: authorization, child dispatch, summary and replay preserve one write", async () => {

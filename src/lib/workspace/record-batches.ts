@@ -45,6 +45,10 @@ async function lockedBatch(job: Job, tx: Runner) {
   const parentId = job.payload.parent_chat_job_id;
   const parentLease = job.payload.parent_chat_lease_token;
   if (typeof parentId !== "string" || typeof parentLease !== "string") throw new LostLease();
+  // Stop and ordinary tool commits take conversation before parent and child.
+  // A role-creation batch also updates the conversation, so use that same
+  // order before acquiring either job lock.
+  await owned(job.user_id, "conversation", String(job.payload.conversation_id), tx, true);
   const parent = await owned<Job>(job.user_id, "job", parentId, tx, true);
   if (parent.kind !== "chat" || parent.status !== "running" || parent.lease_token !== parentLease || !parent.lease_until || new Date(parent.lease_until).getTime() <= Date.now() || parent.payload.conversation_id !== job.payload.conversation_id) throw new LostLease();
   return activeAgentJob(job, tx, true);
