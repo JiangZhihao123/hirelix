@@ -12,6 +12,11 @@ not pull images or fall back to host execution. The image includes Node.js,
 Python, common spreadsheet and document libraries, and the workspace helper.
 Image building needs package registry access; executed commands have no network.
 
+For this machine's local QA profile, set `DOCKER_CONTEXT=colima-hirelix-qa`
+in the worker/runtime process environment. This selects its daemon without
+changing the user's globally selected Docker context. The QA image must be
+built in that context as well.
+
 Each execution lease has an isolated 128 MiB workspace. A keeper maintains the
 memory-backed volume while individual commands run in separate containers.
 Inputs are copied from the owner's private files to a separate read-only volume.

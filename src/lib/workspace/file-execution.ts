@@ -175,7 +175,7 @@ async function files(names: ReturnType<typeof resourceNames>, signal?: AbortSign
   return JSON.parse((await helper(names, "list", undefined, undefined, signal)).toString("utf8")) as { files: { path: string; size: number }[]; truncated: boolean };
 }
 function fileType(name: string) {
-  const types: Record<string, string> = { pdf: "application/pdf", txt: "text/plain", md: "text/markdown", json: "application/json", csv: "text/csv", tsv: "text/tab-separated-values", html: "text/html", xml: "application/xml", zip: "application/zip", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" };
+  const types: Record<string, string> = { pdf: "application/pdf", txt: "text/plain", md: "text/markdown", json: "application/json", jsonl: "application/x-ndjson", ndjson: "application/x-ndjson", csv: "text/csv", tsv: "text/tab-separated-values", html: "text/html", xml: "application/xml", zip: "application/zip", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation" };
   return types[path.posix.extname(name).slice(1).toLowerCase()] || "application/octet-stream";
 }
 async function saveBytes(userId: string, name: string, bytes: Buffer, tx: Runner) {

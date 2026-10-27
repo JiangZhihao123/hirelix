@@ -32,6 +32,12 @@ test("real Docker and PG: bounded tools, isolated files, original bytes and pers
   const written = await writeWorkspaceFile(ctx, {path: "scripts/test.py", content: "print('python-ok')\n", persist: true});
   assert.ok(written.file);
   assert.equal((await readFile(owner, written.file.file_id)).bytes.toString(), "print('python-ok')\n");
+  const jsonl = await writeWorkspaceFile(ctx, {path:"records.jsonl",content:'{"name":"A"}\n',persist:true});
+  assert.ok(jsonl.file);
+  assert.equal(jsonl.file.media_type,"application/x-ndjson");
+  assert.equal((await readFile(owner,jsonl.file.file_id)).media_type,"application/x-ndjson");
+  const ndjson = await writeWorkspaceFile(ctx, {path:"records.ndjson",content:'{"name":"B"}\n',persist:true});
+  assert.equal(ndjson.file?.media_type,"application/x-ndjson");
   const script = `set -e
 python3 /work/scripts/test.py
 node -e "require('exceljs'); require('mammoth'); require('docx'); console.log('node-libs-ok')"
@@ -105,5 +111,8 @@ test("an unavailable Docker daemon fails closed without running the command on t
   try {
     await assert.rejects(() => executeBash(context(), {command:`touch ${sentinel}`}), /isolated file workspace is unavailable/);
     assert.equal(existsSync(sentinel), false);
-  } finally { process.env.DOCKER_HOST = originalHost; }
+  } finally {
+    if (originalHost === undefined) delete process.env.DOCKER_HOST;
+    else process.env.DOCKER_HOST = originalHost;
+  }
 });
