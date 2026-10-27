@@ -37,7 +37,21 @@ export async function saveRecommendationFeedback(token: string, value: unknown) 
     }, tx);
     // Return new evidence to the conversation that produced this recommendation.
     // This receipt reports feedback; it does not claim a meeting was scheduled.
-    const [origin] = await rows<{conversation_id: string}>(sql`SELECT c.id AS conversation_id FROM hirelix_private_jobs j JOIN hirelix_private_conversations c ON c.user_id=j.user_id AND c.id::text=j.payload->>'conversation_id' WHERE j.user_id=${share.user_id}::uuid AND j.kind='deliverable' AND j.result->>'deliverable_id'=${document.id} ORDER BY j.created_at DESC LIMIT 1`, tx);
+    const [origin] = await rows<{conversation_id: string}>(sql`
+      SELECT c.id AS conversation_id
+      FROM hirelix_private_jobs j
+      JOIN hirelix_private_conversations c ON c.user_id=j.user_id AND c.id::text=j.payload->>'conversation_id'
+      WHERE j.user_id=${share.user_id}::uuid AND (
+        (j.kind='deliverable' AND j.result->>'deliverable_id'=${document.id}) OR
+        (j.kind='chat' AND EXISTS (
+          SELECT 1 FROM jsonb_each(CASE WHEN jsonb_typeof(j.result->'tool_receipts')='object'
+            THEN j.result->'tool_receipts' ELSE '{}'::jsonb END) AS receipt(key, value)
+          WHERE receipt.value->>'name'='save_document'
+            AND receipt.value->'output'->>'operation'='create'
+            AND receipt.value->'output'->'document'->>'id'=${document.id}
+        ))
+      )
+      ORDER BY j.created_at DESC,j.id DESC LIMIT 1`, tx);
     const recordHref = `/app/roles/${document.role_id}?tab=activity&record=${record.id}`;
     if (origin) {
       const labels = {interview: "希望安排面试", hold: "暂缓考虑", decline: "此职位不再推进", comment: "补充意见"};

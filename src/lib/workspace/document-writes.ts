@@ -66,7 +66,7 @@ function checkedContent(content: string) {
   return content;
 }
 
-function receipt(document: Deliverable, bodyFile: z.infer<typeof contentFile> | null) {
+function receipt(document: Deliverable, operation: SaveDocumentInput["operation"], bodyFile: z.infer<typeof contentFile> | null) {
   const source = document.source_snapshot;
   const role = source.role as { id?: unknown; version?: unknown } | undefined;
   const people = Array.isArray(source.people) ? source.people as Array<{ id: unknown; version: unknown }> : [];
@@ -77,6 +77,7 @@ function receipt(document: Deliverable, bodyFile: z.infer<typeof contentFile> | 
     : `/app/submissions/${document.id}`;
   return {
     status: "saved" as const,
+    operation,
     document: {
       id: document.id, title: document.title, kind: document.kind, status: document.status,
       version: document.version, href, role_id: document.role_id, person_ids: document.person_ids,
@@ -139,7 +140,7 @@ export async function prepareDocumentWrite(userId: string, value: unknown) {
       const [document] = await rows<Deliverable>(sql`INSERT INTO hirelix_private_deliverables(user_id,role_id,kind,title,content,person_ids,record_ids,file_ids,source_snapshot,period_start,period_end)
         VALUES(${userId}::uuid,${input.role_id}::uuid,${input.kind},${input.title},${content!},${uuidArray(input.person_ids)},${uuidArray(sourceInput.record_ids)},${uuidArray(sourceInput.file_ids)},${json(source)},${input.period_start}::timestamptz,${input.period_end}::timestamptz) RETURNING *`, tx);
       await snapshot(userId, "deliverable", document, tx);
-      return receipt(document, bodyFile);
+      return receipt(document, input.operation, bodyFile);
     }
 
     const document = await owned<Deliverable>(userId, "deliverable", input.document_id, tx, true);
@@ -158,8 +159,8 @@ export async function prepareDocumentWrite(userId: string, value: unknown) {
     const title = input.title ?? document.title;
     if (title === document.title && nextContent === document.content &&
         isDeepStrictEqual(source, document.source_snapshot) && isDeepStrictEqual(selected.recordIds, document.record_ids) &&
-        isDeepStrictEqual(selected.fileIds, document.file_ids)) return receipt(document, bodyFile);
+        isDeepStrictEqual(selected.fileIds, document.file_ids)) return receipt(document, input.operation, bodyFile);
     const updated = await persistDraftRevision(userId, document, { title, content: nextContent }, source, tx, selected.recordIds, selected.fileIds);
-    return receipt(updated, bodyFile);
+    return receipt(updated, input.operation, bodyFile);
   };
 }
