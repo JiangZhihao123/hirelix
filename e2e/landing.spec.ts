@@ -7,11 +7,11 @@ test.describe("Personal agent landing", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
   });
 
-  test("explains the personal agent without advertising external sourcing", async ({
+  test("explains private candidates and public research without a paid talent database", async ({
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your next shortlist.Already in your network.",
+      "Your next shortlist.Start with what you have.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(
@@ -39,7 +39,7 @@ test.describe("Personal agent landing", () => {
       "Hirelix | Your Personal AI Agent for Headhunting",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your next shortlist.Already in your network.",
+      "Your next shortlist.Start with what you have.",
     );
   });
 
@@ -61,9 +61,11 @@ test.describe("Personal agent landing", () => {
         expect(url.searchParams.get("utm_source")).toBe("landing-qa");
         expect(url.searchParams.get("utm_campaign")).toBe("cold-entry");
         expect(url.searchParams.get("gclid")).toBe("qa-click");
-        const signIn = url.searchParams.get("entry") === "signin";
-        expect(url.searchParams.get("prompt")).toBe(signIn ? null : firstAssignmentPrompt);
+        const prompt = url.searchParams.get("prompt");
+        expect([null, firstAssignmentPrompt]).toContain(prompt);
       }
+      const exampleLink = new URL((await page.getByTestId("first-assignment-cta").getAttribute("href"))!, baseURL);
+      expect(exampleLink.searchParams.get("prompt")).toBe(firstAssignmentPrompt);
       const plans = await page.locator('.ha-pricing-options a[href^="/app?"]').evaluateAll((links) =>
         links.map((link) => new URL(link.getAttribute("href")!, location.origin).searchParams.get("plan")),
       );
@@ -74,7 +76,7 @@ test.describe("Personal agent landing", () => {
       const destination = new URL(page.url());
       expect(destination.searchParams.get("entry")).toBe("free_trial");
       expect(destination.searchParams.get("utm_campaign")).toBe("cold-entry");
-      expect(destination.searchParams.get("prompt")).toBe(firstAssignmentPrompt);
+      expect(destination.searchParams.get("prompt")).toBeNull();
     } finally {
       await context.close();
     }
@@ -223,7 +225,7 @@ test.describe("Personal agent landing", () => {
     expect(url.searchParams.get("utm_source")).toBe("landing-qa");
     expect(url.searchParams.get("utm_campaign")).toBe("personal-agent");
     expect(url.searchParams.get("entry")).toBe("free_trial");
-    expect(url.searchParams.get("prompt")).toBe(firstAssignmentPrompt);
+    expect(url.searchParams.get("prompt")).toBeNull();
     await expect(
       page.getByRole("heading", {
         name: "Start with your private AI assistant",

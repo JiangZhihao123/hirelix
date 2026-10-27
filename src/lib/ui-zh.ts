@@ -1908,4 +1908,13 @@ export const uiZh: Record<string, string> = {
   "Prepare a focused candidate call brief from the resume, role and notes I share. Prioritize the few questions that could change whether this person is worth putting forward.": "根据我提供的简历、职位和笔记准备一份简洁的候选人沟通提纲，优先列出会影响是否推荐此人的几个关键问题。",
   "Record the client feedback I share against the relevant role and candidates, then help me decide what to move forward next. Keep the work internal.": "将我提供的客户反馈记录到对应职位和候选人，帮助我判断接下来推进什么，仅在工作区内部处理。",
   "Save the screening notes I share against the relevant candidates and role. Preserve what was said, distinguish confirmed facts from open questions, and tell me what matters for the next conversation.": "将我提供的初筛笔记保存到对应候选人和职位，保留原意，区分已确认事实和待核实问题，说明下一次沟通的重点。",
+  "Bring my existing candidates": "导入我已有的候选人",
+  "Research people on the public web": "从公开网页寻找人选",
+  "Bring your candidate library, or start with a role to research.": "带入已有候选人，或从一个职位开始研究。",
+  "Import the historical candidates and resumes I attach into my private library. Keep original files, exported fields and history traceable. Save unambiguous new candidates and tell me about identity conflicts or material issues that need my decision.": "将我附上的历史候选人和简历导入私人候选人库。保留原始文件、导出字段和历史资料的来源。直接保存身份明确的新候选人；存在身份冲突或需要我决定的重要问题时告诉我。",
+  "Help me identify potential candidates from publicly available information for the role I describe. Explain why they may be relevant, link the supporting sources and identify what remains unconfirmed. Keep this as research; do not save profiles or contact anyone.": "根据我描述的职位，从公开资料寻找潜在人选。解释可能匹配的原因，附上证据来源，说明尚未核实的信息。只进行研究，不保存档案或联系任何人。",
+  "Each file must be non-empty and up to 50 MB.": "每个文件须非空，且不超过 50 MB。",
+  "Use images, PDF, DOCX, XLSX, PPTX, CSV, TSV, text files or candidate ZIP archives": "请使用图片、PDF、DOCX、XLSX、PPTX、CSV、TSV、文本文件或候选人 ZIP 压缩包。",
+  "This upload is incomplete. Retry to continue from the received parts.": "文件尚未上传完整。请重试，将从已收到的分片继续。",
+  "CSV, TSV, XLSX, resumes or ZIP · Up to 4 MB here; use the conversation for larger files.": "CSV、TSV、XLSX、简历或 ZIP · 此处限 4 MB，更大的文件请在对话中上传。",
 };

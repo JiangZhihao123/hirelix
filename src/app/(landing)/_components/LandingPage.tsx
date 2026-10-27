@@ -42,7 +42,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
     query.set("page_variant", "personal-agent");
     query.set("entry", signIn ? "signin" : "free_trial");
     if (plan) query.set("plan", plan);
-    const assignment = prompt ?? (signIn ? undefined : firstAssignmentPrompt);
+    const assignment = prompt;
     if (assignment) query.set("prompt", assignment);
     return `/app?${query.toString()}`;
   }
@@ -75,7 +75,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
       destination: "/app",
     });
     if (plan) query.set("plan", plan);
-    const assignment = prompt ?? (signIn ? undefined : firstAssignmentPrompt);
+    const assignment = prompt;
     if (assignment) query.set("prompt", assignment);
     if (!signIn) query.set("entry", "free_trial");
     // Keep native navigation, including modified clicks and new tabs. If the
@@ -145,12 +145,12 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             <h1>
               Your next shortlist.
               <br />
-              <span>Already in your network.</span>
+              <span>Start with what you have.</span>
             </h1>
             <p className="ha-lead">
-              Match a new JD against your own candidate library, explain the fit,
-              and prepare recommendations for your client. Your personal AI agent
-              builds on the resumes, notes, and feedback you save.
+              Bring your existing candidates, or start with a role and research
+              people on the public web. Your personal AI agent explains the
+              evidence and builds on the resumes, notes, and feedback you save.
             </p>
             <div className="ha-hero-actions">
               <a
@@ -528,7 +528,8 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                 that is what you have; add other candidates or notes as you go.
               </p>
               <a
-                href={entryHref()}
+                href={entryHref(false, undefined, firstAssignmentPrompt)}
+                data-testid="first-assignment-cta"
                 className="ha-button"
                 onClick={(event) => enter(event, "first_assignment", false, undefined, firstAssignmentPrompt)}
               >

@@ -72,8 +72,9 @@ export default function ProductPage() {
           or independent authority to make recruiting decisions.
         </p>
         <p>
-          Hirelix works with your own candidate pool. It does not provide paid
-          external candidate sourcing or access to a talent database.
+          Hirelix works with your own candidate pool and can research publicly
+          available information when you ask. Public evidence may be incomplete
+          or out of date. Hirelix does not sell access to a talent database.
         </p>
       </section>
       <section>

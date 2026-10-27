@@ -79,6 +79,10 @@ test("starting points offer editable work requests for first use and continued u
     assert.equal($("button").length,3);
     assert.equal($("button[type=submit]").length,0);
     assert.match($.text(),returning ? /Pick up my searches/ : /Compare candidates for a role/);
-    assert.match($.text(),/Prepare for a candidate call/);
+    if (returning) assert.match($.text(),/Prepare for a candidate call/);
+    else {
+      assert.match($.text(), /Bring my existing candidates/);
+      assert.match($.text(), /Research people on the public web/);
+    }
   }
 });

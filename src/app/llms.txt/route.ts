@@ -11,7 +11,7 @@ export function GET() {
 
 Hirelix is operated by YieldMirror. It serves independent headhunters and consultants at boutique search firms. As a long-term AI assistant, the personal agent works with saved candidate profiles, CVs, notes, role requirements, conversations, and explicit preferences. Recruiters can update or forget saved preferences. It does not promise unlimited recall or independent recruiting decisions.
 
-Hirelix works with the user's own candidate pool. It does not provide paid external candidate sourcing or a talent database. Client drafts require review. ${mailboxAvailability} Provider acceptance of a send is not confirmation of recipient delivery.
+Hirelix works with the user's own candidate pool and can research publicly available information when asked, preserving source links and uncertainties. Public evidence can be incomplete or inaccessible. It does not sell talent-database access. Client drafts require review. ${mailboxAvailability} Provider acceptance of a send is not confirmation of recipient delivery.
 
 ${AGENT_PLAN.name}: USD ${AGENT_PLAN.monthlyCents / 100}/month or USD ${AGENT_PLAN.annualCents / 100}/year, plus applicable tax. Both include ${AGENT_PLAN.monthlyCredits} AI credits per monthly subscription period, without rollover. Monthly credits reset after successful renewal. Annual credits reset on each monthly subscription anniversary; shorter months use the last day. Trial: ${AGENT_PLAN.trialDays} days and ${AGENT_PLAN.trialCredits} credits, no card required, no automatic conversion to paid. Credits measure service usage, not a fixed number of tasks.
 

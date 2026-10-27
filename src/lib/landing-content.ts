@@ -11,8 +11,8 @@ export const landingFaqs = [
     "Hirelix is a personal AI agent for headhunters, designed to work with you over time. It builds on the candidate records, resumes, notes, client briefs, and preferences you save, helping you continue your work from one conversation and role to the next.",
   ],
   [
-    "Does Hirelix find new candidates from external databases?",
-    "No. Hirelix works with your own saved candidate pool and the materials you bring. It does not offer paid external candidate sourcing or sell access to a talent database.",
+    "Can Hirelix help me find people on the public web?",
+    "Yes. Ask your assistant to research publicly available information for a role. It can explain potential relevance with source links and unresolved questions. Public information may be incomplete, out of date or inaccessible. Hirelix also works with your own saved candidate pool; it does not sell access to a talent database.",
   ],
   [
     "How much does Hirelix cost?",
@@ -24,7 +24,7 @@ export const landingFaqs = [
   ],
   [
     "Can I bring my existing candidates?",
-    "Yes. Upload candidate lists in CSV format or resumes in PDF and DOCX. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
+    "Yes. Upload candidate lists in CSV, TSV or XLSX format, resumes, or a ZIP of candidate files. Existing lists can give your assistant useful context from the start. Files are limited to 50 MB each; tables support up to 10,000 candidate rows across worksheets. A ZIP can contain up to 500 files and expand to 30 MB. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
   ],
   [
     "Can my assistant remember how I like to work?",
@@ -45,7 +45,7 @@ export const landingFaqs = [
   ],
   [
     "Is Hirelix an ATS or a candidate database?",
-    "Hirelix is a conversational personal AI agent for a headhunter’s own work, not a source of external candidates. It keeps the profiles, roles, documents and conversations you save. It is not presented as a replacement for a firm’s ATS, and no automatic ATS synchronization is promised.",
+    "Hirelix is a conversational personal AI agent for a headhunter’s work, with private candidate records and research using publicly available information. It keeps the profiles, roles, documents and conversations you save. It is not presented as a replacement for a firm’s ATS, and no automatic ATS synchronization is promised.",
   ],
   [
     "Can I export or delete candidate information?",
