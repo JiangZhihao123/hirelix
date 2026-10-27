@@ -26,7 +26,12 @@ export async function addRecord(
   const run = async (tx: Runner) => {
     if (input.person_id) await owned(userId, "person", input.person_id, tx);
     if (input.role_id) await owned(userId, "role", input.role_id, tx);
-    if (input.file_id) await owned(userId, "file", input.file_id, tx);
+    if (input.file_id) {
+      // File ownership is enough here; loading the original bytes for every
+      // record would repeatedly transfer large source files during a batch.
+      const [file] = await rows<{id: string}>(sql`SELECT id FROM hirelix_private_files WHERE user_id=${userId}::uuid AND id=${input.file_id}::uuid AND upload_id IS NULL`, tx);
+      if (!file) throw new WorkspaceError("This item was not found", 404);
+    }
     if (input.details.recommendation_id) {
       const feedback = recommendationFeedbackContext.parse(input.details);
       const document = await owned<Deliverable>(userId, "deliverable", feedback.recommendation_id, tx);

@@ -100,7 +100,7 @@ export async function roleDetails(userId: string, id: string) {
 }
 // A matching title is only a prompt for the model to check with the user;
 // client naming and JD wording vary, so this must not block or merge silently.
-export async function findLikelyDuplicateRoles(userId: string, input: { title: string }) {
+export async function findLikelyDuplicateRoles(userId: string, input: { title: string }, runner: Runner = db) {
   const title = input.title.trim();
   if (!title) return [];
   return rows<Role & { candidate_count: number }>(
@@ -110,6 +110,7 @@ export async function findLikelyDuplicateRoles(userId: string, input: { title: s
       WHERE r.user_id=${userId}::uuid AND r.status<>'closed'
         AND lower(btrim(r.title))=lower(btrim(${title}))
       ORDER BY r.updated_at DESC LIMIT 5`,
+    runner,
   );
 }
 
@@ -117,7 +118,7 @@ export async function createRole(
   userId: string,
   value: unknown,
   runner?: Runner,
-  source?: { file_id: string; title: string },
+  source?: { file_id: string; title: string; details?: Record<string, unknown> },
 ) {
   const input = roleInput.parse(value);
   const run = async (tx: Runner) => {
@@ -135,7 +136,7 @@ export async function createRole(
         kind: "jd",
         title: source?.title || "Original JD",
         content: input.jd_text,
-        details: { role_version: 1 },
+        details: { role_version: 1, ...(source?.details ? { declared_source: source.details } : {}) },
       },
       tx,
     );

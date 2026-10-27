@@ -12,6 +12,27 @@ import { addRecord, updateRecord } from "./records";
 import { recordInput, roleInput, type Message, type Role, type RoleCandidate, type Person, type SourceRecord } from "./types";
 import type { AssistantAction, AssistantMeta } from "./conversations";
 
+// Location information is supplied by the agent and is a declaration, not a
+// claim that the normalized text is a faithful transcript of the source.
+export const declaredSourceSchema = z.object({
+  file_id: z.uuid().nullable().describe("Owned original source file ID, or null for material without an original file."),
+  archive_path: z.string().min(1).max(2000).nullable().describe("Declared exact path inside the original archive, or null."),
+  page: z.number().int().positive().nullable().describe("Declared one-based source page, or null when unknown."),
+  row: z.number().int().positive().nullable().describe("Declared one-based source row, or null when unknown."),
+  sheet: z.string().min(1).max(300).nullable().describe("Declared original spreadsheet sheet name, or null."),
+  normalized_file_id: z.uuid(),
+  normalized_line: z.number().int().positive(),
+}).strict();
+
+export async function declaredSource(userId: string, value: unknown, tx: Runner) {
+  if (!value) return undefined;
+  const source = declaredSourceSchema.parse(value);
+  const ids = [...new Set([source.normalized_file_id, ...(source.file_id ? [source.file_id] : [])])];
+  const files = await rows<{id: string}>(sql`SELECT id FROM hirelix_private_files WHERE user_id=${userId}::uuid AND upload_id IS NULL AND id IN (${sql.join(ids.map(id => sql`${id}::uuid`), sql`, `)})`, tx);
+  if (files.length !== ids.length) throw new WorkspaceError("This source file was not found", 404);
+  return source;
+}
+
 export async function acceptAction(
   userId: string,
   conversationId: string,
@@ -54,17 +75,20 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     const person = prior
       ? await updatePerson(userId, prior.id, input, z.number().int().positive().parse(action.fields.expected_version), tx)
       : await createPerson(userId, input, tx);
+    const sourceDetails = await declaredSource(userId, action.fields.source_details, tx);
     await addRecord(userId, {
       person_id: person.id, kind: "profile", title: prior ? "Candidate profile update" : "Candidate profile source",
       content: z.string().parse(action.fields.source_content), file_id: action.fields.source_file_id || null,
-      details: {source_message_id: action.fields.source_message_id, person_version: person.version},
+      details: {source_message_id: action.fields.source_message_id, person_version: person.version, ...(sourceDetails ? {declared_source: sourceDetails} : {})},
     }, tx);
     action.person_id = person.id;
     action.href = `/app/candidates?person=${person.id}`;
   } else if (action.kind === "create_role") {
+    const sourceDetails = await declaredSource(userId, action.fields.source_details, tx);
     const source = action.fields.source_file_id ? {
       file_id: z.uuid().parse(action.fields.source_file_id),
       title: String(action.fields.source_file_name || "Original job description"),
+      details: sourceDetails,
     } : undefined;
     const role = await createRole(userId, roleInput.parse(value), tx, source);
     // Keep the reviewed notes and their source associations in the same
@@ -83,18 +107,20 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     action.href = document.kind === "submission" ? `/app/submissions/${document.id}` : `/app/roles/${document.role_id}/updates/${document.id}`;
   } else if (action.kind === "update_role_details") {
     const prior = await owned<Role>(userId, "role", z.uuid().parse(action.role_id), tx, true);
+    const sourceDetails = await declaredSource(userId, action.fields.source_details, tx);
     const changes = roleChangesSchema.parse(action.fields.changes);
     const role = await updateRole(userId, prior.id, {
       ...prior, title: changes.title ?? prior.title,
       client_name: changes.client_name ?? prior.client_name, status: changes.status ?? prior.status,
       client_contact: {...prior.client_contact, ...Object.fromEntries(Object.entries(changes.client_contact ?? {}).filter(([, value]) => value !== null))},
     }, z.number().int().positive().parse(action.fields.expected_version), tx);
-    await addRecord(userId, {role_id: role.id, kind: "note", title: "Role details update",
-      content: z.string().parse(action.fields.source_content), details: {source_message_id: action.fields.source_message_id, role_version: role.version}}, tx);
+    await addRecord(userId, {role_id: role.id, kind: "note", title: "Role details update", file_id: action.fields.source_file_id || null,
+      content: z.string().parse(action.fields.source_content), details: {source_message_id: action.fields.source_message_id, role_version: role.version, ...(sourceDetails ? {declared_source: sourceDetails} : {})}}, tx);
     action.href = `/app/roles/${role.id}`;
   } else if (action.kind === "update_role_brief") {
     if (!action.role_id)
       throw new WorkspaceError("This role is unavailable", 404);
+    const sourceDetails = await declaredSource(userId, action.fields.source_details, tx);
     const input = z.object({
       brief: roleInput.shape.brief,
       occurred_at: z.iso.datetime({ offset: true }).nullable().default(null),
@@ -102,10 +128,12 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     }).parse(value);
     const prior = await owned<Role>(userId, "role", action.role_id, tx, true);
     const feedback = action.fields.feedback_record_id
-      ? await owned<SourceRecord>(userId,"record",z.uuid().parse(action.fields.feedback_record_id),tx)
+      ? await owned<SourceRecord>(userId,"record",z.uuid().parse(action.fields.feedback_record_id),tx,true)
       : null;
     if(feedback && (feedback.role_id !== prior.id || !["feedback","call","note","email"].includes(feedback.kind)))
       throw new WorkspaceError("Choose the saved client feedback for this exact role.",409);
+    if (feedback && feedback.version !== action.fields.feedback_record_version)
+      throw new WorkspaceError("This feedback changed. Read it again before updating the role.", 409);
     const changes = roleChangesSchema.parse(action.fields.changes ?? {});
     const role = await updateRole(
       userId,
@@ -129,6 +157,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
           source_message_id: action.fields.source_message_id,
           role_version: role.version,
           occurred_on: input.occurred_at ? null : input.occurred_on,
+          ...(sourceDetails ? {declared_source: sourceDetails} : {}),
         },
       },
       tx,
@@ -136,6 +165,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
     action.href = `/app/roles/${role.id}`;
   } else if (action.kind === "update_record") {
     const prior = await owned<SourceRecord>(userId, "record", z.uuid().parse(action.fields.record_id), tx, true);
+    const sourceDetails = await declaredSource(userId, action.fields.source_details, tx);
     if (!["note", "call", "email", "feedback"].includes(prior.kind) || prior.person_id !== action.person_id || prior.role_id !== action.role_id)
       throw new WorkspaceError("Choose the original communication record to correct.");
     const permissionEvidence = await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND permission_record_id=${prior.id}::uuid LIMIT 1`, tx);
@@ -146,7 +176,7 @@ export async function applyAssistantAction(userId: string, conversationId: strin
       ...prior,
       occurred_at: prior.occurred_at ? new Date(prior.occurred_at).toISOString() : null,
       ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== null).map(([key, value]) => [key, key === "occurred_at" && value === "" ? null : value])),
-      details: { ...prior.details, ...(action.fields.source_message_id ? {source_message_id: z.uuid().parse(action.fields.source_message_id)} : {}), ...(changes.occurred_on !== null ? {occurred_on: changes.occurred_on || null} : {}), ...(changes.occurred_at ? {occurred_on: null} : {}) },
+      details: { ...prior.details, ...(action.fields.source_message_id ? {source_message_id: z.uuid().parse(action.fields.source_message_id)} : {}), ...(sourceDetails ? {last_update_source: sourceDetails} : {}), ...(changes.occurred_on !== null ? {occurred_on: changes.occurred_on || null} : {}), ...(changes.occurred_at ? {occurred_on: null} : {}) },
     }, z.number().int().positive().parse(action.fields.expected_version), tx);
     action.href = record.person_id
       ? `/app/candidates?person=${record.person_id}&record=${record.id}`

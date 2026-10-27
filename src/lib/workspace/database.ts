@@ -81,6 +81,27 @@ export async function enqueue(
   runner: Runner = db,
 ): Promise<Job> {
   if (runner === db) return db.transaction((tx) => enqueue(userId, kind, key, payload, tx));
+  if (kind === "index") {
+    const personId = typeof payload.person_id === "string" && !payload.role_id ? payload.person_id : null;
+    const roleId = typeof payload.role_id === "string" && !payload.person_id ? payload.role_id : null;
+    const target = personId ? `person:${personId}` : roleId ? `role:${roleId}` : null;
+    if (target) {
+      // Index work reads a fresh snapshot. Collapse only identical queued work;
+      // a running job still needs a successor for changes it may have missed.
+      await runner.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`index-queue:${userId}:${target}`},0))`);
+      const [sameKey] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND request_key=${key}`, runner);
+      if (sameKey) {
+        const [same] = await rows<{matches: boolean}>(sql`SELECT payload=${json(payload)} AND kind=${kind} AS matches FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND id=${sameKey.id}::uuid`, runner);
+        if (!same.matches) throw new WorkspaceError("This request key was already used for a different operation", 409);
+        return sameKey;
+      }
+      const condition = personId ? sql`payload->>'person_id'=${personId}` : sql`payload->>'role_id'=${roleId}`;
+      // The row lock prevents a worker from claiming this queued snapshot until
+      // the source changes in the current transaction have committed.
+      const [pending] = await rows<Job>(sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${userId}::uuid AND kind='index' AND status='queued' AND ${condition} AND payload=${json(payload)} ORDER BY created_at,id LIMIT 1 FOR UPDATE`, runner);
+      if (pending) return pending;
+    }
+  }
   const inserted = await rows<Job>(
     sql`INSERT INTO hirelix_private_jobs(user_id,kind,request_key,payload) VALUES(${userId}::uuid,${kind},${key},${json(payload)}) ON CONFLICT(user_id,request_key) DO NOTHING RETURNING *`,
     runner,
