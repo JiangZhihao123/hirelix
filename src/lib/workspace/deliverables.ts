@@ -126,6 +126,20 @@ export async function selectedDocumentFiles(userId: string, personIds: string[],
   return files;
 }
 
+export async function selectedDocumentPeople(userId: string, roleId: string, personIds: string[], tx: Runner, requireLinkedPeople = true) {
+  const people = [];
+  for (const id of personIds) {
+    const person = await owned<Person>(userId, "person", id, tx);
+    const [link] = await rows<{ permission: string; interest: string }>(
+      sql`SELECT permission,interest FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${roleId}::uuid AND person_id=${id}::uuid`, tx,
+    );
+    if (!link && requireLinkedPeople)
+      throw new WorkspaceError("Add this candidate to the role before preparing a submission");
+    people.push({...publicProfile(person), ...(link ? {sharing_permission:link.permission, role_interest:link.interest} : {})});
+  }
+  return people;
+}
+
 export function validateDocumentSources(input: z.infer<typeof preparationInput>) {
   if (
     new Set(input.person_ids).size !== input.person_ids.length ||
@@ -154,26 +168,11 @@ export async function captureDocumentSources(
   input: z.infer<typeof preparationInput>,
   tx: Runner,
   versions?: { role_version: number | null; records: Array<{ id: string; version: number }> },
+  requireLinkedPeople = true,
 ) {
   const role = await owned<Role>(userId, "role", input.role_id, tx);
   if (versions?.role_version != null) expectVersion(role.version, versions.role_version);
-  const people = [];
-  for (const id of input.person_ids) {
-    const person = await owned<Person>(userId, "person", id, tx);
-    const [link] = await rows<{ permission: string; interest: string }>(
-      sql`SELECT permission,interest FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${role.id}::uuid AND person_id=${id}::uuid`,
-      tx,
-    );
-    if (!link)
-      throw new WorkspaceError(
-        "Add this candidate to the role before preparing a submission",
-      );
-    people.push({
-      ...publicProfile(person),
-      sharing_permission: link.permission,
-      role_interest: link.interest,
-    });
-  }
+  const people = await selectedDocumentPeople(userId,role.id,input.person_ids,tx,requireLinkedPeople);
   const records = [];
   for (const id of input.record_ids) {
     records.push(await selectedDocumentRecord(userId, id, input, tx, versions?.records.find(record => record.id === id)?.version));

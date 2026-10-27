@@ -80,7 +80,7 @@ test("real PG: direct document writes preserve evidence, concurrency and recomme
     await assert.rejects(() => save({...input,sources:{...input.sources,records:[{id:wrongNote,version:1}]}}), /unselected candidate|another client/);
     await assert.rejects(() => save({...input,sources:{...input.sources,records:[{id:foreignNote,version:1}]}}), failure(404));
     await assert.rejects(() => save({...input,sources:{...input.sources,file_ids:[foreignFile.id]}}), /selected CV/);
-    assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role}::uuid`)).length, 0, "failed create must roll back candidate links");
+    assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role}::uuid`)).length, 0);
 
     const created = await save(input);
     assert.equal(created.document.version,1);
@@ -93,6 +93,44 @@ test("real PG: direct document writes preserve evidence, concurrency and recomme
     assert.equal(document.content,body);
     assert.equal(document.source_snapshot.audience,"client");
     assert.deepEqual((document.source_snapshot.files as Array<{sha256:string}>).map(file=>file.sha256),[cv1.sha256,cv2.sha256]);
+    assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role}::uuid`)).length,0,"document references do not add candidates to the role pipeline");
+    const comparison = await save({...input,title:"Internal comparison",audience:"internal",content_file:null,content:"Compare the selected evidence."});
+    const internal = await owned<Deliverable>(owner,"deliverable",comparison.document.id);
+    assert.deepEqual(internal.person_ids,people.slice(0,2));
+    assert.deepEqual(internal.record_ids,[note]);
+    assert.deepEqual((internal.source_snapshot.people as Array<{id:string}>).map(person=>person.id),people.slice(0,2));
+    assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role}::uuid`)).length,0);
+    await assert.rejects(()=>publishDocument(owner,internal.id,internal.version),/Only client/);
+    const comparisonEdited=await save({operation:"patch",document_id:internal.id,expected_version:1,edits:[],
+      person_ids:[people[1],people[2]],sources:null});
+    assert.equal(comparisonEdited.document.version,2);
+    assert.deepEqual(comparisonEdited.document.person_ids,[people[1],people[2]]);
+    assert.deepEqual(comparisonEdited.document.record_ids,[],"removed candidate's source no longer belongs to the current copy");
+    assert.deepEqual(comparisonEdited.document.file_ids,[cv2.id],"removed candidate's CV is not carried into the new copy");
+    const oldComparison=await rows<{snapshot:Deliverable}>(sql`SELECT snapshot FROM hirelix_private_versions WHERE user_id=${owner}::uuid AND entity_id=${internal.id}::uuid AND version=1`);
+    assert.deepEqual(oldComparison[0].snapshot.person_ids,people.slice(0,2));
+    assert.deepEqual(oldComparison[0].snapshot.record_ids,[note]);
+    assert.deepEqual(oldComparison[0].snapshot.file_ids,[cv1.id,cv2.id]);
+    const empty = await save({...input,kind:"search_update",person_ids:[],title:"Unlinked comparison",audience:"internal",
+      period_start:"2026-10-21T16:00:00Z",period_end:"2026-10-22T15:59:59Z",report_timezone:"Asia/Shanghai",
+      sources:{role_version:1,records:[],file_ids:[]},content_file:null,content:"Compare these candidates."});
+    const addPeople = {operation:"patch",document_id:empty.document.id,expected_version:1,edits:[],person_ids:people,
+      sources:{role_version:1,records:[{id:note,version:1}],file_ids:[]}};
+    await assert.rejects(()=>save({...addPeople,person_ids:[...people,randomUUID()]}),failure(404));
+    assert.equal((await owned<Deliverable>(owner,"deliverable",empty.document.id)).version,1);
+    const added=await save(addPeople);
+    assert.equal(added.document.id,empty.document.id);
+    assert.deepEqual(added.document.person_ids,people);
+    assert.deepEqual(added.document.record_ids,[note]);
+    const addedDoc=await owned<Deliverable>(owner,"deliverable",empty.document.id);
+    assert.deepEqual((addedDoc.source_snapshot.people as Array<{id:string}>).map(person=>person.id),people);
+    assert.equal((await rows(sql`SELECT id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role}::uuid`)).length,0);
+    const removedPeople=await save({operation:"replace",document_id:empty.document.id,expected_version:2,
+      person_ids:[people[1],people[2]],content:"Updated comparison.",sources:null});
+    assert.equal(removedPeople.document.version,3);
+    assert.deepEqual(removedPeople.document.person_ids,[people[1],people[2]]);
+    assert.deepEqual(removedPeople.document.record_ids,[]);
+    assert.deepEqual((await owned<Deliverable>(owner,"deliverable",empty.document.id)).source_snapshot.records,[]);
     assert.equal((await rows(sql`SELECT id FROM hirelix_private_document_shares WHERE user_id=${owner}::uuid`)).length,0,"saving does not share");
     assert.equal((await rows(sql`SELECT id FROM hirelix_private_versions WHERE user_id=${owner}::uuid AND entity_id=${document.id}::uuid AND version=1`)).length,1);
     assert.equal(Object.keys(recommendationSections(body,[{id:people[0],name:"QA Alex"},{id:people[1],name:"QA Sam"}]).sections).length,2);
@@ -160,6 +198,10 @@ test("real PG: direct document writes preserve evidence, concurrency and recomme
     const reportDocument = await owned<Deliverable>(owner,"deliverable",reportSaved.document.id);
     assert.equal((reportDocument.source_snapshot.records as Array<{occurred_local_date:string}>)[0].occurred_local_date,"2026-10-22");
     await assert.rejects(() => save({...report,person_ids:[people[0]],period_start:"2026-10-20T16:00:00Z",period_end:"2026-10-21T15:59:59Z",sources:{...report.sources,records:[{id:note,version:1}]}}),/reporting period/);
+    await db.execute(sql`INSERT INTO hirelix_private_role_candidates(user_id,role_id,person_id,permission) VALUES(${owner}::uuid,${role}::uuid,${people[0]}::uuid,'declined')`);
+    const declined=await save({...input,title:"Declined sharing",content_file:null,content:body});
+    assert.equal(((await owned<Deliverable>(owner,"deliverable",declined.document.id)).source_snapshot.people as Array<{sharing_permission?:string}>)[0].sharing_permission,"declined");
+    await assert.rejects(()=>publishDocument(owner,declined.document.id,declined.document.version),/declined sharing/);
   } finally {
     await db.transaction(async tx => {
       for (const user of [owner,foreign]) {
