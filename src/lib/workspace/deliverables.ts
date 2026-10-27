@@ -126,12 +126,7 @@ export async function selectedDocumentFiles(userId: string, personIds: string[],
   return files;
 }
 
-export async function prepareDeliverable(
-  userId: string,
-  value: unknown,
-  runner: Runner = db,
-): Promise<Job> {
-  const input = preparationInput.parse(value);
+export function validateDocumentSources(input: z.infer<typeof preparationInput>) {
   if (
     new Set(input.person_ids).size !== input.person_ids.length ||
     new Set(input.record_ids).size !== input.record_ids.length ||
@@ -151,6 +146,76 @@ export async function prepareDeliverable(
       new Date(input.period_start) > new Date(input.period_end))
   )
     throw new WorkspaceError("Choose a valid reporting period");
+}
+
+// Capture the same selected evidence for both scheduled generation and direct writes.
+export async function captureDocumentSources(
+  userId: string,
+  input: z.infer<typeof preparationInput>,
+  tx: Runner,
+  versions?: { role_version: number | null; records: Array<{ id: string; version: number }> },
+) {
+  const role = await owned<Role>(userId, "role", input.role_id, tx);
+  if (versions?.role_version != null) expectVersion(role.version, versions.role_version);
+  const people = [];
+  for (const id of input.person_ids) {
+    const person = await owned<Person>(userId, "person", id, tx);
+    const [link] = await rows<{ permission: string; interest: string }>(
+      sql`SELECT permission,interest FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${role.id}::uuid AND person_id=${id}::uuid`,
+      tx,
+    );
+    if (!link)
+      throw new WorkspaceError(
+        "Add this candidate to the role before preparing a submission",
+      );
+    people.push({
+      ...publicProfile(person),
+      sharing_permission: link.permission,
+      role_interest: link.interest,
+    });
+  }
+  const records = [];
+  for (const id of input.record_ids) {
+    records.push(await selectedDocumentRecord(userId, id, input, tx, versions?.records.find(record => record.id === id)?.version));
+  }
+  const files = await selectedDocumentFiles(userId, input.person_ids, input.file_ids, tx);
+  const source = {
+    role: {
+      id: role.id,
+      version: role.version,
+      title: role.title,
+      client_name: role.client_name,
+      jd_text: role.jd_text,
+      brief: role.brief,
+    },
+    people,
+    records,
+    files,
+    period_start: input.period_start,
+    period_end: input.period_end,
+    period_local_start: input.report_timezone && input.period_start
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: input.report_timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(input.period_start))
+      : input.period_local_start,
+    period_local_end: input.report_timezone && input.period_end
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: input.report_timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(input.period_end))
+      : input.period_local_end,
+    report_timezone: input.report_timezone,
+    language: input.language,
+    format: input.format,
+    captured_at: new Date().toISOString(),
+  };
+  if (JSON.stringify(source).length > 240000)
+    throw new WorkspaceError("Select fewer source records for this draft");
+  return source;
+}
+
+export async function prepareDeliverable(
+  userId: string,
+  value: unknown,
+  runner: Runner = db,
+): Promise<Job> {
+  const input = preparationInput.parse(value);
+  validateDocumentSources(input);
   const prepare = async (tx: Runner) => {
     await tx.execute(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + input.request_key},0))`,
@@ -167,56 +232,7 @@ export async function prepareDeliverable(
         );
       return owned<Job>(userId, "job", prior.id, tx);
     }
-    const role = await owned<Role>(userId, "role", input.role_id, tx);
-    const people = [];
-    for (const id of input.person_ids) {
-      const person = await owned<Person>(userId, "person", id, tx);
-      const [link] = await rows<{ permission: string; interest: string }>(
-        sql`SELECT permission,interest FROM hirelix_private_role_candidates WHERE user_id=${userId}::uuid AND role_id=${role.id}::uuid AND person_id=${id}::uuid`,
-        tx,
-      );
-      if (!link)
-        throw new WorkspaceError(
-          "Add this candidate to the role before preparing a submission",
-        );
-      people.push({
-        ...publicProfile(person),
-        sharing_permission: link.permission,
-        role_interest: link.interest,
-      });
-    }
-    const records = [];
-    for (const id of input.record_ids) {
-      records.push(await selectedDocumentRecord(userId, id, input, tx));
-    }
-    const files = await selectedDocumentFiles(userId, input.person_ids, input.file_ids, tx);
-    const source = {
-      role: {
-        id: role.id,
-        version: role.version,
-        title: role.title,
-        client_name: role.client_name,
-        jd_text: role.jd_text,
-        brief: role.brief,
-      },
-      people,
-      records,
-      files,
-      period_start: input.period_start,
-      period_end: input.period_end,
-      period_local_start: input.report_timezone && input.period_start
-        ? new Intl.DateTimeFormat("en-CA", { timeZone: input.report_timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(input.period_start))
-        : input.period_local_start,
-      period_local_end: input.report_timezone && input.period_end
-        ? new Intl.DateTimeFormat("en-CA", { timeZone: input.report_timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(input.period_end))
-        : input.period_local_end,
-      report_timezone: input.report_timezone,
-      language: input.language,
-      format: input.format,
-      captured_at: new Date().toISOString(),
-    };
-    if (JSON.stringify(source).length > 240000)
-      throw new WorkspaceError("Select fewer source records for this draft");
+    const source = await captureDocumentSources(userId, input, tx);
     return enqueue(
       userId,
       "deliverable",
