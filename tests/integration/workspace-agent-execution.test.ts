@@ -193,7 +193,7 @@ test("real PG: updating a brief reuses its feedback and rejects another role's s
     status: "pending" as const,
     role_id: role.id,
     person_id: null,
-    fields: { expected_version: role.version, feedback_record_id: source.id },
+    fields: { expected_version: role.version, feedback_record_id: source.id, feedback_record_version: source.version },
   };
   const brief = {
     priorities: ["Bristol Tuesday and Thursday", "Lead three PMs"],

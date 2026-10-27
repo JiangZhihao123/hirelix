@@ -1,48 +1,47 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { z } from "zod";
+import { WorkspaceError } from "./database";
+import { recordBatchRow } from "./record-batches";
+import { recordWriteSchemas } from "./record-writes";
 
-// The catalog is instructions, not executable workflow routing. The model
-// chooses when to read a method; only these repository-owned files are exposed.
+// The catalog describes methods, never dispatches business workflows.
 export const agentSkillNames = [
-  "recruiting-records",
-  "public-sourcing",
-  "candidate-import",
-  "client-delivery",
-  "follow-ups",
+  "recruiting-records", "candidate-assessment", "candidate-import",
+  "public-sourcing", "client-delivery", "email-correspondence", "follow-ups",
 ] as const;
-export const agentSkills = [
-  {
-    name: "recruiting-records",
-    description:
-      "Professional methods for candidate intake from profile links and supplied material, recruiting evidence, role-specific candidate comparison, decision briefings, retained assessments and dated communications.",
-  },
-  {
-    name: "public-sourcing",
-    description:
-      "Methods for finding potential candidates in publicly available sources, relating observed evidence to a role, and reporting source coverage and uncertainty.",
-  },
-  {
-    name: "candidate-import",
-    description:
-      "Methods and verified export references for bringing historical candidates from LinkedIn Recruiter, Loxo, Recruit CRM, Recruiterflow and other recruiting systems; coverage, original sources and migration limits.",
-  },
-  {
-    name: "client-delivery",
-    description:
-      "Methods for multi-candidate recommendations, client reports, private versus shared evidence, delivery versions and individual client feedback.",
-  },
-  {
-    name: "follow-ups",
-    description:
-      "Methods for delegated reminders, recurring reports and explicit durable preferences, including timing and scope.",
-  },
-];
-export async function readAgentSkill(name: (typeof agentSkillNames)[number]) {
+export type AgentSkillName = (typeof agentSkillNames)[number];
+const descriptions: Record<AgentSkillName, string> = {
+  "recruiting-records": "Understand and maintain recruiting facts from JDs, resumes, notes and feedback.",
+  "candidate-assessment": "Evaluate and compare candidates against current role evidence; prepare focused recruiting conversations.",
+  "candidate-import": "Bring historical candidates and related records from supplied files and exported recruiting data.",
+  "public-sourcing": "Find and research potential candidates from public professional evidence.",
+  "client-delivery": "Write, revise and deliver recruiter briefs, candidate recommendations and client progress reports.",
+  "email-correspondence": "Understand mailbox evidence and prepare accurate correspondence for the requested audience.",
+  "follow-ups": "Manage explicit reminders, recurring role reports and durable working preferences.",
+};
+const resources: Partial<Record<AgentSkillName, string[]>> = {
+  "candidate-import": ["references/platform-exports.md", "references/batch-format.json"],
+  "public-sourcing": ["references/source-access.md"],
+  "client-delivery": ["references/formats.md"],
+};
+export const agentSkills = agentSkillNames.map(name => ({name, description: descriptions[name]}));
+
+export async function readAgentSkill(name: AgentSkillName, resource?: string) {
+  if (!agentSkillNames.includes(name)) throw new WorkspaceError("This Skill is unavailable.", 404);
+  if (resource && !(resources[name] || []).includes(resource))
+    throw new WorkspaceError("Choose a resource listed by this Skill.", 404);
+  const instructions = resource === "references/batch-format.json"
+    ? JSON.stringify({
+        format: "UTF-8 JSONL, one object per line, one write_operation per batch. No authorization fields in source rows.",
+        row: z.toJSONSchema(recordBatchRow),
+        operations: Object.fromEntries(Object.entries(recordWriteSchemas).map(([key, schema]) => [key, z.toJSONSchema(schema)])),
+      })
+    : await readFile(join(process.cwd(), "src/lib/workspace/skills", name, resource || "SKILL.md"), "utf8");
   return {
-    name,
-    instructions: await readFile(
-      join(process.cwd(), "src/lib/workspace/skills", `${name}.md`),
-      "utf8",
-    ),
+    name, resource: resource ?? "SKILL.md", instructions,
+    version: createHash("sha256").update(instructions).digest("hex"),
+    resources: resources[name] || [],
   };
 }

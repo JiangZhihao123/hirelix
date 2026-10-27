@@ -1,4 +1,4 @@
-import { compactAgentToolSchema } from "./agent-tool-schema";
+import { agentToolInputSchema } from "./agent-tool-schema";
 import { randomUUID } from "node:crypto";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { getLogger } from "@/lib/logger";
@@ -141,7 +141,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     transformParams: async ({ params }) => {
       await activeAgentJob(job);
       return {...params, tools: params.tools?.map(tool => tool.type === "function"
-        ? {...tool, inputSchema: compactAgentToolSchema(tool.inputSchema) as typeof tool.inputSchema} : tool)};
+        ? {...tool, inputSchema: agentToolInputSchema(tool.inputSchema) as typeof tool.inputSchema} : tool)};
     },
     wrapGenerate: async ({ doGenerate, params }) => {
       const startedAt = new Date(), {metadata, attempt} = callMetadata(params);

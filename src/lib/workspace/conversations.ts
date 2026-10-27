@@ -65,7 +65,7 @@ export type AssistantMeta = {
     comment: string; submitted_name: string; href: string;
   };
   recommendation_links?: Array<{document_id: string; version: number; href: string; expires_at: string}>;
-  document_edits?: Array<{id:string;title:string;version:number;href:string}>;
+  document_edits?: Array<{id:string;title:string;version:number;href:string;operation?:"create"|"patch"|"replace"}>;
   exports?: { document_id: string; formats: Array<"pdf" | "docx"> };
   gmail?: {connected:boolean;email:string|null;provider?:"google"|"microsoft"};
   email?: ConversationEmail;
@@ -164,7 +164,14 @@ export async function conversationDetails(userId: string, id: string) {
   const latestWork = [...work].reverse().find(item => item.status === "done" && item.result?.deliverable_id);
   const deliveredMessages = messages.filter(message => !["queued","removed"].includes(String(message.metadata.delivery)));
   const selected = [...deliveredMessages].reverse().find(message => message.role === "user" && typeof message.metadata.work_document_id === "string");
-  const documentId = selected && (!latestWork || new Date(selected.created_at) > new Date(latestWork.created_at)) ? selected.metadata.work_document_id : latestWork?.result?.deliverable_id || deliveredMessages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
+  const savedDocument = [...deliveredMessages].reverse().find(message => Array.isArray(message.metadata.document_edits) && message.metadata.document_edits.length);
+  const latestSaved = savedDocument?.metadata.document_edits as AssistantMeta["document_edits"];
+  const candidates = [
+    ...(selected ? [{id:selected.metadata.work_document_id,at:selected.created_at}] : []),
+    ...(latestWork ? [{id:latestWork.result?.deliverable_id,at:latestWork.created_at}] : []),
+    ...(savedDocument && latestSaved?.length ? [{id:latestSaved.at(-1)!.id,at:savedDocument.created_at}] : []),
+  ].sort((a,b)=>new Date(b.at).getTime()-new Date(a.at).getTime());
+  const documentId = candidates[0]?.id || deliveredMessages.find(message => message.role === "user" && typeof message.metadata.document_id === "string")?.metadata.document_id;
   const document = documentId ? await owned<Deliverable>(userId, "deliverable", z.uuid().parse(documentId)) : null;
   const active = jobs.find(job => job.status === "running");
   const queued = jobs.filter(job => job.status === "queued");

@@ -1,3 +1,4 @@
+import { lockScheduledChat, finishScheduledChat } from "./schedule-agent";
 import { workErrorDiagnostics } from "./error-diagnostics";
 import { turnParts } from "./turn-progress";
 import { isIncludedTask } from "./database";
@@ -114,6 +115,7 @@ export { liveReplyWriter } from "./live-reply";
 export async function finishJob(job: Job, prepared: PreparedJob) {
   return db.transaction(async (tx) => {
     if(job.kind === "chat") await owned(job.user_id,"conversation",String(job.payload.conversation_id),tx,true);
+    if (job.kind === "chat" && job.payload.schedule_id) await lockScheduledChat(job, tx);
     if (typeof job.payload.parent_chat_job_id === "string") {
       const parent = await owned<Job>(job.user_id,"job",job.payload.parent_chat_job_id,tx,true);
       if (parent.status !== "running" || parent.lease_token !== job.payload.parent_chat_lease_token || !parent.lease_until || new Date(parent.lease_until).getTime() <= Date.now()) throw new LostLease();
@@ -139,6 +141,7 @@ export async function finishJob(job: Job, prepared: PreparedJob) {
       const href = `/app?conversation=${job.payload.conversation_id}`;
       await tx.execute(sql`INSERT INTO hirelix_private_notifications(user_id,title,href,kind,request_key) VALUES(${job.user_id}::uuid,${result.waiting_for_input ? "Your answer is needed" : job.kind === "chat" ? "Reply ready" : "Work complete"},${href},'conversation_result',${`job-ready:${job.id}`}) ON CONFLICT DO NOTHING`);
     }
+    if (job.kind === "chat" && job.payload.schedule_id) await finishScheduledChat(job, tx, result.waiting_for_input === true);
     return result;
   });
 }
@@ -166,10 +169,15 @@ export async function reclaimJobs() {
 export async function retryJob(userId: string, id: string, parent?: Job) {
   return db.transaction(async (tx) => {
     if (parent) {
+      await owned(userId, "conversation", String(parent.payload.conversation_id), tx, true);
       const current = await owned<Job>(userId,"job",parent.id,tx,true);
       if (current.user_id !== userId || current.kind !== "chat" || current.status !== "running" || current.lease_token !== parent.lease_token || !current.lease_until || new Date(current.lease_until).getTime() <= Date.now()) throw new LostLease();
     }
     const original = await owned<Job>(userId, "job", id, tx);
+    if (original.kind === "deliverable" || original.kind === "revision" || (original.kind === "import" && original.payload.operation !== "record_batch"))
+      throw new WorkspaceError("Continue this work in its conversation with the current tools.", 409);
+    if (original.kind === "import" && (!parent || original.payload.conversation_id !== parent.payload.conversation_id))
+      throw new WorkspaceError("Resume this batch from its conversation.", 409);
     if (original.kind === "chat" && typeof original.payload.conversation_id === "string") {
       // Serialize with sendMessage before taking the billing lock. A stale tab
       // must not restart an older failed turn after the user has moved on.
@@ -179,7 +187,7 @@ export async function retryJob(userId: string, id: string, parent?: Job) {
     }
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${userId}`}, 0))`);
     const job = await owned<Job>(userId, "job", id, tx, true);
-    if (job.status !== "error" && !(parent && job.status === "cancelled" && job.payload.conversation_id === parent.payload.conversation_id && ["import","deliverable","revision"].includes(job.kind)))
+    if (job.status !== "error" && !(parent && job.status === "cancelled" && job.payload.conversation_id === parent.payload.conversation_id && job.kind === "import" && job.payload.operation === "record_batch"))
       throw new WorkspaceError("Only failed tasks can be retried", 409);
     if (!(await isIncludedTask(job, tx))) {
       if (await reserveAgentCredits(userId, job.id, tx) === false) throw new WorkspaceError("Your AI credit allowance has ended. Open Settings → Billing to continue.", 402);

@@ -1,3 +1,4 @@
+import { lockScheduledChat } from "./schedule-agent";
 import { workErrorDiagnostics } from "./error-diagnostics";
 import { getLogger } from "@/lib/logger";
 import { createHash } from "node:crypto";
@@ -69,12 +70,16 @@ export async function commitAgentTool(
 ) {
   const key = agentToolKey(name, input);
   return db.transaction(async (tx) => {
+    if (job.kind === "chat") await owned(job.user_id, "conversation", String(job.payload.conversation_id), tx, true);
+    if (job.payload.schedule_id) await lockScheduledChat(job, tx);
     const current = await activeAgentJob(job, tx, true);
     const prior = (current.result?.tool_receipts ?? {}) as Record<
       string,
       ToolReceipt
     >;
     if (prior[key]) return prior[key].output;
+    if (job.payload.schedule_id && name === "save_document" && Object.values(prior).some(receipt => receipt.name === "save_document" && (receipt.output as {operation?: string})?.operation === "create"))
+      throw new WorkspaceError("This scheduled occurrence already saved its report. Read the committed receipt.", 409);
     if (Object.keys(prior).length >= 50)
       throw new WorkspaceError(
         "This request reached its tool limit. Completed work is saved; continue with a smaller request.",

@@ -87,3 +87,13 @@ test('PDF font mappings containing NUL can be extracted for database storage',as
   assert.equal(result.images.length,visual?1:0);
  }
 });
+
+test('normalized batch files retain line boundaries and raw content for Agent reads', async () => {
+ const content='{"input":{"name":"Original Name"},"source":{"row":7}}\n{"input":{"name":"同名"},"source":{"row":8}}\n';
+ for(const name of ['normalized.jsonl','receipts.ndjson']) {
+  const result=await readDocument({name,bytes:Buffer.from(content)},0,false);
+  assert.equal(result.text,content);
+  assert.deepEqual(result.images,[]);
+ }
+ await assert.rejects(()=>readDocument({name:'invalid.jsonl',bytes:Buffer.from([0xff,0xfe])},0,false),/UTF-8/);
+});

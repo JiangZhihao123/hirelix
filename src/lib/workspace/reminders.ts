@@ -5,7 +5,7 @@ import { owned, rows, WorkspaceError, type Runner } from "./database";
 import { scheduleInput } from "./schedules";
 export const reminderActionSchema = z.object({
   id: z.uuid().nullable(),
-  expected_version: z.number().int().positive().nullable().describe("For edits, use the version you observed in the reminder receipt or list_reminders. Null only when creating a new reminder."),
+  expected_version: z.number().int().positive().nullable().describe("For edits, use the version you observed in the reminder receipt or list_schedules. Null only when creating a new reminder."),
   title: z.string().trim().min(1).max(500),
   due_at: z.iso.datetime({offset: true}),
   timezone: scheduleInput.shape.timezone,

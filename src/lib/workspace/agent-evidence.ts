@@ -82,9 +82,10 @@ export async function recordEvidence(userId: string, records: SourceRecord[]) {
       archive_source: typeof record.details.source_archive_file_id === "string" && typeof record.details.source_archive_path === "string" ? {
         file_id: record.details.source_archive_file_id,
         path: record.details.source_archive_path,
-        system: record.details.source_system ?? null,
-        candidate_id: record.details.source_candidate_id ?? null,
         extraction: record.details.extraction ?? null,
+        source_file_id: record.details.source_identity_file_id ?? null,
+        source_column: record.details.source_identity_column ?? null,
+        source_value: record.details.source_identity_value ?? null,
       } : null,
       occurred_at: record.occurred_at,
       occurred_on: record.details.occurred_on ?? null,

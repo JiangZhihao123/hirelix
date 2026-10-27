@@ -66,20 +66,21 @@ export async function readDocument(file: {name: string; bytes: Uint8Array; media
 }
 
 async function readDocumentContent(file: {name: string; bytes: Uint8Array; media_type?: string}, imageBudget: number, readVisuals: boolean): Promise<ReadDocument> {
-  const extension = !file.name.includes(".") && file.media_type === "application/pdf"
-    ? "pdf" : file.name.split(".").pop()?.toLowerCase() || "";
+  const basename = file.name.split("/").at(-1) || file.name;
+  const extension = !basename.includes(".") && file.media_type === "application/pdf"
+    ? "pdf" : basename.split(".").pop()?.toLowerCase() || "";
   if (extension === "zip") {
     const entries = Object.entries(boundedArchive(file.bytes)).filter(([path]) => !path.endsWith("/"));
     if (entries.length > 1000) throw new WorkspaceError("This ZIP contains more than 1,000 files.");
-    return ensureContent({ text: `Archive inventory only. Enclosed file contents have not been read. Candidate tables and resumes can be processed by import_candidates when authorized.\n${entries.map(([path, bytes]) => JSON.stringify({ path, bytes: bytes.length })).join("\n")}`, images: [] });
+    return ensureContent({ text: `Archive inventory only. Enclosed file contents have not been read. Read the exact archive_path for a selected entry; the inventory does not establish its meaning or relationships.\n${entries.map(([path, bytes]) => JSON.stringify({ path, bytes: bytes.length })).join("\n")}`, images: [] });
   }
   if (IMAGE_EXTENSIONS.includes(extension)) {
     if (!readVisuals) return {text: "", images: []};
     if (imageBudget < 1) throw new WorkspaceError("Use up to 20 images or PDF pages per message");
     const images = [await sourceImage(file.bytes, file.name)];
-    return {text: await transcribeImages(images), images};
+    return {text: `Model visual transcription of original image (not an original text layer):\n${await transcribeImages(images)}`, images};
   }
-  if (["txt", "md", "csv", "tsv", "json", "html", "xml"].includes(extension)) {
+  if (["txt", "md", "csv", "tsv", "json", "jsonl", "ndjson", "html", "xml"].includes(extension)) {
     let text: string;
     try { text = new TextDecoder("utf-8", {fatal: true}).decode(file.bytes).replace(/^\uFEFF/, ""); }
     catch { throw new WorkspaceError("This text file is not readable as UTF-8"); }
@@ -115,7 +116,7 @@ async function readDocumentContent(file: {name: string; bytes: Uint8Array; media
     if (media.length > imageBudget) throw new WorkspaceError("Use up to 20 images or PDF pages per message");
     const images: SourceImage[] = [];
     for (const [name, data] of media) images.push(await sourceImage(data, `${file.name}: ${name}`));
-    if (images.length) text += `\nEmbedded visual sources (media order, not page order):\n${await transcribeImages(images)}`;
+    if (images.length) text += `\nModel transcription of embedded visual sources (media order, not page order):\n${await transcribeImages(images)}`;
     return readVisuals ? ensureContent({text, images}) : {text, images};
   }
   if (extension === "pdf") {
@@ -146,7 +147,7 @@ async function readDocumentContent(file: {name: string; bytes: Uint8Array; media
       let text = pages.join("\n\n");
       if (!readVisuals) return {text, images};
       if (!hasContent) throw new WorkspaceError("This PDF has no readable text or visual content");
-      if (scanned) text += `\nVisual transcription of scanned pages:\n${await transcribeImages(images)}`;
+      if (scanned) text += `\nModel visual transcription of scanned pages (supplement to the original text layer):\n${await transcribeImages(images)}`;
       return ensureContent({text, images});
     } finally { await task.destroy(); }
   }

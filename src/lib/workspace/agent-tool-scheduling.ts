@@ -1,9 +1,8 @@
 // Explicitly reviewed read capabilities. New tools are exclusive by default.
 const concurrentReads = new Set([
-  "web_search", "web_fetch", "read_skill", "list_candidates", "list_roles", "list_reminders",
-  "find_candidates", "find_roles", "read_candidate", "read_role", "read_record",
+  "web_search", "web_fetch", "read_skill", "search_candidates", "search_roles", "list_schedules", "read_candidate", "read_role", "read_record",
   "read_document", "read_file", "find_conversations", "read_conversation",
-  "mailbox_status", "read_mail_thread", "read_mail_attachment", "search_mail", "read_mail",
+  "mailbox_status", "read_mail_attachment", "search_mail", "read_mail",
 ]);
 
 export function createToolScheduler(signal: AbortSignal, concurrency = Number(process.env.WORKSPACE_TOOL_READ_CONCURRENCY ?? 6)) {

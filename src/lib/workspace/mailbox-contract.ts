@@ -74,5 +74,5 @@ export function mailboxReadErrorActions(status?: number) {
 // OAuth return authorizes preparation only, never delivery or other business mutations.
 export function mailboxResumeAllowsTool(name: string, input: unknown) {
   if (name === "email") return ["status", "prepare", "none"].includes((input as {intent?:string})?.intent || "");
-  return ["web_search", "web_fetch", "read_skill", "list_candidates", "list_roles", "find_candidates", "find_roles", "read_candidate", "read_role", "read_record", "read_document", "read_file", "find_conversations", "read_conversation", "mailbox_status", "ask_user"].includes(name);
+  return ["web_search", "web_fetch", "read_skill", "search_candidates", "search_roles", "read_candidate", "read_role", "read_record", "read_document", "read_file", "find_conversations", "read_conversation", "mailbox_status", "ask_user"].includes(name);
 }

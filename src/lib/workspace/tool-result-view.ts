@@ -19,7 +19,7 @@ function mailboxSource(value: unknown, provider: MailboxProvider) {
 export function toolResultMailbox(name: string, result: Record<string, unknown>): MailboxResultView | undefined {
   if (!["search_mail", "read_mail", "read_mail_thread"].includes(name) || !["google", "microsoft"].includes(String(result.provider))) return;
   const provider = result.provider as MailboxProvider;
-  const entries = name === "read_mail" ? [result] : result.messages;
+  const entries = name === "read_mail" && !Array.isArray(result.messages) ? [result] : result.messages;
   if (!Array.isArray(entries)) return;
   const address = (value: unknown) => text(value) || text(object(object(value).emailAddress).address) || "";
   const messages: MailboxMessageView[] = entries.slice(0, 20).flatMap(value => {
@@ -54,7 +54,7 @@ export function toolResultMailboxError(name: string, output: {ok?: boolean; erro
 // Only the fields needed to inspect a returned list reach the conversation UI.
 // Full profiles, private notes, embeddings and tool inputs remain server-side.
 export function toolResultList(name: string, result: Record<string, unknown>): ToolPart["list"] {
-  const kind = ({list_roles: "roles", find_roles: "roles", list_candidates: "people", find_candidates: "people", list_reminders: "reminders"} as Record<string, string>)[name];
+  const kind = ({search_roles:"roles",search_candidates:"people",list_schedules:"schedules",list_roles: "roles", find_roles: "roles", list_candidates: "people", find_candidates: "people", list_reminders: "reminders"} as Record<string, string>)[name];
   if (!kind) return;
   const entries = result[kind] ?? (kind === "people" ? result.matches : undefined);
   if (!Array.isArray(entries)) return;

@@ -7,13 +7,17 @@ import { Check, Clock3, FileText, Loader2, ArrowUpRight } from "lucide-react";
 import { AgentText } from "@/components/AgentText";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import { api, ErrorNotice, useQuery } from "./client";
-import { RevisionPanel } from "./revision";
 import type { Deliverable, Job, Schedule } from "@/lib/workspace/types";
 import type { AssistantWorkReceipt, AssistantScheduleReceipt } from "@/lib/workspace/assistant-work";
 
-export function ConversationRevision({ revision, onApplied }: { revision: { document_id: string; job_id: string }; onApplied: () => void }) {
+export function ConversationRevision({ revision }: { revision: { document_id: string; job_id: string } }) {
+  const t = useT();
   const query = useQuery<{ deliverable: Deliverable }>(`/deliverables/${revision.document_id}`);
-  return query.data ? <RevisionPanel document={query.data.deliverable} disabled={query.data.deliverable.status !== "draft"} jobId={revision.job_id} embedded onApplied={() => { query.refresh(); onApplied(); window.dispatchEvent(new Event("hirelix:document-changed")); }} /> : <ErrorNotice error={query.error} retry={query.refresh} />;
+  const document = query.data?.deliverable;
+  return document ? <section className="ws-revision-receipt">
+    <p>{document.title}</p>
+    <a className="ws-link" href={document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`}>{t("Open document")}<ArrowUpRight size={13} /></a>
+  </section> : <ErrorNotice error={query.error} retry={query.refresh} />;
 }
 
 export function AssistantWork({ receipt, onReady, onRevise, onOpen, displayedDocumentIds = [] }: { displayedDocumentIds?: readonly string[]; receipt: AssistantWorkReceipt; onReady: () => void; onRevise: (document: Deliverable) => void; onOpen?: (document: Deliverable) => void }) {
@@ -42,12 +46,6 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, displayedDoc
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not stop work"); }
     finally { setBusy(false); }
   }
-  async function retry() {
-    setBusy(true); setError("");
-    try { await api(`/jobs/${receipt.job_id}`, { method: "POST" }); query.refresh(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "Could not retry draft"); }
-    finally { setBusy(false); }
-  }
   const draft = document.data?.deliverable;
   if (alreadyDisplayed) return null;
   const failed = !!(error || query.error || document.error || job?.status === "error");
@@ -55,7 +53,7 @@ export function AssistantWork({ receipt, onReady, onRevise, onOpen, displayedDoc
   const loading = !failed && (query.loading || document.loading || job?.status === "queued" || job?.status === "running");
   return <section className="ws-assistant-delivery" aria-label={t("Prepared work")}>
     <header><span className="ws-delivery-icon">{loading ? <Loader2 size={17} className="animate-spin" /> : !failed && job?.status === "done" ? <Check size={17} /> : <FileText size={17} />}</span><div><strong>{draft?.title || receipt.title}</strong><small>{t(draft?.source_snapshot.audience === "internal" ? "Internal document" : receipt.kind === "submission" ? "Candidate recommendation" : "Search update")}</small></div><span className="ws-delivery-state">{t(state)}</span></header>
-    <ErrorNotice error={error || query.error || job?.error || document.error} retry={job?.status === "error" && !busy ? retry : query.error ? query.refresh : document.error ? document.refresh : undefined} />
+    <ErrorNotice error={error || query.error || job?.error || document.error} retry={query.error ? query.refresh : document.error ? document.refresh : undefined} />
     {job && ["queued", "running"].includes(job.status) && <button className="ws-button" disabled={busy} onClick={stop}>{t("Stop")}</button>}
     {draft && <>
       <details><summary>{t("Preview content")}</summary><div className="ws-delivery-content"><AgentText content={draft.content} /></div></details>

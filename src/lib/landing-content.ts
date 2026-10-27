@@ -24,7 +24,7 @@ export const landingFaqs = [
   ],
   [
     "Can I bring my existing candidates?",
-    "Yes. Upload candidate lists in CSV, TSV or XLSX format, resumes, or a ZIP of candidate files. Existing lists can give your assistant useful context from the start. Files are limited to 50 MB each; tables support up to 10,000 candidate rows across worksheets. A ZIP can contain up to 500 files and expand to 30 MB. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
+    "Yes. Upload candidate lists in CSV, TSV or XLSX format, resumes, or a ZIP of candidate files. Existing lists can give your assistant useful context from the start. Files are limited to 50 MB each. Processing depends on the files and their contents; your assistant reports what was saved and what remains unresolved. Tell the assistant what you want to save. It can organize clearly authorized imports and ask you to resolve ambiguous identities or conflicting information.",
   ],
   [
     "Can my assistant remember how I like to work?",

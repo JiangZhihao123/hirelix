@@ -11,7 +11,7 @@ import type {Conversation,Job,Message} from "../../src/lib/workspace/types";
 test("stale Agent reminder edits cannot overwrite a newer UI reschedule", async()=>{
   const url=new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
   assert.equal(url.hostname,"127.0.0.1");
-  assert.ok(url.pathname.startsWith("/hirelix_workspace_qa_isolated_"));
+  assert.ok(url.pathname.startsWith("/hirelix_workspace_qa_"));
   const owner=randomUUID();
   try {
     const [conversation]=await rows<Conversation>(sql`INSERT INTO hirelix_private_conversations(user_id,title) VALUES(${owner}::uuid,'Reminder concurrency fixture') RETURNING *`);
@@ -23,7 +23,7 @@ test("stale Agent reminder edits cannot overwrite a newer UI reschedule", async(
     const reminder=await db.transaction(tx=>saveReminder(owner,conversation.id,original,tx));
     await editReminder(owner,{id:reminder.id,expected_version:reminder.version,enabled:true,due_at:changed,timezone:'Asia/Shanghai'});
     const tools=createAgentTools({job,conversation,question,messages:[question],document:null,attachments:[],locale:'en',timezone:'UTC',signal:new AbortController().signal,progress:async()=>{},sources:new Map(),clarification:null});
-    const call=(input:unknown)=>(tools.reminder as unknown as {execute:(input:unknown)=>Promise<{ok:boolean;error?:{code:number}} >}).execute(input);
+    const call=(input:unknown)=>(tools.save_schedule as unknown as {execute:(input:unknown,options:unknown)=>Promise<{ok:boolean;error?:{code:number}} >}).execute({...input as object,kind:"reminder"},{toolCallId:randomUUID(),messages:[]});
     const stale={...original,id:reminder.id,expected_version:reminder.version,enabled:false};
     assert.equal((await call(stale)).error?.code,409);
     let [saved]=await listReminders(owner,undefined,reminder.id);

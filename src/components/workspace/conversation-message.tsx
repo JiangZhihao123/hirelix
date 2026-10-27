@@ -129,7 +129,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                     {metadata.work?.map(receipt => <AssistantWork key={receipt.job_id} receipt={receipt} displayedDocumentIds={displayedDocumentIds} onReady={onReady} onRevise={onRevise} onOpen={document => onSource({title: document.title, href: document.kind === "search_update" ? `/app/roles/${document.role_id}/updates/${document.id}` : `/app/submissions/${document.id}`})} />)}
                     {metadata.schedules?.filter(receipt => !laterScheduleIds.includes(receipt.id)).map(receipt => <AssistantAgreement key={receipt.id} receipt={receipt} />)}
                     {metadata.reminders?.map(item => <ReminderReceipt key={item.id} id={item.id} />)}
-                    {metadata.revision && <ConversationRevision revision={metadata.revision} onApplied={onReady} />}
+                    {metadata.revision && <ConversationRevision revision={metadata.revision} />}
                     {!!metadata.memories?.length && <div className="ws-memory-receipts">
                       {metadata.memories.map(memory => <button key={memory.id} type="button" onClick={() => onMemories()}>
                         <Check size={13} />{t(memory.operation === "forget" ? "Forgotten" : memory.operation === "update" ? "Agreement updated" : "Remembered")} · {memory.title}
@@ -185,7 +185,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                     {activeJob && <TurnActivity job={activeJob} embedded hideContent receivingFiles={receivingFiles} disconnected={disconnected} onRetry={onRetry} />}
                     <div className="ws-message-tools">
                       {!!remainingSources.length && <MessageSources sources={remainingSources} onSource={onSource} />}
-                      {!!metadata.document_edits?.length && !metadata.recommendation_links?.length && <span className="ws-message-status">{t("Updated · Previous version kept")}</span>}
+                      {!!metadata.document_edits?.length && !metadata.recommendation_links?.length && <span className="ws-message-status">{t(metadata.document_edits.every(document=>document.operation==="create")?"Saved":"Updated · Previous version kept")}</span>}
                       {message.role === "user" && <time dateTime={message.created_at} title={date(message.created_at, true)}>{new Date(message.created_at).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false})}</time>}
                       {message.content && message.metadata.turn_status !== "cancelled" && <button
                         type="button"

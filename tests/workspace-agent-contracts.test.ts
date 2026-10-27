@@ -32,7 +32,8 @@ test("runtime Skill catalog resolves to real working instructions", async () => 
   for (const name of agentSkillNames) {
     const skill = await readAgentSkill(name);
     assert.equal(skill.name, name);
-    assert(skill.instructions.startsWith("# "));
+    assert(skill.instructions.startsWith("---\n"));
+    assert.match(skill.version, /^[0-9a-f]{64}$/);
     assert(skill.instructions.length > 300);
   }
 });
