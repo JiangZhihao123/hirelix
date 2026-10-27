@@ -40,7 +40,7 @@ test("archive sources are paged, owned, authorized and attached with exact prove
   assert.equal(second.ok,true); assert.match(second.result.text,/Historical note from 2022-04-11/); assert.equal(second.result.next_offset,null);
   const foreign = await uploadConversationFile(other, {name:"foreign.zip",type:"application/zip",bytes:archive});
   assert.equal((await read.execute({file_id:foreign.id,archive_path:"notes/communication.txt"},{toolCallId:"foreign"})).error?.code,404);
-  const input = {authorization_quote:instruction,person_id:person.id,role_id:null,record:{kind:"note",title:"Historical note",content:"Historical note from 2022-04-11.",occurred_at:null,occurred_on:"2022-04-11"},file_id:file.id,archive_path:"notes/communication.txt"};
+  const input = {operation:"create",authorization_quote:instruction,person_id:person.id,role_id:null,record:{kind:"note",title:"Historical note",content:"Historical note from 2022-04-11.",occurred_at:null,occurred_on:"2022-04-11"},file_id:file.id,archive_path:"notes/communication.txt"};
   assert.equal((await save.execute({...input,authorization_quote:"not authorized"},{toolCallId:"denied"})).error?.code,403);
   const result = await save.execute(input,{toolCallId:"save"}); assert.equal(result.ok,true);
   const repeated = await save.execute(input,{toolCallId:"repeat"}); assert.equal(repeated.result.record.id,result.result.record.id);

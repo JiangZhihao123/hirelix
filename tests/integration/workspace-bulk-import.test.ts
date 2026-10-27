@@ -1,115 +1,59 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { readFile as readBytes } from "node:fs/promises";
-import { after, test } from "node:test";
+import {randomUUID} from "node:crypto";
+import {after, test} from "node:test";
 import ExcelJS from "exceljs";
-import { zipSync, strToU8 } from "fflate";
-import { sql } from "drizzle-orm";
-import { db, closeDb } from "../../src/db/client";
-import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
-import { startImport, prepareImport, importDetails, confirmMapping, saveRequestedCandidateDrafts } from "../../src/lib/workspace/imports";
-import { claimJob, finishJob, withJobLease } from "../../src/lib/workspace/jobs";
-import { readFile } from "../../src/lib/workspace/files";
-import { createPerson } from "../../src/lib/workspace/people";
-import { rows } from "../../src/lib/workspace/database";
+import {sql} from "drizzle-orm";
+import {db, closeDb} from "../../src/db/client";
+import {sendMessage, conversationDetails} from "../../src/lib/workspace/conversations";
+import {saveFile, readFile} from "../../src/lib/workspace/files";
+import {claimJob, finishJob} from "../../src/lib/workspace/jobs";
+import {createAgentTools} from "../../src/lib/workspace/agent-tools";
+import {cleanupFileWorkspace} from "../../src/lib/workspace/file-execution";
+import {rows} from "../../src/lib/workspace/database";
+
 const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.port !== "15432" && database.pathname.startsWith("/hirelix_workspace_qa_coldstart_"));
-assert.equal(process.env.WORKSPACE_REAL_AI_TEST, "true");
-initializeGlobalOutboundProxy();
-const owners: string[] = [];
+const owner = randomUUID();
 after(async () => {
-  for (const owner of owners) await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
+  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
   await closeDb();
 });
-async function run(name: string, bytes: Uint8Array, save = true) {
-  const owner = randomUUID(); owners.push(owner);
-  const job = await startImport(owner, { name, type: "application/octet-stream", bytes }, randomUUID());
-  if (save) await db.execute(sql`UPDATE hirelix_private_jobs SET payload=payload||'{"save_new_candidates":true}'::jsonb WHERE id=${job.id}::uuid`);
-  const claimed = await claimJob(["import"], { id: job.id, userId: owner });
-  assert.ok(claimed);
-  await withJobLease(claimed, async (_, progress) => { await finishJob(claimed, await prepareImport(claimed, progress)); });
-  return { owner, job, detail: await importDetails(owner, job.id) };
-}
-test("real model + Postgres imports every row of a 1,000-person multi-sheet XLSX, preserving sources and index work", { timeout: 180000 }, async () => {
-  const book = new ExcelJS.Workbook();
-  for (let sheet = 0; sheet < 2; sheet++) {
-    const tab = book.addWorksheet(`Candidates ${sheet}`);
-    tab.addRow(["First Name", "Last Name", "Email", "Current Title", "External ID", "History"]);
-    for (let i = 0; i < 500; i++) tab.addRow([`Person${sheet}_${i}`, "QA", `p${sheet}_${i}@example.test`, "Engineer", `00-${sheet}-${i}`, "Spoke in 2020; availability now unknown"]);
-  }
-  const bytes = new Uint8Array(await book.xlsx.writeBuffer());
-  const { owner, job, detail } = await run("recruiter-export.xlsx", bytes);
-  assert.equal(detail.job.result?.total, 1000);
-  assert.deepEqual(Array.from(detail.counts), [{ status: "saved", count: 1000 }]);
-  const [counts] = await rows<{people: number; records: number; indexes: number}>(sql`SELECT
-    (SELECT count(*)::int FROM hirelix_agent_people WHERE user_id=${owner}::uuid) people,
-    (SELECT count(*)::int FROM hirelix_private_records WHERE user_id=${owner}::uuid AND kind='profile') records,
-    (SELECT count(DISTINCT payload->>'person_id')::int FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND kind='index') indexes`);
-  assert.deepEqual(counts, { people: 1000, records: 1000, indexes: 1000 });
-  const [last] = await rows<{raw_text: string}>(sql`SELECT raw_text FROM hirelix_private_import_rows WHERE job_id=${job.id}::uuid ORDER BY row_number DESC LIMIT 1`);
-  assert.equal(JSON.parse(last.raw_text)["External ID"], "00-1-499");
-  assert.match(last.raw_text, /2020/);
-  assert.deepEqual((await readFile(owner, String(job.payload.file_id))).bytes, Buffer.from(bytes));
-  await assert.rejects(() => importDetails(randomUUID(), job.id));
-  console.log(JSON.stringify({ format: "xlsx", total: 1000, ...counts, preserved_original: true }));
-});
-test("real model + Postgres ZIP retains enclosed originals, handles duplicate identity, later authorization and transaction rollback", { timeout: 180000 }, async () => {
-  const a = strToU8("Name,Email,Private history\nAvery Quinn,avery@example.test,Talked in 2019\n");
-  const b = strToU8("Name\tEmail\nCasey Rowan\tcasey@example.test\n");
-  const cv = strToU8("Candidate: Morgan Blake\nEmail: morgan@example.test\nBackend engineer in Toronto. Employment: Example Test Ltd, 2018–2022.\n");
-  const bytes = zipSync({ "exports/people.csv": a, "other/people.tsv": b, "resumes/morgan.txt": cv });
-  const { owner, job, detail } = await run("historical-candidates.zip", bytes, false);
-  assert.equal(detail.job.result?.total, 3);
-  assert.deepEqual(Array.from(detail.counts), [{ status: "review", count: 3 }]);
-  const existing = await createPerson(owner, { name: "Avery Quinn", email: "avery@example.test" });
-  await assert.rejects(() => db.transaction(async tx => { await saveRequestedCandidateDrafts(owner, job.id, tx); throw Error("simulate commit failure"); }), /simulate commit failure/);
-  const [before] = await rows<{n:number}>(sql`SELECT count(*)::int n FROM hirelix_agent_people WHERE user_id=${owner}::uuid`);
-  assert.equal(before.n, 1);
-  await db.transaction(tx => saveRequestedCandidateDrafts(owner, job.id, tx));
-  await db.transaction(tx => saveRequestedCandidateDrafts(owner, job.id, tx));
-  const saved = await importDetails(owner, job.id);
-  assert.equal(saved.counts.find(row => row.status === "saved")?.count, 2);
-  assert.equal(saved.counts.find(row => row.status === "review")?.count, 1);
-  assert.ok(saved.items.find(row => row.matches.some(match => match.id === existing.id)));
-  for (const row of saved.items) {
-    const source = await readFile(owner, row.file_id!);
-    assert.notEqual(source.id, String(job.payload.file_id));
-    assert.deepEqual(source.bytes, Buffer.from(source.name.endsWith("csv") ? a : source.name.endsWith("tsv") ? b : cv));
-  }
-  const records = await rows<{kind:string; content:string}>(sql`SELECT kind,content FROM hirelix_private_records WHERE user_id=${owner}::uuid`);
-  assert.ok(records.some(record => record.kind === "profile" && record.content.includes("Casey Rowan")));
-  assert.ok(records.some(record => record.kind === "cv" && record.content.includes("2018–2022")));
-  console.log(JSON.stringify({ format: "zip", total: 3, saved: 2, identity_conflict: 1, original_sources: true, rollback: true, idempotent: true }));
-});
 
-test("Recruit CRM export preserves duplicate headers, candidate identity and raw source with the real model and PostgreSQL", { timeout: 180000 }, async () => {
-  const bytes = await readBytes("tests/fixtures/platform-exports/recruit-crm-candidates-zh.csv");
-  const { owner, job, detail } = await run("recruit-crm.csv", bytes);
-  assert.equal(detail.job.result?.total, 1);
-  assert.equal(detail.counts.find(row => row.status === "saved")?.count, 1);
-  const item = detail.items[0];
-  const raw = JSON.parse(item.raw_text) as Record<string, string>;
-  assert.equal(Object.keys(raw).length, 51);
-  assert.equal(raw["候选人姓名 [column 2]"], "William Sample");
-  assert.equal(raw["候选人姓名 [column 3]"], "William");
-  const [person] = await rows<{name:string; email:string}>(sql`SELECT name,email FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND id=${item.result_person_id}::uuid`);
-  assert.equal(person.name, "William Sample");
-  assert.equal(person.email, "candidate@example.test");
-  const worksheets = detail.job.result?.worksheets as Array<{source_columns:Array<{original_header:string;position:number}>}>;
-  assert.deepEqual(worksheets[0].source_columns.filter(column => column.original_header === "候选人姓名").map(column => column.position), [2,3]);
-  assert.deepEqual((await readFile(owner, String(job.payload.file_id))).bytes, bytes);
-});
-
-test("mapped skill columns stay separate and singular contact fields reject multiple sources", { timeout: 180000 }, async () => {
-  const bytes = Buffer.from("Name,Email,Skills,Languages\nJamie Example,jamie@example.test,\"Python,SQL\",\"English,French\"\n");
-  const { owner, job, detail } = await run("skills.csv", bytes, false);
-  const mapping = detail.job.result?.mapping as Record<string,string[]>;
-  await assert.rejects(() => confirmMapping(owner, job.id, { ...mapping, email: ["Email", "Name"] }));
-  await assert.rejects(() => confirmMapping(owner, job.id, { ...mapping, profile_url: ["Email", "Name"] }));
-  await confirmMapping(owner, job.id, { ...mapping, name: ["Name"], email: ["Email"], skills: ["Skills", "Languages"] });
-  const updated = await importDetails(owner, job.id);
-  assert.deepEqual(updated.items[0].extracted.skills, ["Python", "SQL", "English", "French"]);
-  await db.transaction(tx => saveRequestedCandidateDrafts(owner, job.id, tx));
-  const [person] = await rows<{skills:string[]}>(sql`SELECT skills FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='jamie@example.test'`);
-  assert.deepEqual(person.skills, ["Python", "SQL", "English", "French"]);
+test("real Docker + PG: a script reads two workbook sheets and applies normalized rows with provenance", {timeout: 120000}, async () => {
+  const workbook = new ExcelJS.Workbook();
+  const first = workbook.addWorksheet("Group A"), second = workbook.addWorksheet("Group B");
+  first.addRows([["Name", "Email"], ["Ada Example", "ada@example.test"], ["Bea Example", "bea@example.test"]]);
+  second.addRows([["Name", "Email"], ["Cora Example", "cora@example.test"], ["Ada Example", "ada@example.test"]]);
+  const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
+  const source = await saveFile(owner, {name: "candidates.xlsx", type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes});
+  const instruction = "Save the candidates from this workbook to my library, keeping the original source.";
+  const sent = await sendMessage(owner, {message: instruction, file_ids: [source.id], request_key: randomUUID()});
+  const job = await claimJob(["chat"], {id: sent.job.id, userId: owner}); assert(job);
+  const conversation = await conversationDetails(owner, sent.conversation_id);
+  const question = conversation.messages.find(message => message.id === job.payload.message_id)!;
+  const tools = createAgentTools({job, conversation: conversation.conversation, question, messages: [], document: null, attachments: [], locale: "en", timezone: "UTC", signal: new AbortController().signal, progress: async () => {}, sources: new Map(), clarification: null});
+  const bash = tools.bash as unknown as {execute: (input: unknown, options: {toolCallId:string}) => Promise<{ok:boolean;result?:{outputs:Array<{file_id:string;sha256:string}>}} >};
+  const batch = tools.save_records_batch as unknown as {execute: (input: unknown, options: {toolCallId:string}) => Promise<{ok:boolean;result?:{status:string;result:{counts:Record<string,number>;result_file_id:string}}}>};
+  const read = tools.read_file as unknown as {execute: (input: unknown, options: {toolCallId:string}) => Promise<{ok:boolean;result?:{text:string}}>};
+  const script = `const ExcelJS = require('exceljs');\nconst fs = require('fs');\n(async () => {\n const book = new ExcelJS.Workbook();\n await book.xlsx.readFile('/inputs/${source.id}.xlsx');\n const out = [];\n for (const sheet of book.worksheets) sheet.eachRow((row, number) => {\n  if (number === 1) return;\n  out.push(JSON.stringify({input:{person_id:null,expected_version:null,changes:{name:row.getCell(1).text,email:row.getCell(2).text},source_file_id:'${source.id}',separate_candidate_quote:null},source:{file_id:'${source.id}',archive_path:null,page:null,row:number,sheet:sheet.name}}));\n });\n fs.writeFileSync('/work/normalized.jsonl',out.join('\\n')+'\\n');\n})().catch(error => {console.error(error); process.exitCode=1;});`;
+  try {
+    const transformed = await bash.execute({command: `node - <<'NODE'\n${script}\nNODE`, input_file_ids: [source.id], output_paths: ["/work/normalized.jsonl"]}, {toolCallId: randomUUID()});
+    assert.equal(transformed.ok, true);
+    const output = transformed.result!.outputs[0];
+    const result = await batch.execute({write_operation: "save_candidate", input_file: {file_id: output.file_id, sha256: output.sha256}, authorization_quote: instruction}, {toolCallId: randomUUID()});
+    assert.equal(result.ok, true); assert.equal(result.result?.status, "done");
+    assert.deepEqual(result.result?.result.counts, {applied: 3, unchanged: 0, conflict: 1, failed: 0, unprocessed: 0});
+    const report = await read.execute({file_id: result.result!.result.result_file_id, offset: 0}, {toolCallId: randomUUID()});
+    assert.equal(report.ok, true); assert.match(report.result!.text, /"conflict"/);
+    const people = await rows<{id:string;name:string}>(sql`SELECT id,name FROM hirelix_agent_people WHERE user_id=${owner}::uuid ORDER BY name`);
+    assert.deepEqual(people.map(person => person.name), ["Ada Example", "Bea Example", "Cora Example"]);
+    const records = await rows<{person_id:string;file_id:string;details:{declared_source:{sheet:string;row:number}}}>(sql`SELECT person_id,file_id,details FROM hirelix_private_records WHERE user_id=${owner}::uuid AND kind='profile' ORDER BY person_id`);
+    assert.equal(records.length, 3);
+    assert.ok(records.every(record => record.file_id === source.id));
+    assert.deepEqual(new Set(records.map(record => record.details.declared_source.sheet)), new Set(["Group A", "Group B"]));
+    assert.ok(records.every(record => record.details.declared_source.row >= 2));
+    assert.deepEqual((await readFile(owner, source.id)).bytes, bytes);
+    await assert.rejects(() => readFile(randomUUID(), source.id), /not found/);
+    await finishJob(job, {result: {tested: true}});
+  } finally { await cleanupFileWorkspace({userId: owner, conversationId: sent.conversation_id, jobId: job.id, leaseKey: job.lease_token!}); }
 });

@@ -1,22 +1,18 @@
 import { notifyProductFeedback } from "@/lib/product-feedback";
 import { getLogger } from "@/lib/logger";
 import { processJob, reclaimJobs, type JobHandler } from "./jobs";
-import { prepareImport } from "./imports";
+import { prepareRecordBatch } from "./record-batches";
 import { assessCandidate } from "./assessment";
 import { indexRole } from "./role-retrieval";
 import { indexCandidate, retrieveJob } from "./retrieval";
 import type { JobKind } from "./types";
 import { assistantReply } from "./conversations";
-import { generateRevision } from "./revisions";
 import { deliverReminders } from "./reminders";
 import { queueScheduledDrafts } from "./schedules";
-import { generateDeliverable } from "./deliverables";
 
 export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
   chat: assistantReply,
-  deliverable: generateDeliverable,
-  revision: generateRevision,
-  import: prepareImport,
+  import: prepareRecordBatch,
   assessment: assessCandidate,
   index: (job, progress) => job.payload.role_id ? indexRole(job, progress) : indexCandidate(job, progress),
   retrieval: retrieveJob,

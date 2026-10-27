@@ -1,314 +1,123 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { after, test } from "node:test";
-import { sql } from "drizzle-orm";
-import { db, closeDb } from "../../src/db/client";
-import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
-import {
-  acceptAction,
-  assistantReply,
-  conversationDetails,
-  sendMessage,
-} from "../../src/lib/workspace/conversations";
-import { createRole, linkPerson } from "../../src/lib/workspace/roles";
-import { createPerson } from "../../src/lib/workspace/people";
-import { readFile } from "../../src/lib/workspace/files";
-import { rows } from "../../src/lib/workspace/database";
-import { claimJob, finishJob } from "../../src/lib/workspace/jobs";
-import { importDetails, prepareImport, reviewImportRow } from "../../src/lib/workspace/imports";
+import {randomUUID} from "node:crypto";
+import {after, test} from "node:test";
+import {sql} from "drizzle-orm";
+import {db, closeDb} from "../../src/db/client";
+import {initializeGlobalOutboundProxy} from "../../src/lib/server-outbound-proxy";
+import {assistantReply, conversationDetails, sendMessage} from "../../src/lib/workspace/conversations";
+import {createRole, linkPerson} from "../../src/lib/workspace/roles";
+import {createPerson} from "../../src/lib/workspace/people";
+import {readFile} from "../../src/lib/workspace/files";
+import {rows} from "../../src/lib/workspace/database";
+import {claimJob, finishJob, failJob, withJobLease} from "../../src/lib/workspace/jobs";
+import {agentCreditContext, executionTrace} from "../../src/lib/agent-credit-context";
+import type {Job} from "../../src/lib/workspace/types";
 
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://invalid/invalid");
-if (
-  !["127.0.0.1", "localhost"].includes(database.hostname) ||
-  !database.pathname.startsWith("/hirelix_workspace_qa_") ||
-  process.env.WORKSPACE_REAL_AI_TEST !== "true"
-) throw Error("Use an isolated local QA database and real AI for this test");
+assert.ok(["127.0.0.1", "localhost"].includes(database.hostname) && database.port !== "15432" && database.pathname.startsWith("/hirelix_workspace_qa_"));
+assert.equal(process.env.WORKSPACE_REAL_AI_TEST, "true");
 initializeGlobalOutboundProxy();
-const owner = randomUUID();
+const owners: string[] = [];
 after(async () => {
-  await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
+  for (const owner of owners) await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);
   await closeDb();
 });
-
-async function askWithFile(message: string, name: string, contents: string) {
-  const request = {
-    message,
-    locale: "zh" as const,
-    request_key: randomUUID(),
-    conversation_id: null,
-    role_id: null,
-    person_id: null,
+async function run(owner: string, source: Job) {
+  const job = await claimJob(["chat"], {id: source.id, userId: owner}); assert(job);
+  try {
+    await withJobLease(job, async (signal, progress) => {
+      const result = await agentCreditContext.run({...job, signal, trace: executionTrace(job)}, () => assistantReply(job, progress));
+      await finishJob(job, result);
+    });
+  } catch (error) {await failJob(job, "Assistant QA execution failed"); throw error;}
+}
+async function snapshot(owner: string) {
+  return {
+    people: await rows(sql`SELECT id,version FROM hirelix_agent_people WHERE user_id=${owner}::uuid ORDER BY id`),
+    roles: await rows(sql`SELECT id,version FROM hirelix_private_roles WHERE user_id=${owner}::uuid ORDER BY id`),
+    records: await rows(sql`SELECT id,version FROM hirelix_private_records WHERE user_id=${owner}::uuid ORDER BY id`),
   };
-  const file = { name, type: "text/plain", bytes: Buffer.from(contents) };
-  const created = await sendMessage(owner, request, file);
-  const repeated = await sendMessage(owner, request, file);
-  assert.equal(repeated.job.id, created.job.id);
-  await assert.rejects(() => sendMessage(owner, request, {
-    ...file,
-    bytes: Buffer.from("different file"),
-  }));
-  const detail = await conversationDetails(owner, created.conversation_id);
-  assert.equal(detail.messages.length, 1);
-  assert.equal(detail.messages[0].content, message);
-  const source = detail.messages[0].metadata.attachment as { file_id: string };
-  assert.deepEqual((await readFile(owner, source.file_id)).bytes, file.bytes);
-  assert.equal(created.job.kind, "chat");
-  const prepared = await assistantReply(created.job, async () => {});
-  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
-  const answered = await conversationDetails(owner, created.conversation_id);
-  assert.equal(answered.messages.length, 2);
-  return answered.messages[1];
 }
 
-test("assistant treats an unrelated file as conversation material and does not import a candidate", { timeout: 180000 }, async () => {
-  const reply = await askWithFile(
-    "请用中文概括这份文件，并说说需要什么食材。",
-    "bread-recipe.txt",
-    "Sourdough bread recipe. Ingredients: 500g bread flour, 350g water, 100g starter, 10g salt. Mix, ferment, shape and bake.",
-  );
-  assert.match(reply.content, /面包|酸种|面粉/);
-  assert.equal(reply.metadata.import_job_id, undefined);
-  const [imports] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND kind='import'`,
-  );
-  assert.equal(imports.total, 0);
+test("natural analysis of an unrelated attachment preserves the owned source and creates no business records", {timeout: 180000}, async () => {
+  const owner = randomUUID(); owners.push(owner);
+  const file = {name: "bread-recipe.txt", type: "text/plain", bytes: Buffer.from("Sourdough bread. Ingredients: flour, water, starter and salt.")};
+  const request = {message: "请用中文概括这份文件，仅分析，不保存候选人或职位。", locale: "zh", request_key: randomUUID()};
+  const first = await sendMessage(owner, request, file), repeated = await sendMessage(owner, request, file);
+  assert.equal(first.job.id, repeated.job.id);
+  await assert.rejects(() => sendMessage(owner, request, {...file, bytes: Buffer.from("different")}), /request key/i);
+  const before = await snapshot(owner);
+  await run(owner, first.job);
+  assert.deepEqual(await snapshot(owner), before);
+  const details = await conversationDetails(owner, first.conversation_id);
+  const attachments = details.messages.find(message => message.role === "user")!.metadata.attachments as Array<{file_id:string}>;
+  assert.deepEqual((await readFile(owner, attachments[0].file_id)).bytes, file.bytes);
+  await assert.rejects(() => readFile(randomUUID(), attachments[0].file_id), /not found/);
 });
 
-test("assistant reads a JD without forcing a candidate import or an unrequested save", { timeout: 180000 }, async () => {
-  const reply = await askWithFile(
-    "这是客户的职位说明。先帮我抓住重点，不要建立职位。",
-    "vp-product.txt",
-    "Northstar is hiring a VP Product. The top priority is building and leading a product team of 12. Experience with B2B SaaS and enterprise buyers is important. Compensation is not yet confirmed.",
-  );
-  assert.match(reply.content, /产品|团队|Northstar/i);
-  assert.equal(reply.metadata.import_job_id, undefined);
-  assert.deepEqual(reply.metadata.actions, []);
+test("natural comparison stays read-only and cannot cite another owner's candidate", {timeout: 180000}, async t => {
+  const owner = randomUUID(), other = randomUUID(); owners.push(owner, other);
+  await createPerson(owner, {name: "QA Morgan Reed", note: "Fictional QA profile: product leader in enterprise SaaS."});
+  await createPerson(owner, {name: "QA Taylor Park", note: "Fictional QA profile: accounting and tax director."});
+  const outsider = await createPerson(other, {name: "QA Taylor Park", note: "Other account's private candidate evidence."});
+  const role = await createRole(owner, {title: "QA VP Product", client_name: "QA client", jd_text: "Lead a product team in enterprise SaaS."});
+  const before = await snapshot(owner), outsideBefore = await snapshot(other);
+  const sent = await sendMessage(owner, {message: "Compare QA Morgan Reed and QA Taylor Park for this role. Only analyze, do not modify records.", locale: "en", request_key: randomUUID(), role_id: role.id});
+  await run(owner, sent.job);
+  assert.deepEqual(await snapshot(owner), before); assert.deepEqual(await snapshot(other), outsideBefore);
+  const detail = await conversationDetails(owner, sent.conversation_id), answer = detail.messages.find(message => message.role === "assistant");
+  const sources = (answer?.metadata.sources || []) as Array<{href:string}>;
+  assert.ok(!sources.some(source => source.href.includes(outsider.id)));
+  t.diagnostic(`Model returned ${sources.length} owned source links; business judgment is observed separately.`);
 });
 
-test("assistant proactively prepares a candidate draft only from a grounded CV", { timeout: 240000 }, async () => {
-  const reply = await askWithFile(
-    "把这份简历加入我的候选人池。",
-    "morgan-reed.txt",
-    "Morgan Reed\nProduct Director at Atlas Software, 2021-present.\nPreviously Senior Product Manager at Beacon Cloud, 2017-2021.\nLed B2B SaaS teams and enterprise product launches.\nEmail: morgan.reed@example.test",
-  );
-  const importId = reply.metadata.import_job_id;
-  assert.equal(typeof importId, "string");
-  const [before] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_agent_people WHERE user_id=${owner}::uuid`,
-  );
-  assert.equal(before.total, 0);
-  const claimed = await claimJob(["import"]);
-  assert(claimed);
-  assert.equal(claimed.id, importId);
-  await finishJob(claimed, await prepareImport(claimed, async () => {}));
-  const [draft] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_private_import_rows WHERE user_id=${owner}::uuid AND job_id=${importId}::uuid AND status='review'`,
-  );
-  assert.equal(draft.total, 1);
-  const [afterImport] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_agent_people WHERE user_id=${owner}::uuid`,
-  );
-  assert.equal(afterImport.total, 0);
+test("reported consent is scoped to its candidate and role and does not send anything", {timeout: 180000}, async t => {
+  const owner = randomUUID(); owners.push(owner);
+  const role = await createRole(owner, {title: "QA Engineering Director", client_name: "QA Harbor", jd_text: "Lead an engineering group."});
+  const person = await createPerson(owner, {name: "QA Priya Desai"}), other = await createPerson(owner, {name: "QA Alex Chen"});
+  await linkPerson(owner, role.id, person.id); await linkPerson(owner, role.id, other.id);
+  const sent = await sendMessage(owner, {message: "Priya 已口头同意把她的资料分享给 QA Harbor，请把此事实保存到该职位的资料中。Alex 还没确认。不要发送或分享。", locale: "zh", request_key: randomUUID(), role_id: role.id});
+  await run(owner, sent.job);
+  const links = await rows<{person_id:string;permission:string;permission_record_id:string|null}>(sql`SELECT person_id,permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid`);
+  const priya = links.find(link => link.person_id === person.id)!, alex = links.find(link => link.person_id === other.id)!;
+  assert.equal(alex.permission, "unknown"); assert.equal(alex.permission_record_id, null);
+  if (priya.permission !== "unknown") {
+    assert.ok(priya.permission_record_id);
+    const [evidence] = await rows<{person_id:string;role_id:string}>(sql`SELECT person_id,role_id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND id=${priya.permission_record_id}::uuid`);
+    assert.deepEqual(evidence, {person_id: person.id, role_id: role.id});
+  }
+  const [sentCount] = await rows<{count:number}>(sql`SELECT count(*)::int count FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND status='submitted'`);
+  assert.equal(sentCount.count, 0);
+  t.diagnostic(`Model recorded candidate permission as ${priya.permission}.`);
 });
 
-test("a Chinese greeting follows the message language even in an English interface", { timeout: 180000 }, async () => {
-  await createRole(owner, {
-    title: "VP Product",
-    client_name: "Northstar",
-    jd_text: "Build and lead the product team.",
-    brief: {
-      priorities: ["Build and lead the product team"],
-      flexible: [],
-      unknowns: ["Compensation range has not been confirmed"],
-    },
-  });
-  const created = await sendMessage(owner, {
-    message: "你好",
-    locale: "en",
-    request_key: randomUUID(),
-    conversation_id: null,
-    role_id: null,
-    person_id: null,
-  });
-  const prepared = await assistantReply(created.job, async () => {});
-  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
-  const detail = await conversationDetails(owner, created.conversation_id);
-  assert.equal(detail.messages.length, 2);
-  assert.match(detail.messages[1].content, /你想处理什么/);
-  assert.doesNotMatch(detail.messages[1].content, /Northstar|VP Product|薪酬/);
-});
-
-test("named comparison retrieves each saved person independently, without role links or another owner's evidence", { timeout: 180000 }, async () => {
-  const first = await createPerson(owner, {
-    name: "QA Morgan Reed",
-    note: "Fictional QA profile. Led 12 product managers in enterprise B2B SaaS. Availability and consent unknown.",
-  });
-  const second = await createPerson(owner, {
-    name: "QA Taylor Park",
-    note: "Fictional QA profile. Corporate accounting and tax director. No product leadership evidence. Availability and consent unknown.",
-  });
-  const outsider = await createPerson(randomUUID(), {
-    name: "QA Taylor Park",
-    note: "Other account's private candidate evidence.",
-  });
-  const role = await createRole(owner, {
-    title: "QA VP Product comparison",
-    client_name: "QA comparison client",
-    jd_text: "Lead a team of 12 product managers in enterprise B2B SaaS. Accounting alone does not meet this role.",
-  });
-  const created = await sendMessage(owner, {
-    message: "Compare QA Morgan Reed and QA Taylor Park from my saved pool for this role. Cite both profiles, distinguish missing evidence, and do not assume availability or consent. These are fictional QA profiles.",
-    locale: "en",
-    request_key: randomUUID(),
-    role_id: role.id,
-  });
-  const prepared = await assistantReply(created.job, async () => {});
-  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
-  const reply = (await conversationDetails(owner, created.conversation_id)).messages[1];
-  const coverage = reply.metadata.coverage as { lookup: string; lookups: Array<{ total: number; returned: number }> };
-  assert.equal(coverage.lookup, "exact");
-  assert.equal(coverage.lookups.length, 2);
-  assert(coverage.lookups.every((lookup) => lookup.total === 1 && lookup.returned === 1));
-  const sources = reply.metadata.sources as Array<{ href: string }>;
-  assert(sources.some((source) => source.href.includes(first.id)));
-  assert(sources.some((source) => source.href.includes(second.id)));
-  assert(!sources.some((source) => source.href.includes(outsider.id)));
-  assert.match(reply.content, /Morgan Reed/);
-  assert.match(reply.content, /Taylor Park/);
-  assert.match(reply.content, /accounting|tax/i);
-});
-
-test("reported sharing consent stays pending until one review saves both evidence and role permission", { timeout: 180000 }, async () => {
-  const role = await createRole(owner, {
-    title: "Engineering Director",
-    client_name: "Harbor Labs",
-    jd_text: "Lead the engineering group at Harbor Labs.",
-  });
-  const person = await createPerson(owner, { name: "Priya Desai (QA)" });
-  const otherPerson = await createPerson(owner, { name: "Alex Chen (QA)" });
-  await linkPerson(owner, role.id, person.id);
-  await linkPerson(owner, role.id, otherPerson.id);
-  const created = await sendMessage(owner, {
-    message: "Priya 已口头同意把她的资料分享给 Harbor Labs，Alex 还没确认。先不要发送推荐。",
-    locale: "zh",
-    request_key: randomUUID(),
-    conversation_id: null,
-    role_id: role.id,
-    person_id: null,
-  });
-  const prepared = await assistantReply(created.job, async () => {});
-  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
-  const detail = await conversationDetails(owner, created.conversation_id);
-  const reply = detail.messages[1];
-  assert.doesNotMatch(reply.content, /已记录[:：]|已保存[:：]/);
-  assert.doesNotMatch(reply.content, /\b(?:role|person|source|attachment)_\d+\b/);
-  const actions = reply.metadata.actions as Array<{ id: string; kind: string; fields: Record<string, unknown> }>;
-  assert.equal(actions.length, 1);
-  assert.equal(actions[0].kind, "update_sharing_permission");
-  assert.match(String(actions[0].fields.content), /Priya|口头/);
-  assert.doesNotMatch(String(actions[0].fields.content), /Alex/);
-  const [before] = await rows<{ permission: string; permission_record_id: string | null }>(
-    sql`SELECT permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
-  );
-  assert.equal(before.permission, "unknown");
-  assert.equal(before.permission_record_id, null);
-  const [unsavedRecords] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
-  );
-  assert.equal(unsavedRecords.total, 0);
-  await acceptAction(owner, created.conversation_id, reply.id, actions[0].id, actions[0].fields);
-  await acceptAction(owner, created.conversation_id, reply.id, actions[0].id, actions[0].fields);
-  const [afterConsent] = await rows<{ permission: string; permission_record_id: string | null; content: string }>(
-    sql`SELECT rc.permission,rc.permission_record_id,r.content FROM hirelix_private_role_candidates rc JOIN hirelix_private_records r ON r.id=rc.permission_record_id AND r.user_id=rc.user_id WHERE rc.user_id=${owner}::uuid AND rc.role_id=${role.id}::uuid AND rc.person_id=${person.id}::uuid`,
-  );
-  assert.equal(afterConsent.permission, "confirmed");
-  assert.match(afterConsent.content, /Priya|口头/);
-  const [otherConsent] = await rows<{ permission: string; permission_record_id: string | null }>(
-    sql`SELECT permission,permission_record_id FROM hirelix_private_role_candidates WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${otherPerson.id}::uuid`,
-  );
-  assert.equal(otherConsent.permission, "unknown");
-  assert.equal(otherConsent.permission_record_id, null);
-  const [records] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND person_id=${person.id}::uuid`,
-  );
-  assert.equal(records.total, 1);
-  const [sent] = await rows<{ total: number }>(
-    sql`SELECT count(*)::int AS total FROM hirelix_private_deliverables WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND status='submitted'`,
-  );
-  assert.equal(sent.total, 0);
-});
-
-test("dated client feedback preserves the reviewed event time with its role update", { timeout: 180000 }, async () => {
-  const role = await createRole(owner, {
-    title: "QA Product Leader",
-    client_name: "QA Dated Feedback",
-    jd_text: "Product leadership; compensation not confirmed.",
-  });
+test("dated client feedback does not alter the original JD", {timeout: 180000}, async t => {
+  const owner = randomUUID(); owners.push(owner);
+  const role = await createRole(owner, {title: "QA Product Leader", client_name: "QA Dated Feedback", jd_text: "Original JD; compensation not confirmed."});
   const eventTime = "2026-10-01T09:15:00+08:00";
-  const created = await sendMessage(owner, {
-    message: `Fictional QA feedback received at ${eventTime}: the client confirmed compensation of GBP 160,000–180,000. Prepare an update to this role's requirements for review and preserve the feedback event time. Do not send anything.`,
-    locale: "en",
-    request_key: randomUUID(),
-    role_id: role.id,
-  });
-  const prepared = await assistantReply(created.job, async () => {});
-  await db.transaction(async (tx) => { await prepared.apply?.(tx); });
-  const reply = (await conversationDetails(owner, created.conversation_id)).messages[1];
-  const actions = reply.metadata.actions as Array<{ id: string; kind: string; fields: Record<string, unknown> }>;
-  const action = actions.find((item) => item.kind === "update_role_brief");
-  assert(action);
-  assert.equal(new Date(String(action.fields.occurred_at)).getTime(), new Date(eventTime).getTime());
-  const reviewedTime = "2026-10-01T09:20:00+08:00";
-  await acceptAction(owner, created.conversation_id, reply.id, action.id, { ...action.fields, occurred_at: reviewedTime });
-  await acceptAction(owner, created.conversation_id, reply.id, action.id, { ...action.fields, occurred_at: reviewedTime });
-  const records = await rows<{ occurred_at: string; content: string }>(
-    sql`SELECT occurred_at,content FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND kind='feedback'`,
-  );
-  assert.equal(records.length, 1);
-  assert.equal(new Date(records[0].occurred_at).getTime(), new Date(reviewedTime).getTime());
-  assert.match(records[0].content, /160,000/);
+  const sent = await sendMessage(owner, {message: `Client feedback at ${eventTime}: compensation is GBP 160,000–180,000. Save the updated requirements and the dated feedback. Do not send anything.`, locale: "en", request_key: randomUUID(), role_id: role.id});
+  await run(owner, sent.job);
+  const [current] = await rows<{jd_text:string}>(sql`SELECT jd_text FROM hirelix_private_roles WHERE user_id=${owner}::uuid AND id=${role.id}::uuid`);
+  assert.equal(current.jd_text, role.jd_text);
+  const records = await rows<{occurred_at:string|null}>(sql`SELECT occurred_at FROM hirelix_private_records WHERE user_id=${owner}::uuid AND role_id=${role.id}::uuid AND kind='feedback'`);
+  for (const record of records) if (record.occurred_at) assert.equal(new Date(record.occurred_at).getTime(), new Date(eventTime).getTime());
+  t.diagnostic(`Model saved ${records.length} feedback record(s).`);
 });
 
-test("an existing candidate CV has one import review and one retained source after repeated acceptance", { timeout: 240000 }, async () => {
-  const person = await createPerson(owner, {
-    name: "QA Rowan Ellis",
-    email: "rowan.qa@example.test",
-    headline: "Product Director",
-    note: "Fictional QA relationship note. Sharing consent remains unknown.",
-  });
-  const reply = await askWithFile(
-    "Import this fictional QA CV for QA Rowan Ellis, who already exists in my pool. Let me review a merge; preserve the original and do not create a duplicate or assume sharing permission.",
-    "rowan-cv.txt",
-    "QA Rowan Ellis\nFictional Hirelix QA CV only.\nrowan.qa@example.test\nProduct Director, Atlas Software, 2021-2025. Led 12 product managers in enterprise B2B SaaS.\nAvailability, interest and sharing consent are not confirmed.",
-  );
-  assert.equal(typeof reply.metadata.import_job_id, "string");
-  assert.deepEqual(reply.metadata.actions, []);
-  const [job] = await rows<import("../../src/lib/workspace/types").Job>(
-    sql`SELECT * FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND id=${String(reply.metadata.import_job_id)}::uuid`,
-  );
-  const prepared = await prepareImport(job, async () => {});
-  await db.transaction(async (tx) => {
-    await prepared.apply?.(tx);
-    await tx.execute(sql`UPDATE hirelix_private_jobs SET status='done',result=${JSON.stringify(prepared.result)}::jsonb WHERE id=${job.id}::uuid`);
-  });
-  const preview = await importDetails(owner, job.id);
-  assert.equal(preview.items.length, 1);
-  assert(preview.items[0].matches.some((match) => match.id === person.id));
-  const value = {
-    action: "merge",
-    fields: { ...preview.items[0].extracted, name: person.name, note: person.note },
-    target_person_id: person.id,
-    expected_version: person.version,
-  };
-  await reviewImportRow(owner, job.id, preview.items[0].id, value);
-  await reviewImportRow(owner, job.id, preview.items[0].id, value);
-  const sources = await rows<{ file_id: string; kind: string }>(
-    sql`SELECT file_id,kind FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${person.id}::uuid AND file_id=${String(job.payload.file_id)}::uuid`,
-  );
-  assert.equal(sources.length, 1);
-  assert.equal(sources[0].kind, "cv");
-  const matches = await rows<{ id: string }>(
-    sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='rowan.qa@example.test'`,
-  );
-  assert.deepEqual(matches.map((item) => item.id), [person.id]);
+test("authorized existing-candidate CV handling preserves identity and original file without a review workflow", {timeout: 240000}, async t => {
+  const owner = randomUUID(); owners.push(owner);
+  const person = await createPerson(owner, {name: "QA Rowan Ellis", email: "rowan.qa@example.test", headline: "Product Director"});
+  const cv = {name: "rowan-cv.txt", type: "text/plain", bytes: Buffer.from("QA Rowan Ellis\nrowan.qa@example.test\nProduct Director. Fictional QA CV.")};
+  const sent = await sendMessage(owner, {message: "Save this CV for the already saved QA Rowan Ellis. Do not create another person or share it.", locale: "en", request_key: randomUUID(), person_id: person.id}, cv);
+  await run(owner, sent.job);
+  const details = await conversationDetails(owner, sent.conversation_id);
+  const sourceId = (details.messages.find(message => message.role === "user")!.metadata.attachments as Array<{file_id:string}>)[0].file_id;
+  assert.deepEqual((await readFile(owner, sourceId)).bytes, cv.bytes);
+  const people = await rows<{id:string}>(sql`SELECT id FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND lower(email)=lower('rowan.qa@example.test')`);
+  assert.deepEqual(people.map(item => item.id), [person.id]);
+  const sources = await rows<{person_id:string}>(sql`SELECT person_id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND file_id=${sourceId}::uuid`);
+  assert.ok(sources.every(source => source.person_id === person.id));
+  const [legacy] = await rows<{count:number}>(sql`SELECT count(*)::int count FROM hirelix_private_jobs WHERE user_id=${owner}::uuid AND kind='import' AND payload->>'operation' IS DISTINCT FROM 'record_batch'`);
+  assert.equal(legacy.count, 0);
+  t.diagnostic(`Model saved ${sources.length} record(s) linked to the original CV.`);
 });

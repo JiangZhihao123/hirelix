@@ -41,7 +41,6 @@
     "ai": "6.0.303",
     "better-auth": "^1.6.23",
     "cheerio": "^1.2.0",
-    "csv-parse": "^7.0.2",
     "csv-stringify": "^6.8.3",
     "docx": "^9.7.2",
     "drizzle-orm": "^0.45.2",

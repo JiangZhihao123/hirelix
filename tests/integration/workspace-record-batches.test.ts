@@ -8,6 +8,7 @@ import { conversationDetails, sendMessage } from "../../src/lib/workspace/conver
 import { readFile, saveFile } from "../../src/lib/workspace/files";
 import { cancelJob, claimJob, finishJob, LostLease, retryJob } from "../../src/lib/workspace/jobs";
 import { enqueueRecordBatch, prepareRecordBatch } from "../../src/lib/workspace/record-batches";
+import { importDetails } from "../../src/lib/workspace/imports";
 import { createPerson } from "../../src/lib/workspace/people";
 import { addRecord } from "../../src/lib/workspace/records";
 import { recordWriteOperationSchema, type RecordWriteOperation } from "../../src/lib/workspace/record-writes";
@@ -59,6 +60,11 @@ test("real PG: durable batches survive lost leases without duplicate writes, ret
   await assert.rejects(() => prepareRecordBatch(active, async () => {}), LostLease);
   await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',lease_token=NULL,lease_until=NULL WHERE user_id=${owner}::uuid AND id=${child.id}::uuid`);
   const replacement = await owned<Job>(owner, "job", parent.id);
+  await assert.rejects(() => retryJob(owner, child.id), /Resume this batch from its conversation/);
+  for (const kind of ["import", "deliverable", "revision"] as const) {
+    const [legacy] = await rows<{id: string}>(sql`INSERT INTO hirelix_private_jobs(user_id,kind,request_key,status,payload) VALUES(${owner}::uuid,${kind},${randomUUID()},'error',${JSON.stringify({conversation_id: sent.conversation_id})}::jsonb) RETURNING id`);
+    await assert.rejects(() => retryJob(owner, legacy.id, replacement), /Continue this work in its conversation/);
+  }
   const retried = await retryJob(owner, child.id, replacement);
   const resumed = await claimJob(["import"], {id: retried.id, userId: owner});
   assert.ok(resumed);
@@ -70,6 +76,11 @@ test("real PG: durable batches survive lost leases without duplicate writes, ret
   const receipts = await rows<{batch_receipt: {status: string}}>(sql`SELECT batch_receipt FROM hirelix_private_import_rows WHERE user_id=${owner}::uuid AND job_id=${child.id}::uuid ORDER BY row_number`);
   assert.equal(receipts.length, 64);
   assert.deepEqual(receipts.slice(-4).map(row => row.batch_receipt.status), ["conflict", "failed", "failed", "failed"]);
+  const pageOne = await importDetails(owner, child.id), pageTwo = await importDetails(owner, child.id, 2);
+  assert.equal(pageOne.items.length, 50); assert.equal(pageTwo.items.length, 14);
+  assert.equal(pageOne.job.result?.counts && (pageOne.job.result.counts as {applied: number}).applied, 60);
+  assert.ok(pageOne.items.every(item => "batch_receipt" in item && !("raw_text" in item)));
+  await assert.rejects(() => importDetails(other, child.id), /not found/);
   const people = await rows<{id: string; name: string}>(sql`SELECT id,name FROM hirelix_agent_people WHERE user_id=${owner}::uuid`);
   assert.equal(people.length, 60);
   assert.equal(new Set(people.map(person => person.name)).size, 60);
