@@ -6,6 +6,7 @@ import { WorkspaceError } from "./database";
 export type CandidateTable = {
   name: string;
   headers: string[];
+  columns: Array<{ key: string; original_header: string; position: number }>;
   rows: Array<{ line: number; fields: Record<string, string> }>;
 };
 
@@ -17,10 +18,24 @@ export async function readCandidateTables(file: { name: string; bytes: Uint8Arra
   let count = 0;
   function table(name: string, lines: Array<{ line: number; cells: string[] }>) {
     if (!lines.length) return;
-    const headers = lines[0].cells.map(value => value.trim());
-    if (!headers.length || headers.some(value => !value || value.includes("\u0000")) || new Set(headers).size !== headers.length)
-      throw new WorkspaceError(`${name}: each column needs a unique, non-empty header.`);
-    if (headers.length > 100) throw new WorkspaceError(`${name}: import up to 100 columns per table.`);
+    const originalHeaders = lines[0].cells;
+    const labels = originalHeaders.map(value => value.trim());
+    if (!labels.length || labels.some(value => !value || value.includes("\u0000")))
+      throw new WorkspaceError(`${name}: each column needs a non-empty header without NUL characters.`);
+    if (labels.length > 100) throw new WorkspaceError(`${name}: import up to 100 columns per table.`);
+    const counts = new Map<string, number>();
+    for (const header of labels) counts.set(header, (counts.get(header) || 0) + 1);
+    const used = new Set<string>();
+    const columns = labels.map((header, index) => {
+      // Real exports can contain duplicate labels, including after translation.
+      // Keep both values and their exact source position instead of overwriting
+      // a column or refusing the entire file.
+      let key = counts.get(header)! > 1 ? `${header} [column ${index + 1}]` : header;
+      while (used.has(key)) key += ` [column ${index + 1}]`;
+      used.add(key);
+      return { key, original_header: originalHeaders[index], position: index + 1 };
+    });
+    const headers = columns.map(column => column.key);
     const data = lines.slice(1);
     count += data.length;
     if (count > 10000) throw new WorkspaceError("Import up to 10,000 candidate rows per file across all worksheets.");
@@ -28,7 +43,7 @@ export async function readCandidateTables(file: { name: string; bytes: Uint8Arra
       if (row.cells.length > headers.length || row.cells.some(value => value.includes("\u0000")))
         throw new WorkspaceError(`${name}, row ${row.line}: values must fit the header columns and must not contain NUL characters.`);
     }
-    if (data.length) tables.push({ name, headers, rows: data.map(row => ({ line: row.line,
+    if (data.length) tables.push({ name, headers, columns, rows: data.map(row => ({ line: row.line,
       fields: Object.fromEntries(headers.map((header, index) => [header, row.cells[index] || ""])) })) });
   }
   if (extension === "csv" || extension === "tsv") {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import ExcelJS from "exceljs";
+import { readFile } from "node:fs/promises";
 import { zipSync, strToU8 } from "fflate";
 import { boundedArchive, readDocument } from "../src/lib/workspace/document-reader";
 import { readCandidateTables } from "../src/lib/workspace/candidate-tables";
@@ -12,9 +13,30 @@ test("candidate CSV/TSV preserve every column, quoted newlines, UTF-8 and all ro
   const tsv = Buffer.from(`Name\tEmail\n${Array.from({length: 1000}, (_, i) => `Person ${i}\t${i}@example.test`).join("\n")}`);
   assert.equal((await readCandidateTables({ name: "people.tsv", bytes: tsv }))[0].rows.length, 1000);
   await assert.rejects(() => readCandidateTables({ name: "bad.csv", bytes: Buffer.from([0xff]) }), /UTF-8/);
-  await assert.rejects(() => readCandidateTables({ name: "bad.csv", bytes: Buffer.from("Name,Name\nA,B") }), /unique/);
+  await assert.rejects(() => readCandidateTables({ name: "bad.csv", bytes: Buffer.from("Name,\nA,B") }), /non-empty/);
   await assert.rejects(() => readCandidateTables({ name: "bad.csv", bytes: Buffer.from("Name,Email\nA,B,C") }), /consistent/);
   await assert.rejects(() => readCandidateTables({ name: "bad.csv", bytes: Buffer.from("Name\nA\x00B") }), /NUL/);
+});
+
+test("duplicate labels retain both values and original column positions", async () => {
+  const [table] = await readCandidateTables({name: "export.csv", bytes: Buffer.from(' Name ,Name,Name [column 1],Email\n"Jamie Example",Jamie,third,jamie@example.test\n')});
+  assert.deepEqual(table.columns.map(column => column.original_header), [" Name ", "Name", "Name [column 1]", "Email"]);
+  assert.deepEqual(table.columns.map(column => column.position), [1, 2, 3, 4]);
+  assert.equal(new Set(table.headers).size, 4);
+  assert.deepEqual(Object.values(table.rows[0].fields), ["Jamie Example", "Jamie", "third", "jamie@example.test"]);
+});
+
+test("Recruit CRM export with translated duplicate labels keeps every source field", async () => {
+  // Header layout came from a real Recruit CRM trial export; contact details,
+  // owner and platform identifiers are sanitized in this committed fixture.
+  const bytes = await readFile("tests/fixtures/platform-exports/recruit-crm-candidates-zh.csv");
+  const [table] = await readCandidateTables({name: "recruit-crm.csv", bytes});
+  assert.equal(table.columns.length, 51);
+  assert.equal(table.rows.length, 1);
+  assert.equal(Object.keys(table.rows[0].fields).length, 51);
+  const nameColumns = table.columns.filter(column => column.original_header === "候选人姓名");
+  assert.deepEqual(nameColumns.map(column => column.position), [2, 3]);
+  assert.deepEqual(nameColumns.map(column => table.rows[0].fields[column.key]), ["William Sample", "William"]);
 });
 
 test("XLSX keeps multiple independent sheets, complete rows and original row numbers", async () => {

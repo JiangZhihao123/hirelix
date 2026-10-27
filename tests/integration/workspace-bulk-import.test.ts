@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile as readBytes } from "node:fs/promises";
 import { after, test } from "node:test";
 import ExcelJS from "exceljs";
 import { zipSync, strToU8 } from "fflate";
 import { sql } from "drizzle-orm";
 import { db, closeDb } from "../../src/db/client";
 import { initializeGlobalOutboundProxy } from "../../src/lib/server-outbound-proxy";
-import { startImport, prepareImport, importDetails, saveRequestedCandidateDrafts } from "../../src/lib/workspace/imports";
+import { startImport, prepareImport, importDetails, confirmMapping, saveRequestedCandidateDrafts } from "../../src/lib/workspace/imports";
 import { claimJob, finishJob, withJobLease } from "../../src/lib/workspace/jobs";
 import { readFile } from "../../src/lib/workspace/files";
 import { createPerson } from "../../src/lib/workspace/people";
@@ -79,4 +80,36 @@ test("real model + Postgres ZIP retains enclosed originals, handles duplicate id
   assert.ok(records.some(record => record.kind === "profile" && record.content.includes("Casey Rowan")));
   assert.ok(records.some(record => record.kind === "cv" && record.content.includes("2018–2022")));
   console.log(JSON.stringify({ format: "zip", total: 3, saved: 2, identity_conflict: 1, original_sources: true, rollback: true, idempotent: true }));
+});
+
+test("Recruit CRM export preserves duplicate headers, candidate identity and raw source with the real model and PostgreSQL", { timeout: 180000 }, async () => {
+  const bytes = await readBytes("tests/fixtures/platform-exports/recruit-crm-candidates-zh.csv");
+  const { owner, job, detail } = await run("recruit-crm.csv", bytes);
+  assert.equal(detail.job.result?.total, 1);
+  assert.equal(detail.counts.find(row => row.status === "saved")?.count, 1);
+  const item = detail.items[0];
+  const raw = JSON.parse(item.raw_text) as Record<string, string>;
+  assert.equal(Object.keys(raw).length, 51);
+  assert.equal(raw["候选人姓名 [column 2]"], "William Sample");
+  assert.equal(raw["候选人姓名 [column 3]"], "William");
+  const [person] = await rows<{name:string; email:string}>(sql`SELECT name,email FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND id=${item.result_person_id}::uuid`);
+  assert.equal(person.name, "William Sample");
+  assert.equal(person.email, "candidate@example.test");
+  const worksheets = detail.job.result?.worksheets as Array<{source_columns:Array<{original_header:string;position:number}>}>;
+  assert.deepEqual(worksheets[0].source_columns.filter(column => column.original_header === "候选人姓名").map(column => column.position), [2,3]);
+  assert.deepEqual((await readFile(owner, String(job.payload.file_id))).bytes, bytes);
+});
+
+test("mapped skill columns stay separate and singular contact fields reject multiple sources", { timeout: 180000 }, async () => {
+  const bytes = Buffer.from("Name,Email,Skills,Languages\nJamie Example,jamie@example.test,\"Python,SQL\",\"English,French\"\n");
+  const { owner, job, detail } = await run("skills.csv", bytes, false);
+  const mapping = detail.job.result?.mapping as Record<string,string[]>;
+  await assert.rejects(() => confirmMapping(owner, job.id, { ...mapping, email: ["Email", "Name"] }));
+  await assert.rejects(() => confirmMapping(owner, job.id, { ...mapping, profile_url: ["Email", "Name"] }));
+  await confirmMapping(owner, job.id, { ...mapping, name: ["Name"], email: ["Email"], skills: ["Skills", "Languages"] });
+  const updated = await importDetails(owner, job.id);
+  assert.deepEqual(updated.items[0].extracted.skills, ["Python", "SQL", "English", "French"]);
+  await db.transaction(tx => saveRequestedCandidateDrafts(owner, job.id, tx));
+  const [person] = await rows<{skills:string[]}>(sql`SELECT skills FROM hirelix_agent_people WHERE user_id=${owner}::uuid AND email='jamie@example.test'`);
+  assert.deepEqual(person.skills, ["Python", "SQL", "English", "French"]);
 });

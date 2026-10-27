@@ -39,7 +39,7 @@ export const importFields = [
 export type ImportField = (typeof importFields)[number];
 export const mappingSchema = z.object(
   Object.fromEntries(
-    importFields.map((key) => [key, z.array(z.string()).max(5)]),
+    importFields.map((key) => [key, z.array(z.string()).max(key === "email" || key === "profile_url" ? 1 : 5)]),
   ) as Record<ImportField, z.ZodArray<z.ZodString>>,
 );
 export async function startImport(
@@ -165,10 +165,12 @@ function mappedPerson(
   );
   return {
     ...result,
-    skills: String(result.skills || "")
+    // Split each source column separately: joining two lists first would fuse
+    // the last skill of one column with the first skill of the next column.
+    skills: mapping.skills.flatMap((column) => (raw[column] || "")
       .split(/[,;]/)
       .map((value) => value.trim())
-      .filter(Boolean),
+      .filter(Boolean)),
   };
 }
 // Agent tasks can save unambiguous new profiles when the recruiter requested it.
@@ -255,14 +257,19 @@ const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1
     const mapped: Array<CandidateTable & { mapping: z.infer<typeof mappingSchema> }> = [];
     for (const table of tables) {
       await progress(`Reading candidate columns: ${table.name}`);
+      // Constrain the structured response to the actual column keys. A prompt
+      // alone allowed translated duplicate labels to come back without their
+      // position suffix, which cannot identify either source column.
+      const header = z.enum(table.headers as [string, ...string[]]);
+      const tableMapping = z.object(Object.fromEntries(importFields.map(key => [key,
+        z.array(header).max(key === "email" || key === "profile_url" ? 1 : 5),
+      ])) as Record<ImportField, z.ZodArray<typeof header>>);
       const mapping = await structured(
-        job.user_id, "private_import_mapping", mappingSchema,
-        "Map each candidate field to zero or more exact table header names. Multiple name columns may be combined, e.g. first and last name. Return [] when unavailable. Do not infer values or map notes into factual profile fields. Only choose headers supplied in input. This is a candidate table, not a list of employers, jobs or activities; leave name empty if it does not contain candidate identities.",
-        { worksheet: table.name, headers: table.headers, sample: table.rows.slice(0, 5).map(row => row.fields) },
+        job.user_id, "private_import_mapping", tableMapping,
+        "Map each candidate field to exact table header keys. The service joins the selected values with spaces for each field; skills columns are split separately on commas and semicolons. For name, select either one complete-name column or separate name components, never both, so the resulting name does not repeat. Email and profile_url each accept at most one column. Use [] when unavailable. Different keys can represent columns with the same original label; use their sample values and positions. Do not infer values or map notes into factual profile fields. Only choose headers supplied in input. This is a candidate table, not a list of employers, jobs or activities; leave name empty if it does not contain candidate identities.",
+        { worksheet: table.name, headers: table.headers, source_columns: table.columns, sample: table.rows.slice(0, 5).map(row => row.fields) },
+        undefined, [], { maxOutputTokens: 14000 },
       );
-      for (const columns of Object.values(mapping))
-        if (columns.some(column => !table.headers.includes(column)))
-          throw new WorkspaceError("The proposed mapping referenced an unknown column. Retry the import.", 502);
       if (!mapping.name.length)
         throw new WorkspaceError(`${table.name}: candidate names could not be identified. Supply a candidate table with clearly labelled name columns; other export files remain unchanged.`);
       mapped.push({ ...table, mapping });
@@ -272,7 +279,7 @@ const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1
       result: {
         file_id: file.id, filename: file.name, format: extension, tabular: true,
         ...(single ? { headers: single.headers, mapping: single.mapping } : {}),
-        worksheets: mapped.map(table => ({ name: table.name, headers: table.headers, mapping: table.mapping, total: table.rows.length, source_rows: table.rows.map(row => row.line) })),
+        worksheets: mapped.map(table => ({ name: table.name, headers: table.headers, source_columns: table.columns, mapping: table.mapping, total: table.rows.length, source_rows: table.rows.map(row => row.line) })),
         total: mapped.reduce((total, table) => total + table.rows.length, 0),
         mapping_confirmed: job.payload.save_new_candidates === true || !single,
       },
