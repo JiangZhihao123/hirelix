@@ -6,6 +6,8 @@ test("inline previews only serve image and PDF formats, never active HTML or SVG
   assert.equal(attachmentPreviewType('photo.JPG'), 'image/jpeg');
   assert.equal(attachmentPreviewType('scan.pdf'), 'application/pdf');
   for (const name of ['script.html','vector.svg','table.xlsx','unknown']) assert.equal(attachmentPreviewType(name), null);
+  assert.equal(attachmentPreviewType("0_no_name_", "application/pdf"), "application/pdf");
+  assert.equal(attachmentPreviewType("script.html", "application/pdf"), null);
 });
 test("file constraints reject empty, oversized and unsupported files without rejecting valid siblings", () => {
   assert.equal(attachmentError("notes.MD", 4), null);

@@ -8,7 +8,7 @@ import { getLogger } from "@/lib/logger";
 import { db } from "@/db/client";
 import { expectVersion, json, owned, rows, WorkspaceError, type Runner } from "./database";
 import { clientDocument, assertSharingAllowed, activeDocumentShare } from "./document-sharing";
-import { readFile } from "./files";
+import { deliveryFileName, readFile } from "./files";
 import { markSubmitted } from "./deliverables";
 import { recipientAddressError, emailSnapshotSchema, type EmailSnapshot } from "./email-contract";
 import type { Deliverable } from "./types";
@@ -250,7 +250,7 @@ export async function buildEmailMime(userId: string, snapshot: EmailSnapshot) {
         "The selected CVs are too large for one email. Use a share link instead.",
       );
     attachments.push({
-      filename: file.name,
+      filename: deliveryFileName(file),
       content: file.bytes,
       contentType: file.media_type,
     });

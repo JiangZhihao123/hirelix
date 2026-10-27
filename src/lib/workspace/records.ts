@@ -94,11 +94,12 @@ export async function registerCandidateCv(userId: string, personId: string, reco
   await owned(userId, "person", personId, tx);
   const record = await owned<SourceRecord>(userId, "record", recordId, tx, true);
   expectVersion(record.version, expectedVersion);
-  if (record.person_id !== personId || !["profile", "cv"].includes(record.kind) || !record.file_id)
+  if (record.person_id !== personId || !["profile", "cv", "attachment"].includes(record.kind) || !record.file_id)
     throw new WorkspaceError("Choose this candidate's saved resume source with its original file.");
-  const [file] = await rows<{name:string}>(sql`SELECT name FROM hirelix_private_files WHERE user_id=${userId}::uuid AND id=${record.file_id}::uuid`,tx);
+  const [file] = await rows<{name:string;media_type:string}>(sql`SELECT name,media_type FROM hirelix_private_files WHERE user_id=${userId}::uuid AND id=${record.file_id}::uuid`,tx);
   if (!file) throw new WorkspaceError("This original file was not found",404);
-  if (!["pdf", "docx", "txt", "md"].includes(file.name.split(".").pop()?.toLowerCase() || ""))
+  if (!["pdf", "docx", "txt", "md"].includes(file.name.split(".").pop()?.toLowerCase() || "") &&
+      !(!file.name.includes(".") && file.media_type === "application/pdf"))
     throw new WorkspaceError("Original CV attachments support PDF, DOCX, TXT or Markdown files.");
   if (record.kind === "cv") return record;
   return updateRecord(userId,record.id,{

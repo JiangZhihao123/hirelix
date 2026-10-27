@@ -88,6 +88,7 @@ export const recordInput = z.object({
     "profile",
     "jd",
     "event",
+    "attachment",
   ]),
   title: text(500).min(1),
   content: z.string().max(500000),

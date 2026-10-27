@@ -544,7 +544,7 @@ function CandidateDetails({
     (item) => item.id === highlight,
   );
   const isSource = (item: SourceRecord) =>
-    ["cv", "profile", "jd"].includes(item.kind);
+    ["cv", "profile", "jd", "attachment"].includes(item.kind);
   const tab = highlightedRecord
     ? isSource(highlightedRecord)
       ? "sources"
@@ -616,6 +616,7 @@ function CandidateDetails({
   const conversation = communications[0];
   const recordKinds = {
     cv: "CV / resume",
+    attachment: "Attachment",
     jd: "Job description",
     profile: "Profile",
     event: "Event",
@@ -878,6 +879,7 @@ function CandidateDetails({
                   {t("Added")} {date(item.created_at, true)}
                 </small>
                 <FeedbackSource record={item} />
+                {item.kind === "attachment" && item.details.extraction !== "extracted" && <p className="ws-muted">{t("Original saved; searchable text was not extracted.")}</p>}
                 {tab === "sources" ? (
                   <details className="ws-source-extracted">
                     <summary>{t("View extracted text")}</summary>

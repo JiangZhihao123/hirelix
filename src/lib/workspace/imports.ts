@@ -1,7 +1,9 @@
 import { readDocument, boundedArchive } from "./document-reader";
 import { createHash } from "node:crypto";
-import { MAX_ATTACHMENT_BYTES } from "./attachments";
+import { MAX_ATTACHMENT_BYTES, MAX_CONVERSATION_FILES } from "./attachments";
 import { readCandidateTables, type CandidateTable } from "./candidate-tables";
+import { recruitCrmAttachmentPath, recruitCrmCandidateReference } from "./recruit-crm-export";
+import { prepareRecruitCrmAttachment, saveRecruitCrmAttachments, type RecruitCrmAttachment } from "./recruit-crm-attachments";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -26,6 +28,7 @@ import {
   type PersonInput,
 } from "./types";
 import type { JobHandler, PreparedJob } from "./jobs";
+type CandidatePrepared = PreparedJob & { candidate_source_ids?: string[] };
 export const importFields = [
   "name",
   "headline",
@@ -193,63 +196,105 @@ async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, forma
       continue;
     }
     const person = await createPerson(job.user_id, parsed.data, tx);
+    const externalReference = ["csv", "tsv", "xlsx", "table"].includes(format)
+      ? recruitCrmCandidateReference(JSON.parse(item.raw_text)) : null;
     await addRecord(job.user_id, {
       person_id: person.id, file_id: item.file_id, kind: ["csv", "tsv", "xlsx", "table"].includes(format) ? "profile" : "cv", title: filename,
-      content: item.raw_text, details: { import_job_id: job.id, import_row: item.id, imported_fields: item.extracted },
+      content: item.raw_text, details: { import_job_id: job.id, import_row: item.id, imported_fields: item.extracted,
+        ...(typeof job.payload.source_message_id === "string" ? {source_message_id: job.payload.source_message_id} : {}),
+        ...(externalReference ? { external_reference: externalReference } : {}) },
     }, tx);
     await tx.execute(sql`UPDATE hirelix_private_import_rows SET status='saved',action='add',target_person_id=${person.id}::uuid,result_person_id=${person.id}::uuid,error=NULL WHERE user_id=${job.user_id}::uuid AND id=${item.id}::uuid`);
   }
   return true;
 }
 export const prepareImport: JobHandler = async (job, progress) => {
-  const file = await readFile(job.user_id, idSchema.parse(job.payload.file_id));
-  if (file.name.toLowerCase().endsWith(".zip")) {
-    const archive = boundedArchive(file.bytes);
-    const entries = Object.entries(archive).filter(([path]) => !path.endsWith("/") && !path.startsWith("__MACOSX/") && path.split("/").at(-1) !== ".DS_Store");
-    if (!entries.length || entries.length > 500)
-      throw new WorkspaceError("Use a ZIP with 1–500 candidate files, expanding to at most 30 MB.");
-    const supported = ["csv", "tsv", "xlsx", "pdf", "docx", "txt", "md"];
+  const primary = idSchema.parse(job.payload.file_id);
+  const related = z.array(idSchema).max(MAX_CONVERSATION_FILES - 1).default([]).parse(job.payload.related_file_ids);
+  const ids = [primary, ...related];
+  if (new Set(ids).size !== ids.length) throw new WorkspaceError("Choose each source file only once.");
+  const originals = await Promise.all(ids.map(id => readFile(job.user_id, id)));
+  if (originals.length === 1 && !originals[0].name.toLowerCase().endsWith(".zip"))
+    return prepareCandidateFile(job, progress, originals[0]);
+
+  const prepared: Array<{path:string;source:Awaited<ReturnType<typeof readFile>>;part:CandidatePrepared;archive_file_id:string|null}> = [];
+  const attachments: RecruitCrmAttachment[] = [];
+  const unhandled: Array<{archive_file_id:string;path:string;reason:string}> = [];
+  const candidateSourceIds = new Set<string>();
+  let offset = 0;
+  async function candidate(source: Awaited<ReturnType<typeof readFile>>, path: string, archiveFileId: string | null) {
+    await progress(`Reading ${path}`);
+    const part = await prepareCandidateFile(job, progress, source, offset);
+    offset += Number(part.result.total);
+    if (offset > 10000) throw new WorkspaceError("Import up to 10,000 candidates in one batch.");
+    for (const id of part.candidate_source_ids || []) candidateSourceIds.add(id);
+    prepared.push({path, source, part, archive_file_id: archiveFileId});
+  }
+  // Candidate sources are prepared before their associated archive files,
+  // regardless of the order in which the user selected the attachments.
+  for (const original of originals.filter(file => !file.name.toLowerCase().endsWith(".zip")))
+    await candidate(original, original.name, null);
+  for (const original of originals.filter(file => file.name.toLowerCase().endsWith(".zip"))) {
+    const entries = Object.entries(boundedArchive(original.bytes)).filter(([path]) => !path.endsWith("/") && !path.startsWith("__MACOSX/") && path.split("/").at(-1) !== ".DS_Store");
+    if (!entries.length || entries.length > 500) throw new WorkspaceError("Use a ZIP with 1–500 files, expanding to at most 30 MB.");
     for (const [path, bytes] of entries) {
-      if (path.startsWith("/") || path.split("/").some(part => part === "..") || path.includes("\\"))
+      if (path.startsWith("/") || path.includes("\u0000") || path.includes("\\") || path.split("/").some(part => part === ".."))
         throw new WorkspaceError("The ZIP contains an unsafe file path.");
-      if (!supported.includes(path.split(".").pop()?.toLowerCase() || ""))
-        throw new WorkspaceError(`Cannot import ${path}. Use candidate tables or individual PDF, DOCX or text resumes; no files have been imported.`);
       if (!bytes.length || bytes.length > MAX_ATTACHMENT_BYTES)
         throw new WorkspaceError(`${path}: each file inside the ZIP must be non-empty and up to 50 MB.`);
     }
-    const prepared: Array<{ path: string; source: Awaited<ReturnType<typeof readFile>>; part: PreparedJob }> = [];
-    let offset = 0;
+    const paths = entries.flatMap(([path]) => {
+      const ref = recruitCrmAttachmentPath(path);
+      return ref ? [ref] : [];
+    });
+    const idsInArchive = [...new Set(paths.map(path => path.candidate_id))];
+    const existingRefs = idsInArchive.length ? await rows<{source_id:string}>(sql`SELECT DISTINCT details->'external_reference'->>'id' AS source_id
+      FROM hirelix_private_records WHERE user_id=${job.user_id}::uuid AND kind='profile'
+        AND details->'external_reference'->>'system'='recruitcrm' AND details->'external_reference'->>'entity'='candidate'
+        AND details->'external_reference'->>'id' IN (${sql.join(idsInArchive.map(id=>sql`${id}`),sql`, `)})`) : [];
+    for (const reference of existingRefs) candidateSourceIds.add(reference.source_id);
+    const isAttachmentExport = paths.some(path => !path.name.includes(".") || candidateSourceIds.has(path.candidate_id));
     for (const [path, bytes] of entries) {
-      await progress(`Reading ${path} (${prepared.length + 1}/${entries.length})`);
-      const source = { ...file, name: path, bytes: Buffer.from(bytes) };
-      const part = await prepareCandidateFile(job, progress, source, offset);
-      offset += Number(part.result.total);
-      if (offset > 10000) throw new WorkspaceError("Import up to 10,000 candidates per ZIP.");
-      prepared.push({ path, source, part });
+      if (isAttachmentExport) {
+        const ref = recruitCrmAttachmentPath(path);
+        if (!ref) { unhandled.push({archive_file_id:original.id,path,reason:"not a candidate attachment"}); continue; }
+        await progress(`Reading exported attachment ${attachments.length + 1}`);
+        attachments.push(await prepareRecruitCrmAttachment({archive_file_id:original.id,path,name:ref.name,candidate_id:ref.candidate_id,bytes}));
+        continue;
+      }
+      const extension = path.split(".").pop()?.toLowerCase() || "";
+      if (!["csv", "tsv", "xlsx", "pdf", "docx", "txt", "md"].includes(extension))
+        throw new WorkspaceError(`Cannot import ${path}. Use candidate tables or individual PDF, DOCX or text resumes; no files have been imported.`);
+      await candidate({...original,name:path,bytes:Buffer.from(bytes)},path,original.id);
     }
-    return {
-      result: { file_id: file.id, filename: file.name, format: "zip", total: offset, mapping_confirmed: true,
-        source_files: prepared.map(({ path, part }) => ({ path, ...part.result })),
-        warnings: prepared.flatMap(({ path, part }) => ((part.result.warnings || []) as string[]).map(warning => `${path}: ${warning}`)),
-        needs_clarification: prepared.some(({ part }) => part.result.needs_clarification === true),
-      },
-      apply: async tx => {
-        // Original archive and each enclosed source remain owned and intact.
-        // Candidate changes commit atomically with completion of this job.
-        const sources = [];
-        for (const item of prepared) {
-          const saved = await saveFile(job.user_id, { name: item.path, type: "application/octet-stream", bytes: item.source.bytes }, tx);
-          item.source.id = saved.id;
-          await item.part.apply?.(tx);
-          sources.push({ ...item.part.result, file_id: saved.id, path: item.path });
-        }
-        return { source_files: sources };
-      },
-    };
   }
-  return prepareCandidateFile(job, progress, file);
+  if (attachments.length && job.payload.save_new_candidates !== true)
+    throw new WorkspaceError("Ask the assistant to import these candidate files in the conversation before saving their associations.", 403);
+  return {
+    result: {file_id:primary,filename:originals[0].name,format:originals.length > 1 ? "batch" : "zip",total:offset,mapping_confirmed:true,
+      input_files:originals.map(file=>({file_id:file.id,name:file.name})),
+      source_files:prepared.map(({path,part})=>({path,...part.result})),unhandled_files:unhandled,
+      warnings:prepared.flatMap(({path,part})=>((part.result.warnings || []) as string[]).map(warning=>`${path}: ${warning}`)),
+      needs_clarification:prepared.some(({part})=>part.result.needs_clarification===true)},
+    apply: async tx => {
+      const sources = [];
+      for (const item of prepared) {
+        const saved = item.archive_file_id
+          ? await saveFile(job.user_id, {name:item.path,type:"application/octet-stream",bytes:item.source.bytes}, tx)
+          : item.source;
+        item.source.id = saved.id;
+        // Records use the stored filename (bounded by the file service); the
+        // full original archive path remains in source_files.
+        if (item.archive_file_id) item.source.name = saved.name;
+        await item.part.apply?.(tx);
+        sources.push({...item.part.result,file_id:saved.id,path:item.path,archive_file_id:item.archive_file_id});
+      }
+      const attachment_result = await saveRecruitCrmAttachments(job, attachments, tx);
+      return {source_files:sources,attachment_result};
+    },
+  };
 };
-const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1], file: Awaited<ReturnType<typeof readFile>>, offset = 0): Promise<Awaited<ReturnType<JobHandler>>> => {
+const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1], file: Awaited<ReturnType<typeof readFile>>, offset = 0): Promise<CandidatePrepared> => {
   await progress(`Reading ${file.name}`);
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (["csv", "tsv", "xlsx"].includes(extension || "")) {
@@ -276,6 +321,10 @@ const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1
     }
     const single = mapped.length === 1 ? mapped[0] : null;
     return {
+      candidate_source_ids: [...new Set(mapped.flatMap(table => table.rows.flatMap(row => {
+        const reference = recruitCrmCandidateReference(row.fields);
+        return reference ? [reference.id] : [];
+      })))],
       result: {
         file_id: file.id, filename: file.name, format: extension, tabular: true,
         ...(single ? { headers: single.headers, mapping: single.mapping } : {}),
@@ -338,7 +387,7 @@ export async function saveRequestedCandidateDrafts(userId: string, jobId: string
     (job.result?.needs_clarification === undefined && Array.isArray(job.result?.warnings) && job.result.warnings.length > 0);
   await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || '{"save_new_candidates":true}'::jsonb WHERE id=${jobId}::uuid AND user_id=${userId}::uuid`);
   const authorizedJob = { ...job, payload: { ...job.payload, save_new_candidates: true } };
-  if (job.result?.format === "zip" && Array.isArray(job.result.source_files)) {
+  if (["zip", "batch"].includes(String(job.result?.format)) && Array.isArray(job.result?.source_files)) {
     for (const source of job.result.source_files as Array<Record<string, unknown>>) {
       await saveUnambiguousRows(authorizedJob, tx, String(source.path), String(source.format), source.needs_clarification === true, idSchema.parse(source.file_id));
     }
@@ -465,18 +514,22 @@ export async function reviewImportRow(
       );
     } else person = await createPerson(userId, fields, tx);
     const file = item.file_id ? await readFile(userId, item.file_id) : null;
+    const isTable = ["csv", "tsv", "xlsx"].includes((file?.name.split(".").pop() || "").toLowerCase());
+    const externalReference = isTable ? recruitCrmCandidateReference(JSON.parse(item.raw_text)) : null;
     await addRecord(
       userId,
       {
         person_id: person.id,
         file_id: item.file_id,
-        kind: ["csv", "tsv", "xlsx"].includes((file?.name.split(".").pop() || "").toLowerCase()) ? "profile" : "cv",
+        kind: isTable ? "profile" : "cv",
         title: file?.name || "Imported candidate source",
         content: item.raw_text,
         details: {
           import_job_id: jobId,
           import_row: rowId,
           imported_fields: item.extracted,
+          ...(typeof job.payload.source_message_id === "string" ? {source_message_id: job.payload.source_message_id} : {}),
+          ...(externalReference ? { external_reference: externalReference } : {}),
         },
       },
       tx,

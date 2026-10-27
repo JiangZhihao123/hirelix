@@ -48,6 +48,10 @@ type Preview = {
   page: number;
   page_size: number;
 };
+type AttachmentResult = {
+  found: number; linked: number; reused: number; unmatched: number; ambiguous: number;
+  files: Array<{archive_file_id:string;path:string;status:"linked"|"reused"|"unmatched"|"ambiguous";extraction:string}>;
+};
 function ImportNotes({ warnings }: { warnings?: string[] }) {
   const t = useT();
   if (!warnings?.length) return null;
@@ -725,6 +729,9 @@ export function ConversationImport({
           total: number;
           mapping_confirmed: boolean;
           warnings?: string[];
+          input_files?: Array<{file_id:string;name:string}>;
+          attachment_result?: AttachmentResult;
+          unhandled_files?: Array<{archive_file_id:string;path:string;reason:string}>;
         }
       | undefined;
   const pending = !!job && ["queued", "running"].includes(job.status);
@@ -740,7 +747,13 @@ export function ConversationImport({
         .filter((c) => ["review", "error"].includes(c.status))
         .reduce((n, c) => n + c.count, 0) || 0;
   const total = result?.total || 0;
-  const summary = remaining
+  const attachmentResult = result?.attachment_result;
+  const unresolvedFiles = attachmentResult?.files.filter(file => ["unmatched", "ambiguous"].includes(file.status)) || [];
+  const unhandledFiles = result?.unhandled_files || [];
+  const unindexedFiles = attachmentResult?.files.filter(file => ["linked", "reused"].includes(file.status) && file.extraction !== "extracted").length || 0;
+  const summary = total === 0 && attachmentResult?.found
+    ? locale === "zh" ? "已处理附件包。" : "The attachment archive has been processed."
+    : remaining
     ? locale === "zh"
       ? `识别出 ${total} 位候选人${saved ? `，已保存 ${saved} 位` : ""}；还有 ${remaining} 位需要你审核。`
       : `I found ${total} candidate ${total === 1 ? "record" : "records"}. ${saved ? `${saved} saved; ` : ""}${remaining} ${remaining === 1 ? "needs" : "need"} your review.`
@@ -812,6 +825,18 @@ export function ConversationImport({
       ) : (
         <>
           <p>{summary}</p>
+          {!!attachmentResult?.found && <p>{locale === "zh"
+            ? `已关联 ${attachmentResult.linked} 份附件${attachmentResult.reused ? `，复用 ${attachmentResult.reused} 份已保存附件` : ""}；${attachmentResult.unmatched + attachmentResult.ambiguous} 份无法确定关联。`
+            : `${attachmentResult.linked} attachments linked${attachmentResult.reused ? `, ${attachmentResult.reused} already saved` : ""}; ${attachmentResult.unmatched + attachmentResult.ambiguous} could not be matched unambiguously.`}</p>}
+          {!!unindexedFiles && <p>{locale === "zh" ? `${unindexedFiles} 份已关联的原件没有提取出可检索文本。` : `${unindexedFiles} linked originals have no extracted searchable text.`}</p>}
+          {!!(unresolvedFiles.length || unhandledFiles.length) && <details className="ws-import-notes">
+            <summary>{locale === "zh" ? `查看 ${unresolvedFiles.length + unhandledFiles.length} 份未处理文件` : `View ${unresolvedFiles.length + unhandledFiles.length} unprocessed files`}</summary>
+            <p>{locale === "zh" ? "原始压缩包已保留；需要确认所属候选人或文件用途。" : "The original archives are retained; the candidate or purpose needs to be identified."}</p>
+            <ul>
+              {unresolvedFiles.map(file => <li key={`${file.archive_file_id}:${file.path}`}>{file.path} · {file.status === "ambiguous" ? (locale === "zh" ? "身份有冲突" : "ambiguous identity") : (locale === "zh" ? "未找到对应候选人" : "candidate not found")}</li>)}
+              {unhandledFiles.map(file => <li key={`${file.archive_file_id}:${file.path}`}>{file.path} · {locale === "zh" ? "未识别文件用途" : "file purpose not identified"}</li>)}
+            </ul>
+          </details>}
           {(result?.format === "csv" || (result?.tabular === true && Array.isArray(result.headers))) &&
           !result.mapping_confirmed &&
           result.mapping &&
@@ -925,18 +950,8 @@ export function ConversationImport({
           )}
         </>
       )}
-      <a
-        className="ws-import-original"
-        download
-        href={
-          job
-            ? `/api/workspace/files/${String(job.payload.file_id)}`
-            : undefined
-        }
-      >
-        {t("Original:")}{" "}
-        {String(job?.payload.filename || result?.format || "candidate file")}
-      </a>
+      {(result?.input_files || (job ? [{file_id:String(job.payload.file_id),name:String(job.payload.filename || result?.format || "candidate file")}] : [])).map(file =>
+        <a key={file.file_id} className="ws-import-original" download href={`/api/workspace/files/${file.file_id}`}>{t("Original:")} {file.name}</a>)}
       {review && (
         <ReviewRow
           key={review.id}
@@ -951,7 +966,7 @@ export function ConversationImport({
       )}
     </section>
   );
-  if (embedded && job?.status === "done" && saved > 0 && remaining === 0 && !error && !preview.error)
+  if (embedded && job?.status === "done" && saved > 0 && remaining === 0 && !unresolvedFiles.length && !unhandledFiles.length && !unindexedFiles && !error && !preview.error)
     return <details className="ws-saved-items ws-import-saved">
       <summary><Check size={13} />{t("Saved to candidates")} · {saved}<span> · {String(job.payload.filename || "")}</span></summary>
       {content}

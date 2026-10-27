@@ -24,6 +24,23 @@ export function boundedArchive(bytes: Uint8Array) {
   }});
   return unzipSync(bytes);
 }
+
+/** Some exports omit extensions; identify a PDF only from its original bytes. */
+export function archivedMediaType(bytes: Uint8Array) {
+  return bytes.length >= 5 && Buffer.from(bytes.subarray(0, 5)).toString("ascii") === "%PDF-"
+    ? "application/pdf" : "application/octet-stream";
+}
+
+/** Read exactly one entry from the user's original archive; never extract to disk. */
+export function readArchiveEntry(file: {name: string; bytes: Uint8Array}, path: string) {
+  if (!file.name.toLowerCase().endsWith(".zip")) throw new WorkspaceError("Choose a ZIP archive.");
+  if (!path || path.startsWith("/") || path.endsWith("/") || path.includes("\u0000") || path.includes("\\") || path.split("/").some(part => part === ".."))
+    throw new WorkspaceError("Choose a safe file path inside the ZIP.");
+  const archive = boundedArchive(file.bytes);
+  if (!Object.hasOwn(archive, path)) throw new WorkspaceError("This file was not found in the ZIP.", 404);
+  const bytes = archive[path];
+  return {name: path, bytes, media_type: archivedMediaType(bytes)};
+}
 export async function sourceImage(bytes: Uint8Array, label: string): Promise<SourceImage> {
   try {
     const data = await sharp(bytes, {limitInputPixels: 16777216}).rotate()
@@ -36,7 +53,7 @@ function ensureContent(document: ReadDocument) {
   return document;
 }
 
-export async function readDocument(file: {name: string; bytes: Uint8Array}, imageBudget = MAX_SOURCE_IMAGES, readVisuals = true): Promise<ReadDocument> {
+export async function readDocument(file: {name: string; bytes: Uint8Array; media_type?: string}, imageBudget = MAX_SOURCE_IMAGES, readVisuals = true): Promise<ReadDocument> {
   const document = await readDocumentContent(file, imageBudget, readVisuals);
   // PDF font mappings and other source formats can contain NUL. PostgreSQL
   // text/jsonb cannot represent it; retain the original bytes, clean extracted text.
@@ -48,8 +65,9 @@ export async function readDocument(file: {name: string; bytes: Uint8Array}, imag
   return readVisuals ? ensureContent(document) : document;
 }
 
-async function readDocumentContent(file: {name: string; bytes: Uint8Array}, imageBudget: number, readVisuals: boolean): Promise<ReadDocument> {
-  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+async function readDocumentContent(file: {name: string; bytes: Uint8Array; media_type?: string}, imageBudget: number, readVisuals: boolean): Promise<ReadDocument> {
+  const extension = !file.name.includes(".") && file.media_type === "application/pdf"
+    ? "pdf" : file.name.split(".").pop()?.toLowerCase() || "";
   if (extension === "zip") {
     const entries = Object.entries(boundedArchive(file.bytes)).filter(([path]) => !path.endsWith("/"));
     if (entries.length > 1000) throw new WorkspaceError("This ZIP contains more than 1,000 files.");

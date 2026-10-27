@@ -3,7 +3,7 @@ import { test } from "node:test";
 import ExcelJS from "exceljs";
 import { readFile } from "node:fs/promises";
 import { zipSync, strToU8 } from "fflate";
-import { boundedArchive, readDocument } from "../src/lib/workspace/document-reader";
+import { boundedArchive, readArchiveEntry, readDocument } from "../src/lib/workspace/document-reader";
 import { readCandidateTables } from "../src/lib/workspace/candidate-tables";
 
 test("candidate CSV/TSV preserve every column, quoted newlines, UTF-8 and all rows", async () => {
@@ -72,6 +72,9 @@ test("candidate archives expose inventory without treating it as source text and
   assert.match(inventory.text, /Enclosed file contents have not been read/);
   assert.match(inventory.text, /a.txt/);
   assert.doesNotMatch(inventory.text, /first/);
+  assert.equal(Buffer.from(readArchiveEntry({name:"candidates.zip",bytes},"a.txt").bytes).toString(), "first");
+  assert.throws(() => readArchiveEntry({name:"candidates.zip",bytes},"missing.txt"), /not found/);
+  assert.throws(() => readArchiveEntry({name:"candidates.zip",bytes},"../a.txt"), /safe file path/);
   const duplicate = Buffer.from(bytes);
   let index = duplicate.indexOf("b.txt");
   while (index >= 0) { duplicate.write("a.txt", index); index = duplicate.indexOf("b.txt", index + 5); }

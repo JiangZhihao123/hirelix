@@ -470,7 +470,7 @@ export function RecordForm({
                 setKind(event.target.value as SourceRecord["kind"])
               }
             >
-              {["note", "call", "email", "feedback", "profile", "event"].map(
+              {[...(record?.kind === "attachment" ? ["attachment"] : []), "note", "call", "email", "feedback", "profile", "event"].map(
                 (value) => (
                   <option key={value} value={value}>
                     {value[0].toUpperCase() + value.slice(1)}

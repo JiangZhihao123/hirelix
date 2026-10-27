@@ -1,7 +1,7 @@
 import {zipSync} from 'fflate';
 import {clientDocument, assertSharingAllowed, readSharedDocument} from './document-sharing';
 import {owned, expectVersion, WorkspaceError} from './database';
-import {readFile, attachment} from './files';
+import {readFile, attachment, deliveryFileName} from './files';
 import {renderDocument} from './document-export';
 import type {Deliverable} from './types';
 import type {ClientDocument} from './document-sharing';
@@ -17,7 +17,7 @@ async function packageFiles(userId: string, doc: ClientDocument) {
     size += file.bytes.length;
     if (size > 50 * 1024 * 1024) throw new WorkspaceError('This package is too large. Download the files individually.',413);
     const person = doc.people.find(p => p.id === selected.person_id);
-    entries[`CVs/${index+1}-${safeName(person?.name || 'Candidate')}-${safeName(file.name)}`] = file.bytes;
+    entries[`CVs/${index+1}-${safeName(person?.name || 'Candidate')}-${safeName(deliveryFileName(file))}`] = file.bytes;
   }
   return zipSync(entries, {level: 1});
 }

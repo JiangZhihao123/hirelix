@@ -17,6 +17,11 @@ export type PrivateFile = {
   sha256: string;
   created_at: string;
 };
+// The archive's original name stays unchanged in storage; delivery adds the
+// verified PDF extension so the recipient can open an extensionless export.
+export function deliveryFileName(file: {name:string;media_type:string}) {
+  return !file.name.includes(".") && file.media_type === "application/pdf" ? `${file.name}.pdf` : file.name;
+}
 export async function saveFile(
   userId: string,
   file: { name: string; type: string; bytes: Uint8Array },
@@ -31,6 +36,17 @@ export async function saveFile(
     tx,
   );
   return saved;
+}
+
+/** Reuse the same owned source bytes when an import is repeated. */
+export async function saveImportedFile(userId: string, file: {name: string; type: string; bytes: Uint8Array}, tx: Runner) {
+  const name = path.basename(file.name).slice(0, 250) || "document";
+  const hash = createHash("sha256").update(file.bytes).digest("hex");
+  const type = file.type || "application/octet-stream";
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + hash + name},0))`);
+  const [existing] = await rows<PrivateFile>(sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at FROM hirelix_private_files
+    WHERE user_id=${userId}::uuid AND sha256=${hash} AND name=${name} AND media_type=${type} AND upload_id IS NULL ORDER BY created_at LIMIT 1`, tx);
+  return existing || saveFile(userId, file, tx);
 }
 // Retry the same upload without retaining another copy of its bytes.
 export async function uploadConversationFile(userId: string, file: { name: string; type: string; bytes: Uint8Array }) {

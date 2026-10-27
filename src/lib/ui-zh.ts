@@ -1914,6 +1914,8 @@ export const uiZh: Record<string, string> = {
   "Import the historical candidates and resumes I attach into my private library. Keep original files, exported fields and history traceable. Save unambiguous new candidates and tell me about identity conflicts or material issues that need my decision.": "将我附上的历史候选人和简历导入私人候选人库。保留原始文件、导出字段和历史资料的来源。直接保存身份明确的新候选人；存在身份冲突或需要我决定的重要问题时告诉我。",
   "Help me identify potential candidates from publicly available information for the role I describe. Explain why they may be relevant, link the supporting sources and identify what remains unconfirmed. Keep this as research; do not save profiles or contact anyone.": "根据我描述的职位，从公开资料寻找潜在人选。解释可能匹配的原因，附上证据来源，说明尚未核实的信息。只进行研究，不保存档案或联系任何人。",
   "Each file must be non-empty and up to 50 MB.": "每个文件须非空，且不超过 50 MB。",
+  "Attachment": "附件",
+  "Original saved; searchable text was not extracted.": "原件已保存，但未提取出可检索的文本。",
   "Use images, PDF, DOCX, XLSX, PPTX, CSV, TSV, text files or candidate ZIP archives": "请使用图片、PDF、DOCX、XLSX、PPTX、CSV、TSV、文本文件或候选人 ZIP 压缩包。",
   "This upload is incomplete. Retry to continue from the received parts.": "文件尚未上传完整。请重试，将从已收到的分片继续。",
   "CSV, TSV, XLSX, resumes or ZIP · Up to 4 MB here; use the conversation for larger files.": "CSV、TSV、XLSX、简历或 ZIP · 此处限 4 MB，更大的文件请在对话中上传。",

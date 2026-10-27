@@ -6,9 +6,12 @@ export const UPLOAD_PART_BYTES = 2 * 1024 * 1024;
 export const MAX_UPLOAD_PARTS = Math.ceil(MAX_ATTACHMENT_BYTES / UPLOAD_PART_BYTES);
 export const DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
 export const ATTACHMENT_ACCEPT = ".jpg,.jpeg,.png,.webp,.pdf,.docx,.xlsx,.pptx,.csv,.tsv,.txt,.md,.json,.html,.xml,.zip";
-export function attachmentPreviewType(name: string): string | null {
+export function attachmentPreviewType(name: string, mediaType?: string | null): string | null {
   const extension = name.split(".").pop()?.toLowerCase();
-  return ({jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf"} as Record<string, string>)[extension || ""] || null;
+  const known = ({jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf"} as Record<string, string>)[extension || ""];
+  // Imported platform archives can omit the filename extension. Their PDF
+  // MIME type is set after checking the original file signature.
+  return known || (!name.includes(".") && mediaType === "application/pdf" ? "application/pdf" : null);
 }
 export const attachmentSchema = z.object({
   file_id: z.uuid(), name: z.string(), size: z.number(),

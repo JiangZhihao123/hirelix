@@ -15,16 +15,16 @@ export function GET(
       idSchema.parse((await context.params).id),
     );
     if (req.nextUrl.searchParams.has("page")) {
-      if (attachmentPreviewType(file.name) !== "application/pdf") throw new WorkspaceError("Choose a PDF to preview pages.");
+      if (attachmentPreviewType(file.name, file.media_type) !== "application/pdf") throw new WorkspaceError("Choose a PDF to preview pages.");
       const page = z.coerce.number().int().min(1).max(10000).parse(req.nextUrl.searchParams.get("page"));
       const {pdfPagePreview} = await import("@/lib/workspace/file-thumbnail");
       return Response.json(await pdfPagePreview(file.bytes, page), {headers: {"Cache-Control": "private, no-store"}});
     }
-    if (req.nextUrl.searchParams.has("thumbnail") && file.name.toLowerCase().endsWith(".pdf")) {
+    if (req.nextUrl.searchParams.has("thumbnail") && attachmentPreviewType(file.name, file.media_type) === "application/pdf") {
       const {pdfThumbnail} = await import("@/lib/workspace/file-thumbnail");
       return Response.json(await pdfThumbnail(file.bytes), {headers: {"Cache-Control": "private, no-store"}});
     }
-    const previewType = req.nextUrl.searchParams.has("preview") ? attachmentPreviewType(file.name) : null;
+    const previewType = req.nextUrl.searchParams.has("preview") ? attachmentPreviewType(file.name, file.media_type) : null;
     return attachment(file.bytes, file.name, previewType || file.media_type, !!previewType);
   });
 }

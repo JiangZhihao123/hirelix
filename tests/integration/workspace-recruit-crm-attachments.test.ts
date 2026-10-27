@@ -1,0 +1,82 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { after, test } from "node:test";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { zipSync, strToU8 } from "fflate";
+import { sql } from "drizzle-orm";
+import { db, closeDb } from "../../src/db/client";
+import { uploadConversationFile, readFile } from "../../src/lib/workspace/files";
+import { createPerson } from "../../src/lib/workspace/people";
+import { addRecord, registerCandidateCv } from "../../src/lib/workspace/records";
+import { prepareRecruitCrmAttachment, saveRecruitCrmAttachments } from "../../src/lib/workspace/recruit-crm-attachments";
+import { readDocument } from "../../src/lib/workspace/document-reader";
+import { createRole, linkPerson } from "../../src/lib/workspace/roles";
+import { preparationSources, selectedDocumentFiles } from "../../src/lib/workspace/deliverables";
+import { recordEvidence } from "../../src/lib/workspace/agent-evidence";
+import { sendMessage, conversationDetails } from "../../src/lib/workspace/conversations";
+import { deliveryFileName } from "../../src/lib/workspace/files";
+import { rows } from "../../src/lib/workspace/database";
+const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
+assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.port !== "15432" && database.pathname.startsWith("/hirelix_workspace_qa_coldstart_"));
+const owners:string[]=[];
+after(async()=>{for(const owner of owners) await db.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled' WHERE user_id=${owner}::uuid AND status IN ('queued','running')`);await closeDb();});
+
+async function pdfBytes() {
+  const document = await PDFDocument.create(), page = document.addPage();
+  page.drawText("Example Person - built distributed data services in 2021", {font:await document.embedFont(StandardFonts.Helvetica),size:12});
+  return document.save();
+}
+test("vendor attachment IDs link only exact owned references; originals, ambiguity and retries remain explicit", async () => {
+  const owner=randomUUID(),other=randomUUID(),id=randomUUID();
+  owners.push(owner,other);
+  const pdf=await pdfBytes();
+  const archive=await uploadConversationFile(owner,{name:"attachments.zip",type:"application/zip",bytes:zipSync({"Candidates/a1/0_no_name_":pdf,"Candidates/missing/unknown.bin":strToU8("unknown")})});
+  const instruction="Import these candidate attachments.";
+  const sent=await sendMessage(owner,{message:instruction,request_key:randomUUID(),file_ids:[archive.id]});
+  const conversation=await conversationDetails(owner,sent.conversation_id);
+  const sourceMessage=conversation.messages.find(message=>message.role==="user")!;
+  const p1=await createPerson(owner,{name:"Example Person",email:"one@example.test"});
+  const p2=await createPerson(owner,{name:"Example Person",email:"two@example.test"});
+  const outsider=await createPerson(other,{name:"Outside Person"});
+  for (const [user,person,source] of [[owner,p1,"a1"],[owner,p1,"ambiguous"],[owner,p2,"ambiguous"],[other,outsider,"foreign"]] as const)
+    await addRecord(user,{person_id:person.id,kind:"profile",title:"Imported source",content:"source",details:{external_reference:{system:"recruitcrm",entity:"candidate",id:source}}});
+  const input = async (candidate_id:string,path:string,bytes:Uint8Array) => prepareRecruitCrmAttachment({archive_file_id:archive.id,path,name:path.split("/").at(-1)!,candidate_id,bytes});
+  const files = await Promise.all([input("a1","Candidates/a1/0_no_name_",pdf),input("missing","Candidates/missing/unknown.bin",strToU8("unknown")),input("foreign","Candidates/foreign/0_no_name_",pdf),input("ambiguous","Candidates/ambiguous/0_no_name_",pdf)]);
+  assert.equal(files[0].extraction,"extracted"); assert.match(files[0].text,/distributed data services/);
+  assert.equal(files[1].extraction,"unsupported");
+  const job = {id,user_id:owner,payload:{save_new_candidates:true,source_message_id:sourceMessage.id}};
+  await assert.rejects(() => db.transaction(tx=>saveRecruitCrmAttachments({...job,payload:{save_new_candidates:false}},files,tx)),/Ask the assistant/);
+  const result = await db.transaction(tx=>saveRecruitCrmAttachments(job,files,tx));
+  assert.deepEqual({found:result.found,linked:result.linked,reused:result.reused,unmatched:result.unmatched,ambiguous:result.ambiguous},{found:4,linked:1,reused:0,unmatched:2,ambiguous:1});
+  const linked=result.files.find(file=>file.status==="linked")!;
+  assert.equal(linked.person_id,p1.id);
+  const saved=await readFile(owner,linked.file_id!);
+  assert.equal(saved.name,"0_no_name_"); assert.equal(saved.media_type,"application/pdf"); assert.deepEqual(saved.bytes,Buffer.from(pdf));
+  assert.match((await readDocument(saved,0,false)).text,/distributed data services/);
+  const [record]=await rows<{id:string;version:number;details:Record<string,unknown>}>(sql`SELECT id,version,details FROM hirelix_private_records WHERE user_id=${owner}::uuid AND id=${linked.record_id}::uuid`);
+  assert.equal(record.details.source_archive_file_id,archive.id); assert.equal(record.details.source_archive_path,"Candidates/a1/0_no_name_");
+  const repeated=await db.transaction(tx=>saveRecruitCrmAttachments(job,files,tx));
+  assert.equal(repeated.reused,1); assert.equal(repeated.linked,0);
+  assert.equal((await rows(sql`SELECT id FROM hirelix_private_records WHERE user_id=${owner}::uuid AND person_id=${p1.id}::uuid AND kind='attachment'`)).length,1);
+  const role=await createRole(owner,{title:"QA role",client_name:"Example client",jd_text:"Work on distributed systems."});
+  await linkPerson(owner,role.id,p1.id);
+  await assert.rejects(()=>db.transaction(tx=>selectedDocumentFiles(owner,[p1.id],[saved.id],tx)),/not available/);
+  await assert.rejects(() => db.transaction(tx=>registerCandidateCv(owner,p2.id,record.id,record.version,tx)),/this candidate/);
+  const cv=await db.transaction(tx=>registerCandidateCv(owner,p1.id,record.id,record.version,tx));
+  assert.equal(cv.kind,"cv"); assert.equal(cv.file_id,saved.id); assert.equal(cv.details.source_archive_path,"Candidates/a1/0_no_name_");
+  const available=await preparationSources(owner,role.id);
+  assert.ok(available.files.some(file=>file.id===saved.id));
+  const selected=await db.transaction(tx=>selectedDocumentFiles(owner,[p1.id],[saved.id],tx));
+  assert.equal(selected[0].id,saved.id); assert.equal(deliveryFileName(selected[0]),"0_no_name_.pdf");
+  const evidence=await recordEvidence(owner,[cv]);
+  assert.deepEqual(evidence.saved_records[0].archive_source,{file_id:archive.id,path:"Candidates/a1/0_no_name_",system:"recruitcrm",candidate_id:"a1",extraction:"extracted"});
+  assert.ok(evidence.reported_messages.some(message=>message.id===sourceMessage.id));
+});
+
+test("corrupt and extensionless non-PDF attachments retain honest extraction status", async () => {
+  const base={archive_file_id:randomUUID(),candidate_id:"fixture",path:"Candidates/fixture/0_no_name_",name:"0_no_name_"};
+  const corrupt=await prepareRecruitCrmAttachment({...base,bytes:Buffer.from("%PDF-1.4\nnot a real PDF")});
+  assert.equal(corrupt.extraction,"unreadable"); assert.equal(corrupt.text,"");
+  const unknown=await prepareRecruitCrmAttachment({...base,bytes:Buffer.from("binary data")});
+  assert.equal(unknown.extraction,"unsupported"); assert.equal(unknown.media_type,"application/octet-stream");
+});
