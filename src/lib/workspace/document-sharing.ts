@@ -104,7 +104,7 @@ export async function activeDocumentShare(userId: string, id: string, runner?: R
     sql`SELECT * FROM hirelix_private_document_shares WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 1`, runner,
   );
   if (share) await assertSharingAllowed(userId, document.role_id, clientDocumentSchema.parse(share.snapshot), runner);
-  return share ? {...summary(share), current_copy: JSON.stringify(clientDocumentSchema.parse(share.snapshot)) === JSON.stringify(clientDocument(document))} : null;
+  return share ? {...summary(share), current_copy: document.kind === "submission" && document.source_snapshot.audience !== "internal" && JSON.stringify(clientDocumentSchema.parse(share.snapshot)) === JSON.stringify(clientDocument(document))} : null;
 }
 export async function publishDocument(
   userId: string,

@@ -423,7 +423,7 @@ function ProductLayoutShell({ children }: { children: React.ReactNode }) {
             <span>
               {isConversationPage
                 ? "Hirelix"
-                : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/mail" ? t("Email activity") : t("Workspace"))}
+                : pathname.startsWith("/app/submissions/") ? t("Saved document") : nav.find((item) => item.active)?.label || (pathname === "/app/settings" ? t("Settings") : pathname === "/app/mail" ? t("Email activity") : t("Workspace"))}
             </span>
           </div>
           <div className="ws-topbar-actions">

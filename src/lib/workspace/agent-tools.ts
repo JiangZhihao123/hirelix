@@ -675,7 +675,7 @@ export function createAgentTools(ctx: AgentToolContext) {
       },
     ),
     save_document: define(
-      "save_document", "Persist content you have written: create, patch exact text, or replace an observed version. Content may be supplied directly or through an owned content_file with SHA-256. Preserves selected people, source versions, attachments and history; does not generate prose, publish or send. See client-delivery for presentation formats.",
+      "save_document", "Persist content you have written: create, patch exact text, or replace an observed version. Use brief for non-period internal work, submission for candidate recommendation material, and search_update for an actual reporting period. Purpose and reporting dates can be corrected on the same draft; no new document is needed. Content may be supplied directly or through an owned content_file with SHA-256. Selected records are evidence; their dates and relation to a reporting period remain explicit. Preserves sources, versions and history; does not generate prose, publish or send. See client-delivery for presentation formats.",
       z.intersection(saveDocumentInput, z.object({...authorization, source_authorization_quote:z.string().nullable()})),
       async input => {
         if (input.sources?.records.length) authorized(input.source_authorization_quote || "", "source_authorization_quote (private sources selected)");

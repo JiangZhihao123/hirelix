@@ -33,7 +33,10 @@ import type {
 } from "@/lib/workspace/types";
 import { useLanguage, useT } from "@/components/LanguageProvider";
 import type { Locale } from "@/lib/locale";
-type SavedRecordSource = {id: string; title: string; person_id: string | null; version?: number; content?: string};
+type SavedRecordSource = {id: string; title: string; person_id: string | null; version?: number; content?: string;
+  occurred_at?: string | null; occurred_local_date?: string | null;
+  period_relation?: "in_period" | "outside_period" | "undated" | null;
+};
 
 export function DocumentPage({ id }: { id: string }) {
   const query = useQuery<{ deliverable: Deliverable }>(`/deliverables/${id}`);
@@ -203,18 +206,20 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
           <Link
             className="ws-link mb-4"
             href={
-              document.kind === "search_update"
+              document.kind !== "submission"
                 ? `/app/roles/${document.role_id}`
                 : `/app/roles/${document.role_id}?tab=submissions`
             }
           >
             <ArrowLeft size={14} />
-            {document.kind === "search_update"
+            {document.kind !== "submission"
               ? t("Back to role")
               : t("Recommendations")}
           </Link>
           <h1>
-            {internalReview
+            {document.kind === "brief"
+              ? t("Internal document")
+              : internalReview
               ? t("Internal review")
               : document.kind === "search_update"
               ? t("Search update")
@@ -452,6 +457,13 @@ function DocumentEditor({ initial }: { initial: Deliverable }) {
       {sourcePreview && <Dialog title={sourcePreview.title} wide onClose={() => setSourcePreview(null)}>
         <div className="ws-form">
         <p className="ws-muted">{t("Source text saved with this document. The current record may have changed.")} {sourcePreview.version && <>{t("Source version")}: {sourcePreview.version}</>}</p>
+        <p className="ws-muted">{locale === "zh" ? "发生日期：" : "Event date: "}{sourcePreview.occurred_local_date || sourcePreview.occurred_at || (locale === "zh" ? "未记录" : "not recorded")}
+          {sourcePreview.period_relation && <>{" · "}{sourcePreview.period_relation === "in_period"
+            ? (locale === "zh" ? "报告周期内" : "Within the reporting period")
+            : sourcePreview.period_relation === "outside_period"
+              ? (locale === "zh" ? "报告周期外的背景资料" : "Background from outside the reporting period")
+              : (locale === "zh" ? "日期未知的背景资料" : "Background with an unknown date")}</>}
+        </p>
         <AgentText content={sourcePreview.content || ""} />
         <Link className="ws-link" href={sourcePreview.person_id ? `/app/candidates?person=${sourcePreview.person_id}&record=${sourcePreview.id}` : `/app/roles/${document.role_id}?tab=activity&record=${sourcePreview.id}`}>
           {t("Open current record")} <ArrowUpRight size={12} />

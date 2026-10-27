@@ -1,13 +1,14 @@
 "use client";
 
 import { ArrowUpRight, Download, Paperclip } from "lucide-react";
-import { useT } from "@/components/LanguageProvider";
+import { useLanguage, useT } from "@/components/LanguageProvider";
 import type { Deliverable } from "@/lib/workspace/types";
 import type { SubmissionCv } from "@/lib/workspace/deliverables";
 
 /** Show the selected original files alongside the written document on every surface. */
 export function DocumentAttachments({ document, showEmpty = false }: { document: Deliverable; showEmpty?: boolean }) {
   const t = useT();
+  const {locale} = useLanguage();
   const source = document.source_snapshot as {
     files?: SubmissionCv[];
     people?: Array<{ id: string; name: string }>;
@@ -17,11 +18,11 @@ export function DocumentAttachments({ document, showEmpty = false }: { document:
     file: source.files?.find(file => file.id === id),
   }));
   if (!files.length && !showEmpty) return null;
-  if (document.kind !== "submission") return null;
+  if (document.kind !== "submission" && document.kind !== "brief") return null;
 
   return <section className="ws-document-attachments" aria-label={t("CV attachments")}>
     <h3>{t("CV attachments")}{files.length > 0 && <span> · {files.length}</span>}</h3>
-    <p className="ws-muted">{t("PDF and DOCX exports contain the recommendation only. Download CV attachments separately.")}</p>
+    <p className="ws-muted">{document.kind === "brief" ? (locale === "zh" ? "PDF 和 DOCX 导出仅包含文档正文，简历原件可单独下载。" : "PDF and DOCX exports contain the document only. Download original CVs separately.") : t("PDF and DOCX exports contain the recommendation only. Download CV attachments separately.")}</p>
     {files.map(({ id, file }) => {
       const name = file?.name || t("Original attachment");
       const person = source.people?.find(person => person.id === file?.person_id);

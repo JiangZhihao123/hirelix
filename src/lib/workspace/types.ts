@@ -128,7 +128,7 @@ export type RoleCandidate = Stamp & {
 };
 export type Deliverable = Stamp & {
   role_id: string;
-  kind: "submission" | "search_update" | "legacy";
+  kind: "submission" | "search_update" | "brief" | "legacy";
   title: string;
   content: string;
   person_ids: string[];

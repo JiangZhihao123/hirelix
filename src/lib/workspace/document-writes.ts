@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { expectVersion, json, owned, rows, snapshot, uuidArray, WorkspaceError, type Runner } from "./database";
-import { captureDocumentSources, preparationInput, selectedDocumentPeople, validateDocumentSources } from "./deliverables";
+import { captureDocumentSources, documentPreparationInput, selectedDocumentPeople, validateDocumentSources, withPeriodRelation } from "./deliverables";
 import { readFile } from "./files";
 import { applyDocumentEdits, documentEdits, documentSourceSelection, persistDraftRevision, revisionSources } from "./revisions";
 import type { Deliverable, SourceRecord } from "./types";
@@ -17,6 +17,12 @@ const bodyFields = {
   content_file: contentFile.nullable().optional(),
 };
 const metadataFields = {
+  kind: documentPreparationInput.shape.kind.optional().describe("Correct this draft's purpose in place. Omitted preserves its kind. For non-period material explicitly clear all existing reporting dates with null."),
+  period_start: documentPreparationInput.shape.period_start.optional(),
+  period_end: documentPreparationInput.shape.period_end.optional(),
+  period_local_start: documentPreparationInput.shape.period_local_start.removeDefault().optional(),
+  period_local_end: documentPreparationInput.shape.period_local_end.removeDefault().optional(),
+  report_timezone: documentPreparationInput.shape.report_timezone.removeDefault().optional(),
   title: z.string().trim().min(1).max(500).optional(),
   audience: z.enum(["internal", "client"]).optional(),
   language: z.enum(["en", "zh"]).optional(),
@@ -30,7 +36,7 @@ const createSources = z.object({
     .refine(items => new Set(items.map(item => item.id)).size === items.length, "Choose each record once"),
   file_ids: z.array(z.uuid()).max(50),
 });
-const create = preparationInput.omit({ request_key: true, instructions: true, record_ids: true, file_ids: true }).extend({
+const create = documentPreparationInput.omit({ request_key: true, instructions: true, record_ids: true, file_ids: true }).extend({
   operation: z.literal("create"),
   title: z.string().trim().min(1).max(500),
   audience: z.enum(["internal", "client"]),
@@ -110,7 +116,7 @@ function receipt(document: Deliverable, operation: SaveDocumentInput["operation"
   const source = document.source_snapshot;
   const role = source.role as { id?: unknown; version?: unknown } | undefined;
   const people = Array.isArray(source.people) ? source.people as Array<{ id: unknown; version: unknown }> : [];
-  const records = Array.isArray(source.records) ? source.records as Array<{ id: unknown; version: unknown }> : [];
+  const records = Array.isArray(source.records) ? source.records as Array<{ id: unknown; version: unknown; occurred_at?:unknown; occurred_on?:unknown; occurred_local_date?:unknown; date_precision?:unknown; period_relation?:unknown }> : [];
   const files = Array.isArray(source.files) ? source.files as Array<{ id: unknown; person_id: unknown; sha256: unknown }> : [];
   const href = document.kind === "search_update"
     ? `/app/roles/${document.role_id}/updates/${document.id}`
@@ -130,7 +136,10 @@ function receipt(document: Deliverable, operation: SaveDocumentInput["operation"
     sources: {
       role: role ? { id: role.id ?? null, version: role.version ?? null } : null,
       people: people.map(person => ({ id: person.id ?? null, version: person.version ?? null })),
-      records: records.map(record => ({ id: record.id ?? null, version: record.version ?? null })),
+      records: records.map(record => ({ id: record.id ?? null, version: record.version ?? null,
+        occurred_at: record.occurred_at ?? null, occurred_on: record.occurred_on ?? null,
+        occurred_local_date: record.occurred_local_date ?? null, date_precision: record.date_precision ?? "unknown",
+        period_relation: record.period_relation ?? null })),
       files: files.map(file => ({ id: file.id ?? null, person_id: file.person_id ?? null, sha256: file.sha256 ?? null })),
       captured_at: source.captured_at ?? null,
       content_file: bodyFile,
@@ -164,13 +173,14 @@ export async function prepareDocumentWrite(userId: string, value: unknown) {
 
   return async (tx: Runner) => {
     if (input.operation === "create") {
-      const sourceInput = preparationInput.parse({
+      const sourceInput = documentPreparationInput.parse({
         ...input,
         record_ids: input.sources.records.map(record => record.id),
         file_ids: input.sources.file_ids,
         request_key: "direct-document-write",
       });
       validateDocumentSources(sourceInput);
+      if (input.kind === "brief" && input.audience !== "internal") throw new WorkspaceError("Briefs are internal working materials. Choose the appropriate client document purpose before delivery.");
       // Referencing someone in a document does not add them to a role's pipeline.
       const source = { ...await captureDocumentSources(userId, sourceInput, tx, input.sources, false), audience: input.audience };
       if (JSON.stringify(source).length > 240000) throw new WorkspaceError("Select fewer source records for this document");
@@ -184,7 +194,33 @@ export async function prepareDocumentWrite(userId: string, value: unknown) {
     expectVersion(document.version, input.expected_version);
     if (document.status !== "draft") throw new WorkspaceError("The submitted copy is preserved", 409);
     const nextContent = input.operation === "patch" ? applyDocumentEdits(document.content, input.edits) : content!;
-    const scoped = input.person_ids ? await reselectPeople(userId,document,input.person_ids,tx) : document;
+    const kind = input.kind ?? document.kind;
+    const savedStart = document.period_start ? new Date(document.period_start).toISOString() : null;
+    const savedEnd = document.period_end ? new Date(document.period_end).toISOString() : null;
+    const start = input.period_start === undefined ? savedStart : input.period_start;
+    const end = input.period_end === undefined ? savedEnd : input.period_end;
+    const periodStart = start ? new Date(start).toISOString() : null;
+    const periodEnd = end ? new Date(end).toISOString() : null;
+    const periodChanged = kind !== document.kind || periodStart !== savedStart || periodEnd !== savedEnd ||
+      (input.period_local_start !== undefined && input.period_local_start !== (document.source_snapshot.period_local_start ?? null)) ||
+      (input.period_local_end !== undefined && input.period_local_end !== (document.source_snapshot.period_local_end ?? null)) ||
+      (input.report_timezone !== undefined && input.report_timezone !== (document.source_snapshot.report_timezone ?? null));
+    let scoped = {...document, kind, period_start:periodStart, period_end:periodEnd};
+    if (periodChanged) {
+      const timezone = input.report_timezone === undefined ? (document.source_snapshot.report_timezone as string | null ?? null) : input.report_timezone;
+      const periodSource = {...document.source_snapshot,
+        period_start:periodStart, period_end:periodEnd, report_timezone:timezone,
+        period_local_start:input.period_local_start === undefined ? document.source_snapshot.period_local_start ?? null : input.period_local_start,
+        period_local_end:input.period_local_end === undefined ? document.source_snapshot.period_local_end ?? null : input.period_local_end,
+      };
+      if (periodStart && periodEnd) {
+        periodSource.period_local_start = new Intl.DateTimeFormat("en-CA",{timeZone:timezone ?? "UTC",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(periodStart));
+        periodSource.period_local_end = new Intl.DateTimeFormat("en-CA",{timeZone:timezone ?? "UTC",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(periodEnd));
+      }
+      const records = Array.isArray(document.source_snapshot.records) ? document.source_snapshot.records as Array<Record<string,unknown>> : [];
+      scoped = {...scoped, source_snapshot:{...periodSource, records:records.map(record=>withPeriodRelation(record,periodStart,periodEnd,timezone))}};
+    }
+    if (input.person_ids) scoped = await reselectPeople(userId,scoped,input.person_ids,tx);
     const selected = await revisionSources(userId, scoped, input.sources, tx);
     const source: Record<string, unknown> = {
       ...selected.source,
@@ -192,13 +228,19 @@ export async function prepareDocumentWrite(userId: string, value: unknown) {
       ...(input.language ? { language: input.language } : {}),
       ...(input.format ? { format: input.format } : {}),
     };
-    if (!isDeepStrictEqual(source, selected.source)) source.captured_at = new Date().toISOString();
+    if (kind === "brief" && source.audience !== "internal") throw new WorkspaceError("Briefs are internal working materials. Set audience to internal when correcting this purpose.");
+    if (kind !== "legacy") validateDocumentSources(documentPreparationInput.parse({kind,role_id:document.role_id,
+      person_ids:scoped.person_ids,record_ids:selected.recordIds,file_ids:selected.fileIds,
+      period_start:periodStart,period_end:periodEnd,
+      period_local_start:source.period_local_start ?? null,period_local_end:source.period_local_end ?? null,
+      report_timezone:source.report_timezone ?? null,request_key:"document-revision"}));
+    if (!isDeepStrictEqual(source, document.source_snapshot)) source.captured_at = new Date().toISOString();
     if (JSON.stringify(source).length > 240000) throw new WorkspaceError("Select fewer source records for this document");
     const title = input.title ?? document.title;
     if (title === document.title && nextContent === document.content &&
         isDeepStrictEqual(source, document.source_snapshot) && isDeepStrictEqual(selected.recordIds, document.record_ids) &&
-        isDeepStrictEqual(selected.fileIds, document.file_ids) && isDeepStrictEqual(scoped.person_ids,document.person_ids)) return receipt(document, input.operation, bodyFile);
-    const updated = await persistDraftRevision(userId, document, { title, content: nextContent }, source, tx, selected.recordIds, selected.fileIds, scoped.person_ids);
+        isDeepStrictEqual(selected.fileIds, document.file_ids) && isDeepStrictEqual(scoped.person_ids,document.person_ids) && kind === document.kind && periodStart === savedStart && periodEnd === savedEnd) return receipt(document, input.operation, bodyFile);
+    const updated = await persistDraftRevision(userId, document, { title, content: nextContent }, source, tx, selected.recordIds, selected.fileIds, scoped.person_ids, {kind, period_start:periodStart, period_end:periodEnd});
     return receipt(updated, input.operation, bodyFile);
   };
 }

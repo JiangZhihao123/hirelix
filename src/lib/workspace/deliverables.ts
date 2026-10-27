@@ -17,7 +17,7 @@ import {
 import { structured, DOCUMENT_GENERATION_OPTIONS } from "./ai";
 import { ROLE_BRIEF_EVIDENCE_RULES } from "./roles";
 import { addRecord } from "./records";
-import { recordLocalDate, recordWithinPeriod } from "./record-dates";
+import { localDate, recordLocalDate } from "./record-dates";
 import { personalWritingPreferences, PERSONAL_MEMORY_USE_RULES } from "./memories";
 import type { Deliverable, Job, Person, Role, SourceRecord } from "./types";
 import type { JobHandler } from "./jobs";
@@ -38,6 +38,11 @@ export const preparationInput = z.object({
   format: z.enum(["email", "recommendation"]).default("recommendation").describe("Default to a client recommendation page. Use email only when the user specifically requests an email body."),
   language: z.enum(["en", "zh"]).default("en"),
   request_key: z.string().min(1).max(200),
+});
+// Direct writes use the same evidence capture without calling the legacy writer.
+export const documentPreparationInput = preparationInput.extend({
+  kind:z.enum(["submission","search_update","brief"]).describe("brief: non-period internal working material, with optional candidates. submission: candidate recommendation material, internal or client-facing. search_update: progress over an actual requested reporting period."),
+  format:preparationInput.shape.format.describe("recommendation: structured document prose, internal or client-facing. email: an explicitly requested email body."),
 });
 export type SubmissionCv = {
   id: string;
@@ -89,7 +94,23 @@ export function publicProfile(person: Person) {
     languages: person.profile.languages,
   };
 }
-// Preparation and revision share the same boundary for selected private notes.
+/** Recalculate a source's relation using only its saved date, never a live record. */
+export function withPeriodRelation<T extends Record<string,unknown>>(record: T, periodStart: string | null, periodEnd: string | null, timezone: string | null) {
+  const zone = timezone ?? "UTC";
+  const instant = typeof record.occurred_at === "string" && Number.isFinite(Date.parse(record.occurred_at)) ? record.occurred_at : null;
+  const on = z.iso.date().safeParse(record.occurred_on);
+  const oldDay = record.date_precision === "day" ? z.iso.date().safeParse(record.occurred_local_date) : null;
+  const day = on.success ? on.data : oldDay?.success ? oldDay.data : null;
+  const source: Record<string,unknown> = {...record};
+  if (instant) source.occurred_local_date = localDate(instant,zone);
+  const relation = !periodStart || !periodEnd ? null
+    : instant ? (new Date(instant) >= new Date(periodStart) && new Date(instant) <= new Date(periodEnd) ? "in_period" : "outside_period")
+    : day ? (day >= localDate(periodStart,zone) && day <= localDate(periodEnd,zone) ? "in_period" : "outside_period")
+    : record.date_precision === "unknown" || (record.occurred_at === null && record.occurred_on === null) ? "undated" : null;
+  return {...record, ...source, period_relation:relation};
+}
+
+// A source can be background even when undated or outside the report period.
 export async function selectedDocumentRecord(userId: string, id: string, context: {
   role_id: string; person_ids: string[]; kind: Deliverable["kind"];
   period_start: string | null; period_end: string | null; report_timezone?: string | null;
@@ -100,9 +121,12 @@ export async function selectedDocumentRecord(userId: string, id: string, context
   if (record.role_id && record.role_id !== context.role_id) throw new WorkspaceError("A selected note belongs to another client role");
   if (!record.person_id && record.role_id !== context.role_id) throw new WorkspaceError("A selected record is not part of this role");
   const timezone = context.report_timezone ?? "UTC";
-  if (context.kind === "search_update" && (!context.period_start || !context.period_end || !recordWithinPeriod(record, context.period_start, context.period_end, timezone))) throw new WorkspaceError("Only records that happened within the reporting period can be included");
   const day = recordLocalDate(record, timezone);
-  return {id:record.id, version:record.version, title:record.title, content:record.content, kind:record.kind, person_id:record.person_id, occurred_at:record.occurred_at ? new Date(record.occurred_at).toISOString() : null, occurred_local_date:day, date_precision:record.occurred_at ? "timestamp" : day ? "day" : "unknown", source_url:record.source_url};
+  const on = z.iso.date().safeParse(record.details.occurred_on);
+  return withPeriodRelation({id:record.id, version:record.version, title:record.title, content:record.content, kind:record.kind, person_id:record.person_id,
+    occurred_at:record.occurred_at ? new Date(record.occurred_at).toISOString() : null, occurred_on:on.success ? on.data : null,
+    occurred_local_date:day, date_precision:record.occurred_at ? "timestamp" : day ? "day" : "unknown", source_url:record.source_url},
+    context.period_start,context.period_end,context.report_timezone ?? null);
 }
 
 export async function selectedDocumentFiles(userId: string, personIds: string[], fileIds: string[], tx: Runner) {
@@ -140,7 +164,7 @@ export async function selectedDocumentPeople(userId: string, roleId: string, per
   return people;
 }
 
-export function validateDocumentSources(input: z.infer<typeof preparationInput>) {
+export function validateDocumentSources(input: z.infer<typeof documentPreparationInput>) {
   if (
     new Set(input.person_ids).size !== input.person_ids.length ||
     new Set(input.record_ids).size !== input.record_ids.length ||
@@ -160,12 +184,14 @@ export function validateDocumentSources(input: z.infer<typeof preparationInput>)
       new Date(input.period_start) > new Date(input.period_end))
   )
     throw new WorkspaceError("Choose a valid reporting period");
+  if (input.kind !== "search_update" && (input.period_start !== null || input.period_end !== null || input.period_local_start !== null || input.period_local_end !== null))
+    throw new WorkspaceError("Only search updates have a reporting period. Explicitly clear period_start, period_end, period_local_start and period_local_end for non-period material.");
 }
 
 // Capture the same selected evidence for both scheduled generation and direct writes.
 export async function captureDocumentSources(
   userId: string,
-  input: z.infer<typeof preparationInput>,
+  input: z.infer<typeof documentPreparationInput>,
   tx: Runner,
   versions?: { role_version: number | null; records: Array<{ id: string; version: number }> },
   requireLinkedPeople = true,
@@ -439,7 +465,7 @@ export async function markSubmitted(
         return prior;
       }
     } else if (prior.status === "submitted") return prior;
-    if (prior.source_snapshot.audience === "internal")
+    if (prior.kind === "brief" || prior.kind === "legacy" || prior.source_snapshot.audience === "internal")
       throw new WorkspaceError("Prepare client material before recording a client submission", 409);
     expectVersion(prior.version, input.expected_version);
     const [shared] = input.share_id ? await rows<{snapshot:{title:string;content:string;people:Array<{id:string;name:string}>;files:unknown[]};deliverable_version:number}>(sql`SELECT snapshot,deliverable_version FROM hirelix_private_document_shares WHERE user_id=${userId}::uuid AND deliverable_id=${id}::uuid AND id=${input.share_id}::uuid`, tx) : [];

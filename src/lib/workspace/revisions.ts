@@ -31,8 +31,8 @@ export async function revisionSources(userId: string, document: Deliverable, sel
   const source = {...document.source_snapshot};
   const fileIds = selection.file_ids ?? document.file_ids;
   if (selection.file_ids != null) {
-    if (document.kind !== "submission" && fileIds.length) throw new WorkspaceError("CV attachments belong to candidate submissions");
-    source.files = document.kind === "submission" ? await selectedDocumentFiles(userId, document.person_ids, fileIds, tx) : [];
+    if (!["submission","brief"].includes(document.kind) && fileIds.length) throw new WorkspaceError("CV attachments belong to candidate submissions");
+    source.files = ["submission","brief"].includes(document.kind) ? await selectedDocumentFiles(userId, document.person_ids, fileIds, tx) : [];
   }
   if (selection.role_version !== null) {
     const role = await owned<Role>(userId, "role", document.role_id, tx);
@@ -209,9 +209,9 @@ async function saveRevision(userId: string, id: string, job: Job, proposal: z.in
   return persistDraftRevision(userId, document, proposal, source, tx, z.array(z.uuid()).parse(job.payload.record_ids ?? document.record_ids), z.array(z.uuid()).parse(job.payload.file_ids ?? document.file_ids));
 }
 
-export async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner, recordIds = document.record_ids, fileIds = document.file_ids, personIds = document.person_ids) {
+export async function persistDraftRevision(userId: string, document: Deliverable, proposal: {title:string;content:string}, source: Record<string,unknown>, tx: Runner, recordIds = document.record_ids, fileIds = document.file_ids, personIds = document.person_ids, classification: Pick<Deliverable,"kind"|"period_start"|"period_end"> = document) {
   const id = document.id;
-  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},person_ids=${uuidArray(personIds)},record_ids=${uuidArray(recordIds)},file_ids=${uuidArray(fileIds)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+  const [updated] = await rows<Deliverable>(sql`UPDATE hirelix_private_deliverables SET kind=${classification.kind},period_start=${classification.period_start}::timestamptz,period_end=${classification.period_end}::timestamptz,title=${proposal.title},content=${proposal.content},source_snapshot=${json(source)},person_ids=${uuidArray(personIds)},record_ids=${uuidArray(recordIds)},file_ids=${uuidArray(fileIds)},version=version+1,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
   await snapshot(userId, "deliverable", updated, tx);
   return updated;
 }
