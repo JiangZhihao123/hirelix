@@ -70,10 +70,11 @@ test("real Docker: simultaneous working-file reads both finish without lock erro
   const write = tools.write_file as unknown as {execute: (input: unknown, options: {toolCallId: string}) => Promise<{ok: boolean}>};
   const read = tools.read_file as unknown as {execute: (input: unknown, options: {toolCallId: string}) => Promise<{ok: boolean; result?: {text: string}}>};
   try {
-    for (const name of ["one", "two"]) assert.equal((await write.execute({path: `/work/${name}.txt`, content: name, persist: false}, {toolCallId: randomUUID()})).ok, true);
-    const results = await Promise.all(["one", "two"].map(name => read.execute({path: `/work/${name}.txt`, offset: 0}, {toolCallId: randomUUID()})));
+    const files = [{path: "/work/one.txt", content: "one"}, {path: "/work/two.jsonl", content: '{"id":2}\n'}];
+    for (const item of files) assert.equal((await write.execute({...item, persist: false}, {toolCallId: randomUUID()})).ok, true);
+    const results = await Promise.all(files.map(item => read.execute({path: item.path, offset: 0}, {toolCallId: randomUUID()})));
     assert.ok(results.every(result => result.ok));
-    assert.deepEqual(results.map(result => result.result?.text), ["one", "two"]);
+    assert.deepEqual(results.map(result => result.result?.text), files.map(item => item.content));
     await s.finishJob(job, {result: {tested: true}});
   } finally {
     await s.cleanupFileWorkspace({userId: owner, conversationId: sent.conversation_id, jobId: job.id, leaseKey: job.lease_token!});
