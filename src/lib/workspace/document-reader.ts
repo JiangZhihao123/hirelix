@@ -13,7 +13,11 @@ export type ReadDocument = { text: string; images: SourceImage[] };
 export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
 export function boundedArchive(bytes: Uint8Array) {
   let expanded = 0;
+  const paths = new Set<string>();
   unzipSync(bytes, {filter(entry) {
+    if (paths.has(entry.name)) throw new WorkspaceError("This archive contains duplicate file paths. Repack it with unique paths before importing.");
+    paths.add(entry.name);
+    if (paths.size > 10000) throw new WorkspaceError("This archive contains more than 10,000 entries.");
     expanded += entry.originalSize;
     if (expanded > 30 * 1024 * 1024) throw new WorkspaceError("This document expands beyond the 30 MB processing limit");
     return false;
@@ -46,6 +50,11 @@ export async function readDocument(file: {name: string; bytes: Uint8Array}, imag
 
 async function readDocumentContent(file: {name: string; bytes: Uint8Array}, imageBudget: number, readVisuals: boolean): Promise<ReadDocument> {
   const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  if (extension === "zip") {
+    const entries = Object.entries(boundedArchive(file.bytes)).filter(([path]) => !path.endsWith("/"));
+    if (entries.length > 1000) throw new WorkspaceError("This ZIP contains more than 1,000 files.");
+    return ensureContent({ text: `Archive inventory only. Enclosed file contents have not been read. Candidate tables and resumes can be processed by import_candidates when authorized.\n${entries.map(([path, bytes]) => JSON.stringify({ path, bytes: bytes.length })).join("\n")}`, images: [] });
+  }
   if (IMAGE_EXTENSIONS.includes(extension)) {
     if (!readVisuals) return {text: "", images: []};
     if (imageBudget < 1) throw new WorkspaceError("Use up to 20 images or PDF pages per message");

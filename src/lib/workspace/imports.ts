@@ -1,6 +1,7 @@
-import { readDocument } from "./document-reader";
+import { readDocument, boundedArchive } from "./document-reader";
 import { createHash } from "node:crypto";
-import { parse } from "csv-parse/sync";
+import { MAX_ATTACHMENT_BYTES } from "./attachments";
+import { readCandidateTables, type CandidateTable } from "./candidate-tables";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -24,7 +25,7 @@ import {
   type Person,
   type PersonInput,
 } from "./types";
-import type { JobHandler } from "./jobs";
+import type { JobHandler, PreparedJob } from "./jobs";
 export const importFields = [
   "name",
   "headline",
@@ -172,14 +173,18 @@ function mappedPerson(
 }
 // Agent tasks can save unambiguous new profiles when the recruiter requested it.
 // Serialize each user's identity check + write so parallel files cannot add duplicates.
-async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, format: string, needsClarification = false) {
+async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, format: string, needsClarification = false, sourceFileId?: string) {
   const current = await owned<Job>(job.user_id, "job", job.id, tx);
   if (current.payload.save_new_candidates !== true || needsClarification) return false;
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${"candidate-intake:" + job.user_id},0))`);
-  const items = await rows<ImportRow>(sql`SELECT * FROM hirelix_private_import_rows WHERE user_id=${job.user_id}::uuid AND job_id=${job.id}::uuid AND status='review' ORDER BY row_number FOR UPDATE`, tx);
+  const items = await rows<ImportRow>(sql`SELECT * FROM hirelix_private_import_rows WHERE user_id=${job.user_id}::uuid AND job_id=${job.id}::uuid AND status='review' ${sourceFileId ? sql`AND file_id=${sourceFileId}::uuid` : sql``} ORDER BY row_number FOR UPDATE`, tx);
   for (const item of items) {
     const parsed = personInput.safeParse(item.extracted);
-    if (!parsed.success) continue;
+    if (!parsed.success) {
+      const issue = parsed.error.issues.map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+      await tx.execute(sql`UPDATE hirelix_private_import_rows SET error=${issue} WHERE id=${item.id}::uuid AND user_id=${job.user_id}::uuid`);
+      continue;
+    }
     const matches = await findDuplicates(job.user_id, parsed.data, tx);
     if (matches.length) {
       await tx.execute(sql`UPDATE hirelix_private_import_rows SET matches=${json(matches)} WHERE id=${item.id}::uuid AND user_id=${job.user_id}::uuid`);
@@ -187,7 +192,7 @@ async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, forma
     }
     const person = await createPerson(job.user_id, parsed.data, tx);
     await addRecord(job.user_id, {
-      person_id: person.id, file_id: item.file_id, kind: format === "csv" ? "profile" : "cv", title: filename,
+      person_id: person.id, file_id: item.file_id, kind: ["csv", "tsv", "xlsx", "table"].includes(format) ? "profile" : "cv", title: filename,
       content: item.raw_text, details: { import_job_id: job.id, import_row: item.id, imported_fields: item.extracted },
     }, tx);
     await tx.execute(sql`UPDATE hirelix_private_import_rows SET status='saved',action='add',target_person_id=${person.id}::uuid,result_person_id=${person.id}::uuid,error=NULL WHERE user_id=${job.user_id}::uuid AND id=${item.id}::uuid`);
@@ -196,80 +201,93 @@ async function saveUnambiguousRows(job: Job, tx: Runner, filename: string, forma
 }
 export const prepareImport: JobHandler = async (job, progress) => {
   const file = await readFile(job.user_id, idSchema.parse(job.payload.file_id));
+  if (file.name.toLowerCase().endsWith(".zip")) {
+    const archive = boundedArchive(file.bytes);
+    const entries = Object.entries(archive).filter(([path]) => !path.endsWith("/") && !path.startsWith("__MACOSX/") && path.split("/").at(-1) !== ".DS_Store");
+    if (!entries.length || entries.length > 500)
+      throw new WorkspaceError("Use a ZIP with 1–500 candidate files, expanding to at most 30 MB.");
+    const supported = ["csv", "tsv", "xlsx", "pdf", "docx", "txt", "md"];
+    for (const [path, bytes] of entries) {
+      if (path.startsWith("/") || path.split("/").some(part => part === "..") || path.includes("\\"))
+        throw new WorkspaceError("The ZIP contains an unsafe file path.");
+      if (!supported.includes(path.split(".").pop()?.toLowerCase() || ""))
+        throw new WorkspaceError(`Cannot import ${path}. Use candidate tables or individual PDF, DOCX or text resumes; no files have been imported.`);
+      if (!bytes.length || bytes.length > MAX_ATTACHMENT_BYTES)
+        throw new WorkspaceError(`${path}: each file inside the ZIP must be non-empty and up to 50 MB.`);
+    }
+    const prepared: Array<{ path: string; source: Awaited<ReturnType<typeof readFile>>; part: PreparedJob }> = [];
+    let offset = 0;
+    for (const [path, bytes] of entries) {
+      await progress(`Reading ${path} (${prepared.length + 1}/${entries.length})`);
+      const source = { ...file, name: path, bytes: Buffer.from(bytes) };
+      const part = await prepareCandidateFile(job, progress, source, offset);
+      offset += Number(part.result.total);
+      if (offset > 10000) throw new WorkspaceError("Import up to 10,000 candidates per ZIP.");
+      prepared.push({ path, source, part });
+    }
+    return {
+      result: { file_id: file.id, filename: file.name, format: "zip", total: offset, mapping_confirmed: true,
+        source_files: prepared.map(({ path, part }) => ({ path, ...part.result })),
+        warnings: prepared.flatMap(({ path, part }) => ((part.result.warnings || []) as string[]).map(warning => `${path}: ${warning}`)),
+        needs_clarification: prepared.some(({ part }) => part.result.needs_clarification === true),
+      },
+      apply: async tx => {
+        // Original archive and each enclosed source remain owned and intact.
+        // Candidate changes commit atomically with completion of this job.
+        const sources = [];
+        for (const item of prepared) {
+          const saved = await saveFile(job.user_id, { name: item.path, type: "application/octet-stream", bytes: item.source.bytes }, tx);
+          item.source.id = saved.id;
+          await item.part.apply?.(tx);
+          sources.push({ ...item.part.result, file_id: saved.id, path: item.path });
+        }
+        return { source_files: sources };
+      },
+    };
+  }
+  return prepareCandidateFile(job, progress, file);
+};
+const prepareCandidateFile = async (job: Job, progress: Parameters<JobHandler>[1], file: Awaited<ReturnType<typeof readFile>>, offset = 0): Promise<Awaited<ReturnType<JobHandler>>> => {
   await progress(`Reading ${file.name}`);
   const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "csv") {
-    let parsed: string[][];
-    try {
-      parsed = parse(file.bytes, {
-        bom: true,
-        skip_empty_lines: true,
-        max_record_size: 500000,
-        relax_column_count: false,
-      });
-    } catch {
-      throw new WorkspaceError(
-        "The CSV could not be read. Check that rows use a consistent number of columns and quoted fields are closed.",
+  if (["csv", "tsv", "xlsx"].includes(extension || "")) {
+    const tables = await readCandidateTables(file);
+    const mapped: Array<CandidateTable & { mapping: z.infer<typeof mappingSchema> }> = [];
+    for (const table of tables) {
+      await progress(`Reading candidate columns: ${table.name}`);
+      const mapping = await structured(
+        job.user_id, "private_import_mapping", mappingSchema,
+        "Map each candidate field to zero or more exact table header names. Multiple name columns may be combined, e.g. first and last name. Return [] when unavailable. Do not infer values or map notes into factual profile fields. Only choose headers supplied in input. This is a candidate table, not a list of employers, jobs or activities; leave name empty if it does not contain candidate identities.",
+        { worksheet: table.name, headers: table.headers, sample: table.rows.slice(0, 5).map(row => row.fields) },
       );
+      for (const columns of Object.values(mapping))
+        if (columns.some(column => !table.headers.includes(column)))
+          throw new WorkspaceError("The proposed mapping referenced an unknown column. Retry the import.", 502);
+      if (!mapping.name.length)
+        throw new WorkspaceError(`${table.name}: candidate names could not be identified. Supply a candidate table with clearly labelled name columns; other export files remain unchanged.`);
+      mapped.push({ ...table, mapping });
     }
-    const headers = parsed[0]?.map((value) => value.trim());
-    if (!headers?.length || parsed.length < 2)
-      throw new WorkspaceError(
-        "Add a header row and at least one candidate to this CSV",
-      );
-    if (
-      new Set(headers).size !== headers.length ||
-      headers.some((value) => !value)
-    )
-      throw new WorkspaceError(
-        "Each CSV column needs a unique, non-empty header",
-      );
-    if (parsed.length > 10001 || headers.length > 100)
-      throw new WorkspaceError(
-        "Import up to 10,000 rows and 100 columns per CSV",
-      );
-    const rawRows = parsed
-      .slice(1)
-      .map((values) =>
-        Object.fromEntries(
-          headers.map((header, index) => [header, values[index] || ""]),
-        ),
-      );
-    await progress("Preparing column mapping for your review");
-    const mapping = await structured(
-      job.user_id,
-      "private_import_mapping",
-      mappingSchema,
-      "Map each candidate field to zero or more exact CSV header names. Multiple name columns may be combined, e.g. first and last name. Return [] when unavailable. Do not infer values or map notes into factual profile fields. Only choose headers supplied in input.",
-      { headers, sample: rawRows.slice(0, 5) },
-    );
-    for (const columns of Object.values(mapping))
-      if (columns.some((column) => !headers.includes(column)))
-        throw new WorkspaceError(
-          "The proposed mapping referenced an unknown column. Retry the import.",
-          502,
-        );
+    const single = mapped.length === 1 ? mapped[0] : null;
     return {
       result: {
-        file_id: file.id,
-        filename: file.name,
-        format: "csv",
-        headers,
-        mapping,
-        total: rawRows.length,
-        mapping_confirmed: job.payload.save_new_candidates === true,
+        file_id: file.id, filename: file.name, format: extension, tabular: true,
+        ...(single ? { headers: single.headers, mapping: single.mapping } : {}),
+        worksheets: mapped.map(table => ({ name: table.name, headers: table.headers, mapping: table.mapping, total: table.rows.length, source_rows: table.rows.map(row => row.line) })),
+        total: mapped.reduce((total, table) => total + table.rows.length, 0),
+        mapping_confirmed: job.payload.save_new_candidates === true || !single,
       },
-      apply: async (tx) => {
-        for (let index = 0; index < rawRows.length; index++) {
-          const value = mappedPerson(rawRows[index], mapping);
+      apply: async tx => {
+        let index = 0;
+        for (const table of mapped) for (const row of table.rows) {
+          const value = mappedPerson(row.fields, table.mapping);
           const extracted = personInput.safeParse(value);
           const fields = extracted.success ? extracted.data : value;
           const matches = await findDuplicates(job.user_id, fields, tx);
-          await tx.execute(
-            sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${index + 1},${file.id}::uuid,${JSON.stringify(rawRows[index])},${json(fields)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
-          );
+          // Preserve every exported column; worksheet/row provenance remains
+          // separate so a later mapping correction can still use raw_text.
+          await tx.execute(sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${offset + ++index},${file.id}::uuid,${JSON.stringify(row.fields)},${json(fields)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`);
         }
-        const savedByAgent = await saveUnambiguousRows(job, tx, file.name, "csv");
+        const savedByAgent = await saveUnambiguousRows(job, tx, file.name, "table", false, file.id);
         if (savedByAgent) return { mapping_confirmed: true };
       },
     };
@@ -299,10 +317,10 @@ export const prepareImport: JobHandler = async (job, progress) => {
       for (const [index, person] of extracted.people.entries()) {
         const matches = await findDuplicates(job.user_id, person, tx);
         await tx.execute(
-          sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${index + 1},${file.id}::uuid,${original},${json(person)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
+          sql`INSERT INTO hirelix_private_import_rows(user_id,job_id,row_number,file_id,raw_text,extracted,matches) VALUES(${job.user_id}::uuid,${job.id}::uuid,${offset + index + 1},${file.id}::uuid,${original},${json(person)},${json(matches)}) ON CONFLICT(job_id,row_number) DO NOTHING`,
         );
       }
-      await saveUnambiguousRows(job, tx, file.name, extension || "cv", extracted.needs_clarification);
+      await saveUnambiguousRows(job, tx, file.name, extension || "cv", extracted.needs_clarification, file.id);
     },
   };
 };
@@ -312,7 +330,12 @@ export async function saveRequestedCandidateDrafts(userId: string, jobId: string
   const needsClarification = job.result?.needs_clarification === true ||
     (job.result?.needs_clarification === undefined && Array.isArray(job.result?.warnings) && job.result.warnings.length > 0);
   await tx.execute(sql`UPDATE hirelix_private_jobs SET payload=payload || '{"save_new_candidates":true}'::jsonb WHERE id=${jobId}::uuid AND user_id=${userId}::uuid`);
-  await saveUnambiguousRows({ ...job, payload: { ...job.payload, save_new_candidates: true } }, tx,
+  const authorizedJob = { ...job, payload: { ...job.payload, save_new_candidates: true } };
+  if (job.result?.format === "zip" && Array.isArray(job.result.source_files)) {
+    for (const source of job.result.source_files as Array<Record<string, unknown>>) {
+      await saveUnambiguousRows(authorizedJob, tx, String(source.path), String(source.format), source.needs_clarification === true, idSchema.parse(source.file_id));
+    }
+  } else await saveUnambiguousRows(authorizedJob, tx,
     String(job.payload.filename || "Candidate source"), String(job.result?.format || "cv"), needsClarification);
   await tx.execute(sql`UPDATE hirelix_private_jobs SET result=result || '{"mapping_confirmed":true}'::jsonb,updated_at=now() WHERE id=${jobId}::uuid AND user_id=${userId}::uuid`);
 }
@@ -350,13 +373,13 @@ export async function confirmMapping(
     if (
       job.kind !== "import" ||
       job.status !== "done" ||
-      job.result?.format !== "csv"
+      !(job.result?.format === "csv" || job.result?.tabular === true && Array.isArray(job.result?.headers))
     )
-      throw new WorkspaceError("This CSV preview is not ready", 409);
+      throw new WorkspaceError("This table preview is not ready", 409);
     const headers = job.result.headers as string[];
     for (const columns of Object.values(mapping))
       if (columns.some((column) => !headers.includes(column)))
-        throw new WorkspaceError("Choose existing CSV columns");
+        throw new WorkspaceError("Choose existing table columns");
     if (!mapping.name.length)
       throw new WorkspaceError(
         "Choose the column or columns containing the candidate name",
@@ -440,7 +463,7 @@ export async function reviewImportRow(
       {
         person_id: person.id,
         file_id: item.file_id,
-        kind: job.result.format === "csv" ? "profile" : "cv",
+        kind: ["csv", "tsv", "xlsx"].includes((file?.name.split(".").pop() || "").toLowerCase()) ? "profile" : "cv",
         title: file?.name || "Imported candidate source",
         content: item.raw_text,
         details: {

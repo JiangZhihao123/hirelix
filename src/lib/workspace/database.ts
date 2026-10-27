@@ -50,7 +50,7 @@ export async function owned<T>(
   lock = false,
 ): Promise<T> {
   const [item] = await rows<T>(
-    sql`SELECT * FROM ${sql.identifier(tables[kind])} WHERE user_id=${userId}::uuid AND id=${id}::uuid ${lock ? sql`FOR UPDATE` : sql``}`,
+    sql`SELECT * FROM ${sql.identifier(tables[kind])} WHERE user_id=${userId}::uuid AND id=${id}::uuid ${kind === "file" ? sql`AND upload_id IS NULL` : sql``} ${lock ? sql`FOR UPDATE` : sql``}`,
     runner,
   );
   if (!item) throw new WorkspaceError("This item was not found", 404);

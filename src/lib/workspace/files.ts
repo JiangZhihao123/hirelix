@@ -23,7 +23,7 @@ export async function saveFile(
   tx: Runner = db,
 ) {
   if (!file.bytes.byteLength || file.bytes.byteLength > MAX_FILE_BYTES)
-    throw new WorkspaceError("Upload a non-empty file up to 4 MB");
+    throw new WorkspaceError("Upload a non-empty file up to 50 MB");
   const name = path.basename(file.name).slice(0, 250) || "document";
   const hash = createHash("sha256").update(file.bytes).digest("hex");
   const [saved] = await rows<PrivateFile>(
@@ -40,13 +40,13 @@ export async function uploadConversationFile(userId: string, file: { name: strin
   const hash = createHash("sha256").update(file.bytes).digest("hex");
   return db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${userId + hash + name},0))`);
-    const [existing] = await rows<PrivateFile>(sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at FROM hirelix_private_files WHERE user_id=${userId}::uuid AND sha256=${hash} AND name=${name} ORDER BY created_at LIMIT 1`, tx);
+    const [existing] = await rows<PrivateFile>(sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at FROM hirelix_private_files WHERE user_id=${userId}::uuid AND sha256=${hash} AND name=${name} AND upload_id IS NULL ORDER BY created_at LIMIT 1`, tx);
     return existing || saveFile(userId, file, tx);
   });
 }
 export async function readFile(userId: string, id: string) {
   const [file] = await rows<PrivateFile & { encoded: string }>(
-    sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at,encode(bytes,'base64') AS encoded FROM hirelix_private_files WHERE id=${id}::uuid AND user_id=${userId}::uuid`,
+    sql`SELECT id,user_id,name,media_type,byte_size,sha256,created_at,encode(bytes,'base64') AS encoded FROM hirelix_private_files WHERE id=${id}::uuid AND user_id=${userId}::uuid AND upload_id IS NULL`,
   );
   if (!file) throw new WorkspaceError("This file was not found", 404);
   const { encoded, ...metadata } = file;

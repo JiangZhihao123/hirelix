@@ -94,6 +94,7 @@ export function ImportCandidates() {
   const result = preview.data?.job.result as
     | {
         format: string;
+        tabular?: boolean;
         headers?: string[];
         mapping?: Mapping;
         total: number;
@@ -174,11 +175,11 @@ export function ImportCandidates() {
             <div className="ws-upload-zone">
               <Upload size={22} className="ws-muted" />
               <h2>{t("Bring your existing candidates.")}</h2>
-              <p>{t("CSV, text PDF or DOCX · Up to 4 MB per file")}</p>
+              <p>{t("CSV, TSV, XLSX, resumes or ZIP · Up to 4 MB here; use the conversation for larger files.")}</p>
               <input
                 aria-label={t("Candidate file")}
                 type="file"
-                accept=".csv,.pdf,.docx"
+                accept=".csv,.tsv,.xlsx,.pdf,.docx,.txt,.md,.zip"
                 onChange={(event) => {
                   setFile(event.target.files?.[0] || null);
                   setRequestKey(crypto.randomUUID());
@@ -264,7 +265,7 @@ export function ImportCandidates() {
               {t("Download original")}
             </a>
           </div>
-          {result?.format === "csv" &&
+          {(result?.format === "csv" || (result?.tabular === true && Array.isArray(result.headers))) &&
             !result.mapping_confirmed &&
             result.mapping &&
             result.headers && (
@@ -718,6 +719,7 @@ export function ConversationImport({
     result = job?.result as
       | {
           format: string;
+          tabular?: boolean;
           headers?: string[];
           mapping?: Mapping;
           total: number;
@@ -810,7 +812,7 @@ export function ConversationImport({
       ) : (
         <>
           <p>{summary}</p>
-          {result?.format === "csv" &&
+          {(result?.format === "csv" || (result?.tabular === true && Array.isArray(result.headers))) &&
           !result.mapping_confirmed &&
           result.mapping &&
           result.headers ? (

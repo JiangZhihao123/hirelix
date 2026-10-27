@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import { randomUUID, createHash } from "node:crypto";
+import { after, test } from "node:test";
+import { sql } from "drizzle-orm";
+import { closeDb } from "../../src/db/client";
+import { completeFileUpload, saveUploadPart, uploadInput } from "../../src/lib/workspace/file-uploads";
+import { readFile } from "../../src/lib/workspace/files";
+import { rows, owned } from "../../src/lib/workspace/database";
+import { UPLOAD_PART_BYTES, MAX_ATTACHMENT_BYTES } from "../../src/lib/workspace/attachments";
+const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
+assert.ok(["localhost", "127.0.0.1"].includes(database.hostname) && database.port !== "15432" && database.pathname.startsWith("/hirelix_workspace_qa_coldstart_"));
+after(closeDb);
+
+test("real PG: interrupted multipart upload resumes, verifies every byte, hides parts, isolates owners and deduplicates completion", async () => {
+  const owner = randomUUID(), other = randomUUID(), id = randomUUID();
+  const bytes = Buffer.alloc(UPLOAD_PART_BYTES * 2 + 15000, 65);
+  bytes[bytes.length - 1] = 66;
+  const metadata = { name: "历史候选人.csv", type: "text/csv", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+  assert.equal((await completeFileUpload(owner, id, metadata)).file, null);
+  await Promise.all([saveUploadPart(owner, id, 1, metadata.name, bytes.subarray(UPLOAD_PART_BYTES, UPLOAD_PART_BYTES * 2)), saveUploadPart(owner, id, 1, metadata.name, bytes.subarray(UPLOAD_PART_BYTES, UPLOAD_PART_BYTES * 2))]);
+  const status = await completeFileUpload(owner, id, metadata);
+  assert.equal(status.file, null);
+  assert.deepEqual(status.received_parts, [1]);
+  const [part] = await rows<{id:string}>(sql`SELECT id FROM hirelix_private_files WHERE user_id=${owner}::uuid AND upload_id=${id}::uuid`);
+  await assert.rejects(() => readFile(owner, part.id), /not found/);
+  await assert.rejects(() => owned(owner, "file", part.id), /not found/);
+  assert.deepEqual((await completeFileUpload(other, id, metadata)).received_parts, []);
+  await assert.rejects(() => saveUploadPart(owner, id, 1, metadata.name, Buffer.alloc(UPLOAD_PART_BYTES, 67)), /different bytes/);
+  await assert.rejects(() => saveUploadPart(owner, id, 0, "another.csv", bytes.subarray(0, UPLOAD_PART_BYTES)), /another file/);
+  await saveUploadPart(owner, id, 0, metadata.name, bytes.subarray(0, UPLOAD_PART_BYTES));
+  await saveUploadPart(owner, id, 2, metadata.name, bytes.subarray(UPLOAD_PART_BYTES * 2));
+  await assert.rejects(() => completeFileUpload(owner, id, { ...metadata, sha256: "0".repeat(64) }), /integrity check/);
+  const completed = await completeFileUpload(owner, id, metadata);
+  assert.ok(completed.file);
+  assert.deepEqual((await readFile(owner, completed.file.file_id)).bytes, bytes);
+  assert.equal((await completeFileUpload(owner, id, metadata)).file?.file_id, completed.file.file_id);
+  await assert.rejects(() => readFile(other, completed.file!.file_id), /not found/);
+  const [count] = await rows<{n:number}>(sql`SELECT count(*)::int n FROM hirelix_private_files WHERE user_id=${owner}::uuid AND upload_id=${id}::uuid`);
+  assert.equal(count.n, 0);
+  assert.equal(uploadInput.safeParse({ ...metadata, size: MAX_ATTACHMENT_BYTES + 1 }).success, false);
+  console.log(JSON.stringify({ bytes: bytes.length, interrupted_resume: true, hash_verified: true, replay_same_file: true, parts_hidden_and_removed: true, tenant_isolation: true }));
+});
+
+test("real PG: advertised 50 MB limit assembles with verified integrity and bounded parts", { timeout: 120000 }, async () => {
+  const owner = randomUUID(), id = randomUUID();
+  const bytes = Buffer.alloc(MAX_ATTACHMENT_BYTES, 83);
+  bytes[bytes.length - 1] = 90;
+  const metadata = { name: "maximum-upload.zip", type: "application/zip", size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+  for (let i = 0; i < bytes.length / UPLOAD_PART_BYTES; i++) await saveUploadPart(owner, id, i, metadata.name, bytes.subarray(i * UPLOAD_PART_BYTES, (i + 1) * UPLOAD_PART_BYTES));
+  const completed = await completeFileUpload(owner, id, metadata);
+  assert.equal(completed.file?.size, MAX_ATTACHMENT_BYTES);
+  const [stored] = await rows<{sha256:string; byte_size:number; n:number}>(sql`SELECT sha256,byte_size,octet_length(bytes)::int n FROM hirelix_private_files WHERE id=${completed.file!.file_id}::uuid AND user_id=${owner}::uuid`);
+  assert.equal(stored.sha256, metadata.sha256);
+  assert.equal(stored.n, bytes.length);
+  console.log(JSON.stringify({ maximum_upload_bytes: bytes.length, verified: true, max_rss_kb: process.resourceUsage().maxRSS }));
+});

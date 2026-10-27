@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadAttachment } from "./upload-attachment";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { MessageCandidateReferences } from "./message-candidate-references";
 import { ComposerReference } from "./composer-reference";
@@ -166,12 +167,10 @@ export function AssistantWorkspace({
     if (validation) return null;
     setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "uploading", error: undefined } : entry));
     try {
-      const body = new FormData();
-      body.append("file", item.file);
-      const result = await api<{ file: { file_id: string } }>("/files", { method: "POST", body });
-      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, fileId: result.file.file_id, status: "uploaded" } : entry));
+      const result = await uploadAttachment(item.id, item.file);
+      setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, fileId: result.file_id, status: "uploaded" } : entry));
       setError("");
-      return result.file.file_id;
+      return result.file_id;
     } catch (cause) {
       setAttachments((items) => items.map((entry) => entry.id === item.id ? { ...entry, status: "error", error: cause instanceof TypeError ? "Upload failed. Check your connection and retry." : cause instanceof Error ? cause.message : "Could not upload file" } : entry));
       return null;

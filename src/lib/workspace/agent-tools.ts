@@ -921,7 +921,7 @@ export function createAgentTools(ctx: AgentToolContext) {
     ),
     import_candidates: define(
       "import_candidates",
-      "Import explicitly authorized candidate files. The service extracts profiles and checks existing identities by name, email and profile URL within the user account before saving, including a transactional duplicate check for concurrent imports. Call this tool directly for authorized file intake; it returns saved candidates or specific identity conflicts for a decision. Targeted find_candidates retrieval is available when additional context about a known person is needed.",
+      "Import explicitly authorized candidate files: CSV/TSV/XLSX candidate tables (all rows, up to 10,000 per file), resumes, or a ZIP of up to 500 candidate files (30 MB expanded; each upload up to 50 MB). A ZIP is one atomic import; it is not a full ATS backup restorer. The service extracts profiles and checks existing identities by name, email and profile URL within the user account before saving, including a transactional duplicate check for concurrent imports. Call this tool directly for authorized file intake; it returns saved candidates or specific identity conflicts for a decision. Targeted find_candidates retrieval is available when additional context about a known person is needed.",
       z.object({ ...authorization, file_id: z.uuid() }),
       async (input) => {
         if (!ctx.attachments.some((file) => file.file_id === input.file_id))

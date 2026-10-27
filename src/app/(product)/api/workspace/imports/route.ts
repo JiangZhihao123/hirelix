@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { workspaceApi } from "@/lib/workspace/http";
 import { startImport } from "@/lib/workspace/imports";
-import { MAX_FILE_BYTES } from "@/lib/workspace/files";
+import { DIRECT_UPLOAD_BYTES } from "@/lib/workspace/attachments";
 import { WorkspaceError } from "@/lib/workspace/database";
 export function POST(req: NextRequest) {
   return workspaceApi(req, async (user) => {
@@ -11,8 +11,8 @@ export function POST(req: NextRequest) {
       key = z.string().min(1).max(200).parse(form.get("request_key"));
     if (!(file instanceof File))
       throw new WorkspaceError("Choose a CSV, PDF or DOCX file");
-    if (file.size > MAX_FILE_BYTES)
-      throw new WorkspaceError("Upload files up to 4 MB each");
+    if (file.size > DIRECT_UPLOAD_BYTES)
+      throw new WorkspaceError("For files larger than 4 MB, use Add files in a conversation for resumable upload up to 50 MB.");
     return {
       job: await startImport(
         user.id,
