@@ -1,7 +1,7 @@
 /* Trusted helper: the model can modify /work but not this image. */
-const fs = require('node:fs');
-const path = require('node:path');
-const { pipeline } = require('node:stream/promises');
+import fs from 'node:fs';
+import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 const ROOT = '/work';
 const MAX_FILE = 50 * 1024 * 1024;
 const MAX_ENTRIES = 1000;

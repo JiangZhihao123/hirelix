@@ -167,7 +167,7 @@ async function helper(names: ReturnType<typeof resourceNames>, command: string, 
   const container = `hirelix-agent-helper-${randomUUID().replaceAll("-", "")}`;
   try {
     return await requiredDocker(["run", "--pull=never", "--init", "-i", "--name", container, ...common(names.id),
-      "--mount", `type=volume,src=${names.volume},dst=/work,volume-nocopy`, IMAGE, "node", "/opt/hirelix-sandbox/helper.cjs", command, ...(name ? [name] : [])],
+      "--mount", `type=volume,src=${names.volume},dst=/work,volume-nocopy`, IMAGE, "node", "/opt/hirelix-sandbox/helper.mjs", command, ...(name ? [name] : [])],
     { input, signal, maxBytes: command === "read" ? MAX_FILE_BYTES : 2 * 1024 * 1024, stop: () => removeContainer(container) });
   } finally { await removeResource("container", container); }
 }
