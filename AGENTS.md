@@ -89,6 +89,8 @@ Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API r
 
 独立的外部付费人才寻访已退出产品：已删除新建、结果列表、结果详情及旧结果分享页面和专属产品 API，不保留旧路由跳转或历史结果兼容。任务执行器禁止启动该链路；私人候选人库搜索、匹配和 Agent 工作继续正常运行。未上线产品无需为测试数据保留废弃功能。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
 
+2026-10-27 产品决定：用户委托寻找人选时，个人 Agent 可以使用已有 `web_search` / `web_fetch` 研究公开信息，并以 Skill 提供方法。Agent 根据目标和实际观察选择行动；保留来源、时间和不确定性，不使用 Bright 召回，不恢复上述独立付费寻访链路或人才数据库。公开网页研究的可用范围和质量须通过真实链路核验，不预设必须调用的工具或业务结论。
+
 Retired external sourcing:
 
 The standalone paid sourcing product is disabled (`EXTERNAL_SOURCING_ENABLED = false`) and its user-facing pages and APIs were removed. Its historical tables remain read-only for audit; do not re-enable the pipeline, create snapshots, or trigger paid recall. Private candidate-pool retrieval is a separate path.
