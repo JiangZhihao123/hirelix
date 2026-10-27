@@ -30,7 +30,8 @@ test("document changes retain selected versioned evidence without expanding cand
         {role_version:null,records:[{id:foreignNote,version:1}]},
       ]) await assert.rejects(() => editDocument(owner,documentId,1,edits,tx,selection));
       assert.equal((await owned<Deliverable>(owner,"deliverable",documentId,tx)).version,1);
-      await assert.rejects(() => selectedDocumentRecord(owner,note,{...document,kind:"search_update",period_start:"2026-10-01T00:00:00Z",period_end:"2026-10-02T00:00:00Z"},tx,2),/reporting period/);
+      const background = await selectedDocumentRecord(owner,note,{...document,kind:"search_update",period_start:"2026-10-01T00:00:00Z",period_end:"2026-10-02T00:00:00Z"},tx,2);
+      assert.equal(background.period_relation,"outside_period");
       const sources={role_version:2,records:[{id:note,version:2}]};
       const saved=await editDocument(owner,documentId,1,edits,tx,sources);
       assert.deepEqual(saved.record_ids,[note]);

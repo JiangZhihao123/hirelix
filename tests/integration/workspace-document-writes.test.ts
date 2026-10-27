@@ -197,7 +197,9 @@ test("real PG: direct document writes preserve evidence, concurrency and recomme
     assert.equal(reportSaved.document.report_timezone,"Asia/Shanghai");
     const reportDocument = await owned<Deliverable>(owner,"deliverable",reportSaved.document.id);
     assert.equal((reportDocument.source_snapshot.records as Array<{occurred_local_date:string}>)[0].occurred_local_date,"2026-10-22");
-    await assert.rejects(() => save({...report,person_ids:[people[0]],period_start:"2026-10-20T16:00:00Z",period_end:"2026-10-21T15:59:59Z",sources:{...report.sources,records:[{id:note,version:1}]}}),/reporting period/);
+    const background=await save({...report,person_ids:[people[0]],period_start:"2026-10-20T16:00:00Z",period_end:"2026-10-21T15:59:59Z",sources:{...report.sources,records:[{id:note,version:1}]}});
+    const backgroundDoc=await owned<Deliverable>(owner,"deliverable",background.document.id);
+    assert.equal((backgroundDoc.source_snapshot.records as Array<{period_relation:string}>)[0].period_relation,"outside_period");
     await db.execute(sql`INSERT INTO hirelix_private_role_candidates(user_id,role_id,person_id,permission) VALUES(${owner}::uuid,${role}::uuid,${people[0]}::uuid,'declined')`);
     const declined=await save({...input,title:"Declined sharing",content_file:null,content:body});
     assert.equal(((await owned<Deliverable>(owner,"deliverable",declined.document.id)).source_snapshot.people as Array<{sharing_permission?:string}>)[0].sharing_permission,"declined");
