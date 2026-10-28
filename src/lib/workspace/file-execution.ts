@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { WorkspaceError, type Runner } from "./database";
+import { WorkspaceError, rows, type Runner } from "./database";
 import { MAX_FILE_BYTES, readFile, saveFile } from "./files";
 
 // This image must be built before enabling the tools; it is never pulled at runtime.
@@ -11,6 +12,12 @@ const MAX_INPUT_BYTES = 128 * 1024 * 1024;
 const MAX_OUTPUT_BYTES = MAX_FILE_BYTES;
 const INLINE_OUTPUT_BYTES = 16 * 1024;
 const SCOPE_LABEL = "hirelix.agent.scope";
+const MANAGED_LABEL = "hirelix.agent.managed";
+const DATABASE_LABEL = "hirelix.agent.database";
+const JOB_LABEL = "hirelix.agent.job";
+const LEASE_LABEL = "hirelix.agent.lease";
+const MANAGED_VALUE = "workspace-v1";
+const RECOVERY_GRACE_MS = 5 * 60 * 1000;
 const WORKDIR = "/work";
 
 export type FileExecutionContext = {
@@ -66,6 +73,18 @@ function resourceNames(ctx: FileExecutionContext) {
   return { id, volume: `hirelix-agent-work-${id}`, keeper: `hirelix-agent-keeper-${id}`, lock: `hirelix-agent-lock-${id}` };
 }
 
+// Docker can be shared by several QA databases or services. A cluster and
+// database identity prevents one worker from reclaiming another's resources;
+// no connection string or credentials are stored in Docker metadata.
+async function databaseNamespace() {
+  const [identity] = await rows<{cluster: string; database: string; address: string; port: number | null}>(sql`
+    SELECT (SELECT system_identifier::text FROM pg_control_system()) AS cluster,
+      d.oid::text AS database, coalesce(inet_server_addr()::text, 'local') AS address,
+      inet_server_port() AS port FROM pg_database d WHERE d.datname=current_database()`);
+  if (!identity) throw new WorkspaceError("Could not identify the file workspace database.", 503);
+  return createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 32);
+}
+
 /** Docker is invoked without a shell. No model input is executed on the host. */
 async function docker(args: string[], options: DockerOptions = {}): Promise<DockerResult> {
   checkAbort(options.signal);
@@ -117,11 +136,14 @@ function removeContainer(name: string) { void docker(["rm", "-f", name], { timeo
 async function removeResource(kind: "container" | "volume", name: string) {
   const args = kind === "container" ? ["rm", "-f", name] : ["volume", "rm", name];
   const result = await docker(args, { timeoutMs: 10000 });
-  if (result.code !== 0 && !result.stderr.toString().toLowerCase().includes(`no such ${kind}`))
+  if (result.code !== 0 && result.stderr.toString().toLowerCase().includes(`no such ${kind}`)) return false;
+  if (result.code !== 0 || result.timedOut || result.truncated)
     throw new WorkspaceError(`Could not remove the isolated ${kind}: ${result.stderr.toString().trim().slice(0, 500)}`, 503);
+  return true;
 }
-const common = (id: string) => [
-  "--label", `${SCOPE_LABEL}=${id}`, "--network", "none", "--read-only",
+type WorkspaceNames = ReturnType<typeof resourceNames> & { labels: string[] };
+const common = (names: WorkspaceNames) => [
+  ...names.labels, "--network", "none", "--read-only",
   "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000",
   "--pids-limit", "64", "--memory", "512m", "--memory-swap", "512m", "--cpus", "1",
   "--shm-size", "8m", "--ulimit", "nofile=256:256", "--ulimit", "core=0:0",
@@ -130,11 +152,17 @@ const common = (id: string) => [
   ...["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "FTP_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "ftp_proxy", "no_proxy"].flatMap((name) => ["--env", `${name}=`]),
 ];
 
-async function withWorkspace<T>(ctx: FileExecutionContext, fn: (names: ReturnType<typeof resourceNames>) => Promise<T>) {
-  const names = resourceNames(ctx);
+async function withWorkspace<T>(ctx: FileExecutionContext, fn: (names: WorkspaceNames) => Promise<T>) {
+  const base = resourceNames(ctx);
+  const namespace = await databaseNamespace();
+  const names: WorkspaceNames = { ...base, labels: [
+    "--label", `${SCOPE_LABEL}=${base.id}`, "--label", `${MANAGED_LABEL}=${MANAGED_VALUE}`,
+    "--label", `${DATABASE_LABEL}=${namespace}`, "--label", `${JOB_LABEL}=${ctx.jobId}`,
+    "--label", `${LEASE_LABEL}=${ctx.leaseKey}`,
+  ] };
   // A Docker name is an atomic cross-process lock. A stale lock is removed by
   // cleanupFileWorkspace when the owning lease ends or is recovered.
-  const lock = await docker(["create", "--pull=never", "--name", names.lock, ...common(names.id), IMAGE, "sleep", "infinity"], { signal: ctx.signal });
+  const lock = await docker(["create", "--pull=never", "--name", names.lock, ...common(names), IMAGE, "sleep", "infinity"], { signal: ctx.signal });
   if (lock.aborted) throw abortError();
   if (lock.code !== 0) {
     if (lock.stderr.toString().includes("already in use")) throw new WorkspaceError("This file workspace is already in use by another tool call.", 409);
@@ -148,7 +176,7 @@ async function withWorkspace<T>(ctx: FileExecutionContext, fn: (names: ReturnTyp
     await removeResource("container", names.lock);
   }
 }
-async function ensureWorkspace(ctx: FileExecutionContext, names: ReturnType<typeof resourceNames>) {
+async function ensureWorkspace(ctx: FileExecutionContext, names: WorkspaceNames) {
   const existing = await docker(["inspect", "--format", "{{.State.Status}}", names.keeper], { signal: ctx.signal });
   if (existing.aborted) throw abortError();
   if (existing.code === 0) {
@@ -156,22 +184,22 @@ async function ensureWorkspace(ctx: FileExecutionContext, names: ReturnType<type
       throw new WorkspaceError("The temporary file workspace stopped and its files were lost. Reload any saved files.", 409);
     return;
   }
-  await requiredDocker(["volume", "create", "--driver", "local", "--label", `${SCOPE_LABEL}=${names.id}`,
+  await requiredDocker(["volume", "create", "--driver", "local", ...names.labels,
     "--opt", "type=tmpfs", "--opt", "device=tmpfs", "--opt", "o=size=128m,nr_inodes=4096,uid=1000,gid=1000,mode=0700", names.volume], { signal: ctx.signal });
-  await requiredDocker(["run", "--pull=never", "--detach", "--name", names.keeper, ...common(names.id),
+  await requiredDocker(["run", "--pull=never", "--detach", "--name", names.keeper, ...common(names),
     // A worker can be killed without running finally. Limit residual in-memory
     // workspace lifetime even in that case; a stopped keeper is an explicit error.
     "--mount", `type=volume,src=${names.volume},dst=/work,volume-nocopy`, IMAGE, "sleep", "7200"], { signal: ctx.signal });
 }
-async function helper(names: ReturnType<typeof resourceNames>, command: string, name?: string, input?: Buffer, signal?: AbortSignal) {
+async function helper(names: WorkspaceNames, command: string, name?: string, input?: Buffer, signal?: AbortSignal) {
   const container = `hirelix-agent-helper-${randomUUID().replaceAll("-", "")}`;
   try {
-    return await requiredDocker(["run", "--pull=never", "--init", "-i", "--name", container, ...common(names.id),
+    return await requiredDocker(["run", "--pull=never", "--init", "-i", "--name", container, ...common(names),
       "--mount", `type=volume,src=${names.volume},dst=/work,volume-nocopy`, IMAGE, "node", "/opt/hirelix-sandbox/helper.mjs", command, ...(name ? [name] : [])],
     { input, signal, maxBytes: command === "read" ? MAX_FILE_BYTES : 2 * 1024 * 1024, stop: () => removeContainer(container) });
   } finally { await removeResource("container", container); }
 }
-async function files(names: ReturnType<typeof resourceNames>, signal?: AbortSignal) {
+async function files(names: WorkspaceNames, signal?: AbortSignal) {
   return JSON.parse((await helper(names, "list", undefined, undefined, signal)).toString("utf8")) as { files: { path: string; size: number }[]; truncated: boolean };
 }
 function fileType(name: string) {
@@ -195,14 +223,14 @@ function tarFile(name: string, bytes: Buffer) {
   return Buffer.concat([tarHeader(name, bytes.length), bytes, Buffer.alloc((512 - bytes.length % 512) % 512 + 1024)]);
 }
 
-async function prepareInputs(ctx: FileExecutionContext, names: ReturnType<typeof resourceNames>, ids: string[]) {
+async function prepareInputs(ctx: FileExecutionContext, names: WorkspaceNames, ids: string[]) {
   if (!ids.length) return { volume: null as string | null, container: null as string | null, inputs: [] as {file_id:string;sha256:string;name:string;path:string;size:number}[] };
   const token = randomUUID().replaceAll("-", "");
   const volume = `hirelix-agent-input-${token}`, container = `hirelix-agent-input-keeper-${token}`;
   try {
-    await requiredDocker(["volume", "create", "--driver", "local", "--label", `${SCOPE_LABEL}=${names.id}`,
+    await requiredDocker(["volume", "create", "--driver", "local", ...names.labels,
       "--opt", "type=tmpfs", "--opt", "device=tmpfs", "--opt", "o=size=128m,nr_inodes=64,uid=1000,gid=1000,mode=0700", volume], { signal: ctx.signal });
-    await requiredDocker(["run", "--pull=never", "--detach", "--name", container, ...common(names.id),
+    await requiredDocker(["run", "--pull=never", "--detach", "--name", container, ...common(names),
       "--mount", `type=volume,src=${volume},dst=/inputs,volume-nocopy`, IMAGE, "sleep", "600"], { signal: ctx.signal });
     let total = 0;
     const inputs = [];
@@ -233,7 +261,7 @@ export async function executeBash(ctx: FileExecutionContext, raw: z.input<typeof
     const source = await prepareInputs(ctx, names, input.input_file_ids);
     const run = `hirelix-agent-run-${randomUUID().replaceAll("-", "")}`;
     try {
-      await requiredDocker(["create", "--pull=never", "--init", "--name", run, ...common(names.id),
+      await requiredDocker(["create", "--pull=never", "--init", "--name", run, ...common(names),
         "--ulimit", "fsize=67108864:67108864", "--workdir", "/work",
         "--mount", `type=volume,src=${names.volume},dst=/work,volume-nocopy`,
         ...(source.volume ? ["--mount", `type=volume,src=${source.volume},dst=/inputs,readonly,volume-nocopy`] : []),
@@ -324,4 +352,79 @@ export async function cleanupFileWorkspace(ctx: FileExecutionContext) {
   if (containers.length) await requiredDocker(["rm", "-f", ...containers], { timeoutMs: 30000 });
   const volumes = (await requiredDocker(["volume", "ls", "-q", "--filter", `label=${SCOPE_LABEL}=${names.id}`])).toString().trim().split("\n").filter(Boolean);
   if (volumes.length) await requiredDocker(["volume", "rm", ...volumes], { timeoutMs: 30000 });
+}
+
+type RecoveryResource = { id: string; created: number; labels: Record<string, string>; kind: "container" | "volume" };
+async function recoveryResources(kind: RecoveryResource["kind"], namespace: string) {
+  const filter = ["--filter", `label=${MANAGED_LABEL}=${MANAGED_VALUE}`, "--filter", `label=${DATABASE_LABEL}=${namespace}`];
+  const list = kind === "container" ? ["ps", "-aq", ...filter] : ["volume", "ls", "-q", ...filter];
+  const ids = (await requiredDocker(list)).toString().trim().split("\n").filter(Boolean);
+  const resources: RecoveryResource[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const format = kind === "container" ? "{{.Id}}\t{{.Created}}\t{{json .Config.Labels}}" : "{{.Name}}\t{{.CreatedAt}}\t{{json .Labels}}";
+    const args = kind === "container" ? ["inspect", "--format", format] : ["volume", "inspect", "--format", format];
+    const result = await docker([...args, ...ids.slice(i, i + 50)]);
+    const errors = result.stderr.toString().trim().split("\n").filter(Boolean);
+    // Normal workspace cleanup or another worker can remove an item between
+    // listing and inspection. Keep the other inspected items; retry real errors.
+    if (result.timedOut || result.truncated || (result.code !== 0 &&
+        (!errors.length || errors.some(line => !/no such (object|container|volume)/i.test(line)))))
+      throw new WorkspaceError("Could not inspect isolated workspace resources for recovery.", 503);
+    const output = result.stdout.toString().trim();
+    for (const line of output.split("\n").filter(Boolean)) {
+      const [id, time, rawLabels] = line.split("\t");
+      resources.push({ id, created: Date.parse(time), labels: JSON.parse(rawLabels), kind });
+    }
+  }
+  return resources;
+}
+
+/** Recover only expired resources from this database whose original lease was revoked. */
+export async function recoverFileWorkspaces() {
+  const namespace = await databaseNamespace();
+  const daemonTime = Date.parse((await requiredDocker(["info", "--format", "{{.SystemTime}}"])).toString().trim());
+  if (!Number.isFinite(daemonTime)) throw new WorkspaceError("Could not determine the file workspace daemon time.", 503);
+  const resources = (await Promise.all([
+    recoveryResources("container", namespace), recoveryResources("volume", namespace),
+  ])).flat();
+  const groups = new Map<string, {job: string; lease: string; resources: RecoveryResource[]}>();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  for (const resource of resources) {
+    const labels = resource.labels;
+    const job = labels?.[JOB_LABEL], lease = labels?.[LEASE_LABEL], id = labels?.[SCOPE_LABEL];
+    if (labels?.[MANAGED_LABEL] !== MANAGED_VALUE || labels?.[DATABASE_LABEL] !== namespace ||
+        !uuid.test(job || "") || !uuid.test(lease || "") || !/^[0-9a-f]{32}$/.test(id || "") ||
+        !Number.isFinite(resource.created)) continue;
+    const key = `${job}:${lease}:${id}`;
+    const group = groups.get(key) || { job, lease, resources: [] };
+    group.resources.push(resource);
+    groups.set(key, group);
+  }
+  let removed = 0;
+  for (const group of groups.values()) {
+    if (group.resources.some((resource) => resource.created > daemonTime - RECOVERY_GRACE_MS)) continue;
+    const [job] = await rows<{lease_token: string | null}>(sql`
+      SELECT lease_token::text AS lease_token FROM hirelix_private_jobs WHERE id=${group.job}::uuid`);
+    // Even an expired token is retained until reclaimJobs atomically clears or
+    // replaces it. That also excludes an in-flight heartbeat racing this check.
+    if (job?.lease_token === group.lease) continue;
+    for (const resource of group.resources.filter((item) => item.kind === "container")) {
+      if (await removeResource(resource.kind, resource.id)) removed++;
+    }
+    for (const resource of group.resources.filter((item) => item.kind === "volume")) {
+      // Names can be reused, so check the labels again before removing a volume.
+      const current = await docker(["volume", "inspect", "--format", "{{.CreatedAt}}\t{{json .Labels}}", resource.id]);
+      if (current.code !== 0) {
+        if (current.stderr.toString().toLowerCase().includes("no such volume")) continue;
+        throw new WorkspaceError("Could not inspect the isolated volume before recovery.", 503);
+      }
+      const [created, rawLabels] = current.stdout.toString().trim().split("\t");
+      const labels = JSON.parse(rawLabels) as Record<string, string> | null;
+      if (Date.parse(created) !== resource.created || labels?.[MANAGED_LABEL] !== MANAGED_VALUE || labels?.[DATABASE_LABEL] !== namespace ||
+          labels[JOB_LABEL] !== group.job || labels[LEASE_LABEL] !== group.lease ||
+          labels[SCOPE_LABEL] !== resource.labels[SCOPE_LABEL]) continue;
+      if (await removeResource(resource.kind, resource.id)) removed++;
+    }
+  }
+  return { removed };
 }

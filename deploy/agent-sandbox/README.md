@@ -30,7 +30,13 @@ The runtime must call `cleanupFileWorkspace` for the same lease after use,
 including on interruption. When the worker is forcibly killed and cannot run
 cleanup, commands still have a 60-second limit, input keepers stop after 10
 minutes, and workspace keepers stop after two hours; stopping the last holder
-releases the `tmpfs` contents. Stopped container and volume metadata can remain
-and need operational cleanup after confirming the associated lease is no longer
-active. A restarted Docker daemon or expired keeper loses the temporary files;
-owned outputs already saved to `hirelix_private_files` remain available.
+releases the `tmpfs` contents. The existing worker also scans every five minutes
+for Hirelix-labelled resources at least five minutes old. It removes them only
+after the originating database has cleared or replaced their lease, and only
+for the same PostgreSQL cluster, database and server address. It fails closed
+when the database or Docker cannot be checked. Resources created before these
+labels existed, or under a different database identity, remain for manual
+inspection; never use an unfiltered Docker prune. The worker database role must
+be able to read `pg_control_system()` and `pg_database` for this identity.
+A restarted Docker daemon or expired keeper loses temporary files; owned
+outputs already saved to `hirelix_private_files` remain available.

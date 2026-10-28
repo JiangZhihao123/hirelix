@@ -9,6 +9,7 @@ import type { JobKind } from "./types";
 import { assistantReply } from "./conversations";
 import { deliverReminders } from "./reminders";
 import { queueScheduledDrafts } from "./schedules";
+import { recoverFileWorkspaces } from "./file-execution";
 
 export const workspaceHandlers: Partial<Record<JobKind, JobHandler>> = {
   chat: assistantReply,
@@ -23,6 +24,8 @@ let stopping = false;
 let workers: Promise<void>[] = [];
 let scheduleTimer: ReturnType<typeof setInterval> | undefined;
 let scheduling: Promise<void> | undefined;
+let recoveryTimer: ReturnType<typeof setInterval> | undefined;
+let recovering: Promise<void> | undefined;
 export function startWorkspaceWorker() {
   if (started || process.env.PRIVATE_WORKSPACE_WORKER_ENABLED === "false")
     return;
@@ -67,13 +70,27 @@ export function startWorkspaceWorker() {
   };
   scheduleTick();
   scheduleTimer = setInterval(scheduleTick, 15000);
+  const recoveryTick = () => {
+    if (recovering || stopping) return;
+    recovering = (async () => {
+      try {
+        const result = await recoverFileWorkspaces();
+        if (result.removed) logger.info(result, "Recovered abandoned file workspace resources");
+      } catch (error) {
+        logger.error({ error_type: error instanceof Error ? error.name : "Unknown" }, "File workspace recovery failed; temporary resources may remain");
+      } finally { recovering = undefined; }
+    })();
+  };
+  recoveryTick();
+  recoveryTimer = setInterval(recoveryTick, 5 * 60 * 1000);
   logger.info({ concurrency }, "Private workspace worker started");
 }
 
 export async function stopWorkspaceWorker() {
   stopping = true;
   clearInterval(scheduleTimer);
+  clearInterval(recoveryTimer);
   // Active jobs retain their heartbeats until their real result is committed.
-  await Promise.all([...workers, scheduling]);
+  await Promise.all([...workers, scheduling, recovering]);
   started = false;
 }
