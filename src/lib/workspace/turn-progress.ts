@@ -1,4 +1,5 @@
 import type { Job } from "./types";
+import { agentPauseReason, type AgentPauseReason } from "./agent-stop";
 import type { MailboxResultView } from "./mailbox-contract";
 
 export type TurnPhase = "thinking" | "responding" | "tools" | "complete";
@@ -20,7 +21,7 @@ export function turnParts(result: Record<string, unknown> | null | undefined): T
 export type TurnActivityEntry = { label: string; at: string };
 export type TurnSnapshot = Pick<Job, "id" | "status" | "progress" | "error" | "updated_at"> & {
   attempts?: number;
-  result: { phase?: TurnPhase; stream_epoch?: string; stream_sequence?: number; parts?: TurnPart[]; live_reply?: string; message_id?: string; receipt_message_id?: string; receipt_count: number; activity: TurnActivityEntry[] };
+  result: { phase?: TurnPhase; pause_reason?: AgentPauseReason; stream_epoch?: string; stream_sequence?: number; parts?: TurnPart[]; live_reply?: string; message_id?: string; receipt_message_id?: string; receipt_count: number; activity: TurnActivityEntry[] };
 };
 
 export function turnActivity(result: Record<string, unknown> | null): TurnActivityEntry[] {
@@ -36,6 +37,7 @@ export function turnSnapshot(job: Pick<Job, "id" | "status" | "progress" | "erro
     attempts: job.attempts,
     id: job.id, status: job.status, progress: job.progress, error: job.error, updated_at: job.updated_at,
     result: {
+      pause_reason: agentPauseReason(job.result?.pause_reason),
       phase: ["thinking", "responding", "tools", "complete"].includes(String(job.result?.phase)) ? job.result?.phase as TurnPhase : undefined,
       stream_epoch: typeof job.result?.stream_epoch === "string" ? job.result.stream_epoch : undefined,
       stream_sequence: Number(job.result?.stream_sequence || 0),

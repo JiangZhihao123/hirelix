@@ -13,6 +13,7 @@ import { db } from "@/db/client";
 import { json, owned, rows, WorkspaceError, type Runner } from "./database";
 import type { Job, JobKind } from "./types";
 import { turnActivity } from "./turn-progress";
+import { AgentPause, agentPauseReason, type AgentPauseReason } from "./agent-stop";
 
 const LEASE_SECONDS = 120;
 const logger = getLogger({ component: "private_workspace_jobs" });
@@ -63,7 +64,7 @@ export async function claimJob(kinds: JobKind[], exact?: {id:string;userId:strin
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`agent-billing:${job.user_id}`},0))`);
       await tx.execute(sql`UPDATE hirelix_agent_credit_usage SET consumed_units=0,cost_nano_usd=0,pricing_snapshot='[]'::jsonb,call_reservations='{}'::jsonb,reserved_units=least(reserved_units,${CREDIT_UNITS}) WHERE job_id=${job.id}::uuid`);
       const [claimed] = await rows<Job>(
-        sql`UPDATE hirelix_private_jobs SET status='running',payload=payload || ${json(parentLease ? {parent_chat_lease_token: parentLease} : {})},result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
+        sql`UPDATE hirelix_private_jobs SET status='running',payload=payload || ${json(parentLease ? {parent_chat_lease_token: parentLease} : {})},result=(coalesce(result,'{}'::jsonb)-'live_reply'-'message_id'-'parts'-'stream_sequence'-'stream_epoch'-'phase'-'cancelled_lease_token'-'cancelled_sequence'-'pause_reason') || ${json({stream_epoch: randomUUID()})},progress='Starting',attempts=attempts+1,lease_token=${randomUUID()}::uuid,lease_until=now()+${LEASE_SECONDS}*interval '1 second',error=NULL,updated_at=now() WHERE id=${job.id}::uuid RETURNING *`,
         tx,
       );
       if (claimed.kind === "chat") {
@@ -227,7 +228,10 @@ export async function processJob(
     };
     // Provider errors can contain private source material or credentials.
     // Log identifiers and the error class, never its message or payload.
-    if (error instanceof LostLease) {
+    if (error instanceof AgentPause && job.kind === "chat") {
+      logger.info({...fields, pause_reason: error.reason}, "Private workspace task paused");
+      await pauseJob(job, error.reason);
+    } else if (error instanceof LostLease) {
       logger.warn(fields, "Private workspace task lost its lease");
     } else {
       logger.error(fields, "Private workspace task failed");
@@ -253,7 +257,7 @@ export async function cancelJobInTransaction(userId: string, id: string, tx: Run
       const preservedParts = turnParts(result);
       result = {...result, parts: preservedParts};
       const preservedText = preservedParts.filter(part => part.type === "text").map(part => part.text).join("\n\n") || String(result.live_reply || "");
-      const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", activity: turnActivity(result), parts: preservedParts};
+      const metadata = {reply_request_key: job.request_key, turn_status: "cancelled", pause_reason: agentPauseReason(result.pause_reason) ?? null, activity: turnActivity(result), parts: preservedParts};
       const receiptId = result.receipt_message_id;
       const [message] = typeof receiptId === "string"
         ? await rows<{id:string}>(sql`UPDATE hirelix_agent_messages SET content=${preservedText},metadata=metadata || ${json(metadata)} WHERE id=${receiptId}::uuid AND user_id=${userId}::uuid AND conversation_id=${job.payload.conversation_id}::uuid RETURNING id`,tx)
@@ -263,12 +267,22 @@ export async function cancelJobInTransaction(userId: string, id: string, tx: Run
           ? {cancelled_sequence: visible!.stream_sequence} : {})};
       delete result.live_reply;
     }
-    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
+    const [cancelled] = await rows<Job>(sql`UPDATE hirelix_private_jobs SET status='cancelled',result=${json(result)},progress=${agentPauseReason(result.pause_reason) ? "Paused" : "Stopped"},lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND id=${id}::uuid RETURNING *`, tx);
     await tx.execute(sql`UPDATE hirelix_private_jobs SET status='cancelled',progress='Stopped',lease_token=NULL,lease_until=NULL,updated_at=now() WHERE user_id=${userId}::uuid AND payload->>'parent_chat_job_id'=${id} AND status IN ('queued','running')`);
     if (job.kind === "chat" && job.lease_token) {
       await tx.execute(sql`SELECT pg_notify(${`hirelix_turn_${id.replaceAll("-", "")}_stop`},${JSON.stringify({lease:job.lease_token,sequence:result.cancelled_sequence})})`);
     }
     return cancelled;
+}
+export async function pauseJob(job: Job, reason: AgentPauseReason) {
+  return db.transaction(async tx => {
+    await owned(job.user_id, "conversation", String(job.payload.conversation_id), tx, true);
+    const current = await owned<Job>(job.user_id, "job", job.id, tx, true);
+    if (current.status !== "running" || current.lease_token !== job.lease_token || !current.lease_until || new Date(current.lease_until).getTime() <= Date.now()) throw new LostLease();
+    await tx.execute(sql`UPDATE hirelix_private_jobs SET result=coalesce(result,'{}'::jsonb)||${json({paused: true, pause_reason: reason})},error=NULL WHERE id=${job.id}::uuid AND user_id=${job.user_id}::uuid`);
+    await tx.execute(sql`UPDATE hirelix_private_conversations SET stopped=true,updated_at=clock_timestamp() WHERE id=${String(job.payload.conversation_id)}::uuid AND user_id=${job.user_id}::uuid`);
+    return cancelJobInTransaction(job.user_id, job.id, tx);
+  });
 }
 export async function cancelJob(userId: string, id: string, visible?: {stream_epoch?: string; stream_sequence?: number}) {
   return db.transaction(async tx => {

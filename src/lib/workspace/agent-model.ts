@@ -24,7 +24,7 @@ import {
 import { CREDIT_RETAIL_USD, CREDIT_UNITS } from "@/lib/agent-plan";
 import { recordLlmUsageEvent } from "@/lib/search/persistence";
 import { activeAgentJob } from "./agent-execution";
-import { WorkspaceError } from "./database";
+import { AgentPause } from "./agent-stop";
 import type { Job } from "./types";
 
 export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "tool_input_repair" = "reply") {
@@ -79,10 +79,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       responsePayload: null,
     });
     if (!complete)
-      throw new WorkspaceError(
-        "The assistant could not finish this step. Completed work is saved; retry to continue.",
-        502,
-      );
+      throw new AgentPause("output_limit");
     const body = responseBody as { usage?: { cost?: number } } | undefined;
     const cost = official
       ? llmServiceCost(modelId, startedAt, usage)

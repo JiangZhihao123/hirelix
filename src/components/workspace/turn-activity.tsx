@@ -7,6 +7,7 @@ import { AgentText } from "@/components/AgentText";
 import { TurnParts } from "./turn-parts";
 import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
 import type { Job } from "@/lib/workspace/types";
+import { agentPauseMessage } from "@/lib/workspace/agent-stop";
 
 export const meaningfulProgress = (progress: string) => ![
   "", "Queued", "Queued for retry", "Starting", "Resuming interrupted task", "Complete",
@@ -48,7 +49,7 @@ export function TurnActivity({job, disconnected, receivingFiles, embedded = fals
     {!hideContent && !!parts.length && <TurnParts parts={parts} running={running} />}
     {!hideContent && !parts.length && answer && job?.status !== "cancelled" && <div className="ws-message-prose ws-live-reply"><AgentText content={answer} /></div>}
     <TurnStatus job={job} disconnected={disconnected} receivingFiles={receivingFiles} />
-    {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped")}</p>}
+    {job?.status === "cancelled" && <p className="ws-message-status" role="status">{t(agentPauseMessage(job.result?.pause_reason) || "Stopped")}</p>}
     {job?.status === "error" && <div className="ws-turn-failure" role="alert">
       <p>{t("I couldn’t finish this request. Your message and any saved results are kept.")}</p>
       {job.error && job.error !== "This task could not finish. Your source material is saved. Retry the task or review the input." && <p className="ws-message-status">{t(job.error)}</p>}

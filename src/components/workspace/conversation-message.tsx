@@ -10,6 +10,7 @@ import { TurnParts } from "./turn-parts";
 import { viewedSourceFromHref } from "@/lib/workspace/source-context";
 import { feedbackLabels } from "@/lib/workspace/recommendation-feedback-contract";
 import { isTurnRunning, turnParts } from "@/lib/workspace/turn-progress";
+import { agentPauseMessage } from "@/lib/workspace/agent-stop";
 import { candidateReferences } from "@/lib/workspace/candidate-references";
 import { TurnActivity } from "./turn-activity";
 import Link from "next/link";
@@ -114,7 +115,7 @@ export function ConversationMessage({ onSuggestionReply, message, importRefresh,
                       }} />
 
                     </div>}
-                    {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t("Stopped")}</p>}
+                    {!activeJob && message.metadata.turn_status === "cancelled" && <p className="ws-message-status" role="status">{t(agentPauseMessage(message.metadata.pause_reason) || "Stopped")}</p>}
                     {showReceipts && <>
                     {messageImportJobs(message.metadata).map((jobId) => (
                       <ConversationImport key={jobId} jobId={jobId} embedded={message.role === "assistant"} refreshToken={importRefresh} />

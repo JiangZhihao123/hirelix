@@ -4,7 +4,9 @@ import { agentCreditContext } from "@/lib/agent-credit-context";
 import { appendAgentEvidence, executionTrace } from "./agent-telemetry";
 import { modelConversationMessages } from "./agent-context";
 import { localTimeEvidence } from "./agent-time";
-import { ToolLoopAgent, stepCountIs, generateText, Output, type ModelMessage } from "ai";
+import { ToolLoopAgent, generateText, Output, type ModelMessage } from "ai";
+import { AgentCreditError } from "@/lib/agent-access";
+import { AGENT_EXECUTION_TIMEOUT_MS, AgentPause } from "./agent-stop";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { resolveQueuedQuestion } from "./conversation-questions";
@@ -84,6 +86,9 @@ const runAssistantReply: JobHandler = async (job, progress) => {
             messageAttachments(m.metadata).length,
         );
   const controller = new AbortController();
+  // One deadline covers the model loop and nested tools, including time spent
+  // preparing context. Tool count is not a proxy for task completion.
+  const deadline = setTimeout(() => controller.abort(new AgentPause("time_limit")), AGENT_EXECUTION_TIMEOUT_MS);
   // The worker's renewal failure must stop this runtime and nested tool calls.
   const workerSignal = agentCreditContext.getStore()?.signal;
   const abortFromWorker = () => controller.abort(workerSignal!.reason);
@@ -129,6 +134,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
   const parts: TurnPart[] = [];
   const titleController = new AbortController();
   let replyPrepared = false;
+  let pauseReason: AgentPause["reason"] | undefined;
   // Naming runs beside the reply and never creates an extra agent step.
   const naming = !scheduled && !job.payload.resuming && details.messages.filter(message => message.role === "user").length === 1
     ? generateText({
@@ -243,7 +249,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
       providerOptions: agentProviderOptions(),
       maxOutputTokens: 16384,
       maxRetries: 1,
-      stopWhen: [stepCountIs(20), () => ctx.clarification !== null],
+      stopWhen: () => ctx.clarification !== null,
       experimental_repairToolCall: async ({ toolCall, inputSchema }) => {
         const schema = tools[toolCall.toolName as keyof typeof tools]?.inputSchema as Pick<z.ZodType, "safeParse"> | undefined;
         if (!schema) return null;
@@ -325,7 +331,6 @@ const runAssistantReply: JobHandler = async (job, progress) => {
     const result = await agent.stream({
       messages,
       abortSignal: controller.signal,
-      timeout: { totalMs: 900000 },
     });
     let stepText = "";
     let canAppendPreviousText = previousParts.at(-1)?.type === "text";
@@ -351,6 +356,9 @@ const runAssistantReply: JobHandler = async (job, progress) => {
     let textPart: Extract<TurnPart, {type: "text"}> | undefined;
     for await (const part of result.fullStream) {
       if (part.type === "error") throw controller.signal.aborted ? controller.signal.reason : part.error;
+      // SDK tool errors normally become model observations. Resource limits
+      // must stop sampling too, rather than invite retries with no allowance.
+      if (part.type === "tool-error" && (part.error instanceof AgentPause || part.error instanceof AgentCreditError)) throw part.error;
       if (part.type === "abort")
         throw controller.signal.reason || new WorkspaceError(
           "The assistant was interrupted before it could finish. Completed work is saved; retry or continue in this conversation.",
@@ -410,11 +418,9 @@ const runAssistantReply: JobHandler = async (job, progress) => {
     const newAnswer = ctx.clarification
       ? [...parts.filter(part => part.type === "text").map(part => part.text), ctx.clarification.question].filter(Boolean).join("\n\n")
       : (await result.text).trim();
+    if (trace.at(-1)?.finish === "length") throw new AgentPause("output_limit");
     if (!newAnswer || (!ctx.clarification && trace.at(-1)?.finish !== "stop"))
-      throw new WorkspaceError(
-        "The assistant reached its execution limit. Completed work is saved; continue in this conversation.",
-        502,
-      );
+      throw new WorkspaceError("The assistant did not return a complete response. Your saved work is kept; retry in this conversation.", 502);
 
     const answer = previousParts.length
       ? [...parts.filter(part => part.type === "text").map(part => part.text), ...(ctx.clarification ? [ctx.clarification.question] : [])].filter(Boolean).join("\n\n")
@@ -433,6 +439,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
         const metadata = {
           reply_request_key: job.request_key,
           turn_status: "done",
+          pause_reason: null,
           parts,
           sources: [...ctx.sources.values()].slice(0, 30),
           agent: { framework: "ai-sdk/ToolLoopAgent", steps: trace },
@@ -456,8 +463,22 @@ const runAssistantReply: JobHandler = async (job, progress) => {
         return { message_id: saved.id };
       },
     };
+  } catch (error) {
+    let cause: unknown = controller.signal.aborted ? controller.signal.reason : error;
+    const seen = new Set<unknown>();
+    while (cause instanceof Error && !seen.has(cause)) {
+      seen.add(cause);
+      const pause = cause instanceof AgentPause ? cause : cause instanceof AgentCreditError ? new AgentPause("credit_limit") : undefined;
+      if (pause) {
+        pauseReason = pause.reason;
+        throw pause;
+      }
+      cause = cause.cause;
+    }
+    throw error;
   } finally {
-    await appendAgentEvidence(job, "agent_events", {...execution, event: "execution_finished", status: replyPrepared ? "response_prepared" : controller.signal.aborted ? "interrupted" : "error", finished_at: new Date().toISOString()}).catch(error => {
+    clearTimeout(deadline);
+    await appendAgentEvidence(job, "agent_events", {...execution, event: "execution_finished", status: pauseReason ? "paused" : replyPrepared ? "response_prepared" : controller.signal.aborted ? "interrupted" : "error", ...(pauseReason ? {pause_reason: pauseReason} : {}), finished_at: new Date().toISOString()}).catch(error => {
       if (!(error instanceof LostLease)) getLogger({component: "workspace_agent"}).error({job_id: job.id, error_type: error instanceof Error ? error.name : "Unknown"}, "Execution evidence could not be finalized");
     });
     clearInterval(timer);

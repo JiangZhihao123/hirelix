@@ -5,29 +5,42 @@ import { randomUUID } from "node:crypto";
 import { after, mock, test } from "node:test";
 import { MockLanguageModelV3 } from "ai/test";
 import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
+import { AGENT_EXECUTION_TIMEOUT_MS } from "../../src/lib/workspace/agent-stop";
+import { AgentCreditError } from "../../src/lib/agent-access";
 
 const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.equal(database.hostname, "127.0.0.1");
 assert.ok(database.pathname.startsWith("/hirelix_workspace_qa_isolated_"));
 const usage = { inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 10, text: 10, reasoning: 0 } };
-let scripts: LanguageModelV3StreamPart[][] = [];
+let scripts: Array<LanguageModelV3StreamPart[] | Error> = [];
+let blockStream: (() => void) | undefined;
 const model = new MockLanguageModelV3({
   doGenerate: { content: [{ type: "text", text: '{"title":"Runtime QA"}' }], finishReason: { unified: "stop", raw: "stop" }, usage, warnings: [] },
-  doStream: async () => {
+  doStream: async options => {
+    if (blockStream) {
+      blockStream();
+      return {stream: new ReadableStream({start(controller) {
+        const abort = () => controller.error(options.abortSignal!.reason);
+        if (options.abortSignal?.aborted) abort();
+        else options.abortSignal!.addEventListener("abort", abort, {once: true});
+      }})};
+    }
     const parts = scripts.shift();
     assert.ok(parts, "Unexpected model call; no fallback provider allowed");
+    if (parts instanceof Error) throw parts;
     return { stream: new ReadableStream({ start(controller) { for (const part of parts) controller.enqueue(part); controller.close(); } }) };
   },
 });
 const ready = (async () => {
   mock.module("../../src/lib/workspace/agent-model.ts", { namedExports: { agentModel: () => model, agentProviderOptions: () => undefined } });
   const conversations = await import("../../src/lib/workspace/conversations");
+  const control = await import("../../src/lib/workspace/conversation-control");
   const jobs = await import("../../src/lib/workspace/jobs");
   const store = await import("../../src/lib/workspace/database");
   const connection = await import("../../src/db/client");
   const memories = await import("../../src/lib/workspace/memories");
   const channel = await import("../../src/lib/workspace/turn-channel");
-  return { ...conversations, ...jobs, ...store, ...connection, ...memories, ...channel };
+  return { ...conversations, ...control, ...jobs, ...store, ...connection, ...memories, ...channel };
 })();
 after(async () => {
   const s = await ready;
@@ -35,9 +48,108 @@ after(async () => {
   await s.closeDb();
   mock.restoreAll();
 });
-const finish = (reason: "stop" | "tool-calls"): LanguageModelV3StreamPart => ({ type: "finish", finishReason: { unified: reason, raw: reason }, usage });
+const finish = (reason: "stop" | "tool-calls" | "length"): LanguageModelV3StreamPart => ({ type: "finish", finishReason: { unified: reason, raw: reason }, usage });
 const text = (value: string): LanguageModelV3StreamPart[] => [{ type: "text-start", id: "text" }, { type: "text-delta", id: "text", delta: value }, { type: "text-end", id: "text" }];
 const call = (name: string, input: unknown): LanguageModelV3StreamPart[] => [{ type: "tool-call", toolCallId: randomUUID(), toolName: name, input: JSON.stringify(input) }, finish("tool-calls")];
+
+test("runtime contract: a tool loop can exceed twenty rounds and finish without a manual continuation", async () => {
+  const s = await ready, owner = randomUUID();
+  scripts = [...Array.from({length: 22}, () => call("read_skill", {name: "recruiting-records", resource: null})), [...text("Completed after reading the requested guidance."), finish("stop")]];
+  const sent = await s.sendMessage(owner, {message: "Read the recruiting guidance and report completion.", request_key: randomUUID()});
+  await s.processJob({chat: s.assistantReply});
+  const job = await s.owned<{status: string; result: {agent_steps: unknown[]}}>(owner, "job", sent.job.id);
+  assert.equal(job.status, "done");
+  assert.equal(job.result.agent_steps.length, 23);
+  assert.equal(scripts.length, 0);
+});
+
+test("runtime contract: output limit pauses committed work and Continue preserves its receipt", async () => {
+  const s = await ready, owner = randomUUID();
+  const input = {operation: "remember", ref: null, title: "Report style", content: "Keep updates concise", source_quote: "Remember to keep updates concise"};
+  scripts = [call("remember_preference", input), [...text("Your preference is saved; the remaining explanation"), finish("length")]];
+  const sent = await s.sendMessage(owner, {message: "Remember to keep updates concise, then explain what you saved.", request_key: randomUUID()});
+  await s.processJob({chat: s.assistantReply});
+  const paused = await s.owned<{status: string; error: string | null; result: Record<string, unknown>}>(owner, "job", sent.job.id);
+  assert.equal(paused.status, "cancelled");
+  assert.equal(paused.error, null);
+  assert.equal(paused.result.pause_reason, "output_limit");
+  assert.equal(paused.result.paused, true);
+  assert.ok(paused.result.tool_receipts);
+  const before = await s.conversationDetails(owner, sent.conversation_id);
+  assert.equal(before.conversation.stopped, true);
+  assert.equal(before.messages.at(-1)!.metadata.pause_reason, "output_limit");
+  assert.ok(before.messages.at(-1)!.content.includes("remaining explanation"));
+  scripts = [call("remember_preference", input), [...text(" is now complete."), finish("stop")]];
+  await s.controlConversation(owner, sent.conversation_id, {action: "resume"});
+  await s.processJob({chat: s.assistantReply});
+  const completed = await s.owned<{status: string; result: Record<string, unknown>}>(owner, "job", sent.job.id);
+  assert.equal(completed.status, "done");
+  assert.equal(completed.result.pause_reason, undefined);
+  assert.equal((await s.listPersonalMemories(owner)).length, 1);
+  assert.equal((await s.listPersonalMemories(owner))[0].version, 1);
+  const details = await s.conversationDetails(owner, sent.conversation_id);
+  assert.equal(details.messages.filter(m => m.role === "assistant").length, 1);
+  assert.equal(details.messages.at(-1)!.metadata.pause_reason, null);
+  const events = completed.result.agent_events as Array<{event: string; status?: string; pause_reason?: string}>;
+  assert.ok(events.some(e => e.event === "execution_finished" && e.status === "paused" && e.pause_reason === "output_limit"));
+});
+
+test("runtime contract: exhausted credits pause rather than fail or keep sampling", async () => {
+  const s = await ready, owner = randomUUID();
+  scripts = [new AgentCreditError()];
+  const sent = await s.sendMessage(owner, {message: "Explain this request.", request_key: randomUUID()});
+  await s.processJob({chat: s.assistantReply});
+  const job = await s.owned<{status: string; error: string | null; result: Record<string, unknown>}>(owner, "job", sent.job.id);
+  assert.equal(job.status, "cancelled");
+  assert.equal(job.error, null);
+  assert.equal(job.result.pause_reason, "credit_limit");
+  assert.equal(scripts.length, 0);
+});
+
+test("runtime contract: one fifteen-minute deadline aborts the active model and preserves a resumable pause", {timeout: 15000}, async t => {
+  const s = await ready, owner = randomUUID();
+  const sent = await s.sendMessage(owner, {message: "Explain this request.", request_key: randomUUID()});
+  let started!: () => void;
+  const startedPromise = new Promise<void>(resolve => {started = resolve;});
+  blockStream = started;
+  let expire!: () => void;
+  const actualTimeout = setTimeout;
+  // Advance only the runtime deadline. Faking every timer would also freeze
+  // postgres.js network scheduling and prevent the real LISTEN handshake.
+  t.mock.method(globalThis, "setTimeout", ((callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    if (delay === AGENT_EXECUTION_TIMEOUT_MS) expire = () => callback(...args);
+    return actualTimeout(callback, delay, ...args);
+  }) as typeof setTimeout);
+  try {
+    const running = s.processJob({chat: s.assistantReply});
+    await startedPromise;
+    expire();
+    await running;
+    const job = await s.owned<{status: string; error: string | null; result: Record<string, unknown>}>(owner, "job", sent.job.id);
+    assert.equal(job.status, "cancelled");
+    assert.equal(job.error, null);
+    assert.equal(job.result.pause_reason, "time_limit");
+    assert.ok((job.result.agent_events as Array<{status?: string}>).some(e => e.status === "paused"));
+  } finally {blockStream = undefined; t.mock.restoreAll();}
+});
+
+test("runtime contract: a stale resource pause cannot overwrite user stop or a resumed execution", async () => {
+  const s = await ready, owner = randomUUID();
+  const sent = await s.sendMessage(owner, {message: "Stop and resume QA", request_key: randomUUID()});
+  const first = (await s.claimJob(["chat"], {id: sent.job.id, userId: owner}))!;
+  await s.controlConversation(owner, sent.conversation_id, {action: "stop"});
+  await assert.rejects(s.pauseJob(first, "time_limit"), s.LostLease);
+  const stopped = await s.conversationDetails(owner, sent.conversation_id);
+  assert.equal(stopped.messages.at(-1)!.metadata.pause_reason, null);
+  await s.controlConversation(owner, sent.conversation_id, {action: "resume"});
+  const resumed = (await s.claimJob(["chat"], {id: first.id, userId: owner}))!;
+  assert.notEqual(resumed.lease_token, first.lease_token);
+  await assert.rejects(s.pauseJob(first, "credit_limit"), s.LostLease);
+  const current = await s.owned<{status: string; result: Record<string, unknown>}>(owner, "job", first.id);
+  assert.equal(current.status, "running");
+  assert.equal(current.result.pause_reason, undefined);
+  await s.cancelJob(owner, resumed.id);
+});
 
 test("runtime: a real ask_user receipt waits, then the answer resumes original context exactly once", async () => {
   const s = await ready, owner = randomUUID();

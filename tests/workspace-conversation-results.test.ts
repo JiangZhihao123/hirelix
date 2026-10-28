@@ -5,9 +5,28 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { load } from "cheerio";
 import { TurnParts } from "../src/components/workspace/turn-parts";
 import { ConversationMessage } from "../src/components/workspace/conversation-message";
+import { TurnActivity } from "../src/components/workspace/turn-activity";
+import { agentPauseMessage } from "../src/lib/workspace/agent-stop";
+import { turnSnapshot } from "../src/lib/workspace/turn-progress";
 import type { TurnPart } from "../src/lib/workspace/turn-progress";
 import type { Message } from "../src/lib/workspace/types";
 Object.assign(globalThis, {React});
+
+test("resource pauses stay distinct from failure and user stop in live and reloaded conversations", () => {
+  for (const reason of ["time_limit", "credit_limit", "output_limit"] as const) {
+    const job = {id: "paused", status: "cancelled" as const, progress: "Paused", error: null, updated_at: "2026-10-28T00:00:00Z", result: {paused: true, pause_reason: reason}};
+    const snapshot = turnSnapshot(job);
+    assert.equal(snapshot.result.pause_reason, reason);
+    const live = load(renderToStaticMarkup(React.createElement(TurnActivity, {job: snapshot})));
+    assert.equal(live('.ws-turn-failure').length, 0);
+    assert.equal(live('[role="status"]').text(), agentPauseMessage(reason));
+    const message = {id:"m",conversation_id:"c",role:"assistant",content:"",created_at:"2026-10-28T00:00:00Z",metadata:{turn_status:"cancelled",pause_reason:reason}} as unknown as Message;
+    const saved = load(renderToStaticMarkup(React.createElement(ConversationMessage, {message,laterScheduleIds:[],onReady:()=>{},onRevise:()=>{},onMemories:()=>{},onSource:()=>{},onReview:()=>{},onCopy:()=>{},copiedId:null})));
+    assert.equal(saved('[role="status"]').text(), agentPauseMessage(reason));
+  }
+  const stopped = load(renderToStaticMarkup(React.createElement(TurnActivity, {job: {status:"cancelled",progress:"Stopped",error:null,result:{}}})));
+  assert.equal(stopped('[role="status"]').text(), "Stopped");
+});
 
 test("a finished answer leads, with inspectable execution history and prominent failures", () => {
   const parts: TurnPart[] = [
