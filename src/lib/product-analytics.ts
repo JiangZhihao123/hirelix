@@ -89,8 +89,8 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
     (${f.source}='all' AND ${f.campaign}='all' AND ${f.content}='all' AND ${f.device}='all' AND ${f.page}='all' OR u.id IN (SELECT account_id FROM events))`;
   const work = sql`, users AS (SELECT u.id,u."createdAt" AS created_at FROM "user" u WHERE ${qualifyUser}),
     outcomes AS (
-      SELECT d.user_id::text AS user_id,d.created_at,'recommendation' AS kind FROM hirelix_private_deliverables d
-      WHERE d.kind='submission' AND length(trim(d.content))>0 AND cardinality(d.person_ids)>0
+      SELECT d.user_id::text AS user_id,d.created_at,'document' AS kind FROM hirelix_private_deliverables d
+      WHERE d.kind IN ('submission','brief') AND length(trim(d.content))>0 AND cardinality(d.person_ids)>0
       UNION ALL SELECT r.user_id::text,coalesce((SELECT min(v.created_at) FROM hirelix_private_versions v WHERE v.user_id=r.user_id AND v.entity_id=r.id AND v.entity_type='role_candidate' AND v.snapshot->'assessment'<>'{}'::jsonb),r.updated_at),'assessment' FROM hirelix_private_role_candidates r WHERE r.assessment<>'{}'::jsonb
     ), activity AS (
       SELECT user_id::text AS user_id,created_at FROM hirelix_agent_messages WHERE role='user' AND conversation_id IS NOT NULL AND coalesce(metadata->>'delivery','sent') NOT IN ('removed','queued')
@@ -141,6 +141,17 @@ export async function getProductAnalytics(f: AnalyticsFilters) {
       (SELECT count(DISTINCT o.user_id)::int FROM outcomes o JOIN users u ON u.id=o.user_id WHERE o.created_at>=${f.from}::timestamptz AND o.created_at<${f.to}::timestamptz) AS outcome_accounts,
       (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(SELECT 1 FROM hirelix_private_files f WHERE f.user_id::text=u.id AND f.created_at<${f.to}::timestamptz)) AS new_accounts_with_files,
       (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(SELECT 1 FROM outcomes o WHERE o.user_id=u.id AND o.created_at<${f.to}::timestamptz)) AS new_accounts_with_outcome,
+      (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(SELECT 1 FROM hirelix_agent_people p WHERE p.user_id::text=u.id AND p.created_at>=u.created_at AND p.created_at<${f.to}::timestamptz)) AS new_accounts_with_candidates,
+      (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(
+        SELECT 1 FROM hirelix_private_jobs j CROSS JOIN LATERAL jsonb_array_elements(coalesce(j.result->'agent_events','[]'::jsonb)) AS e(value)
+        WHERE j.user_id::text=u.id AND j.kind='chat' AND j.created_at>=u.created_at AND j.created_at<${f.to}::timestamptz
+          AND e.value->>'tool'='search_candidates' AND e.value->>'event'='tool_finished' AND e.value->>'status'='success'
+          AND (e.value->>'started_at')::timestamptz<${f.to}::timestamptz)) AS new_accounts_with_candidate_search,
+      (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(
+        SELECT 1 FROM hirelix_private_deliverables d WHERE d.user_id::text=u.id AND d.kind IN ('brief','submission') AND cardinality(d.person_ids)>=2
+          AND length(trim(d.content))>0 AND d.created_at>=u.created_at AND d.created_at<${f.to}::timestamptz)) AS new_accounts_with_multi_candidate_document,
+      (SELECT count(*)::int FROM users u WHERE u.created_at>=${f.from}::timestamptz AND u.created_at<${f.to}::timestamptz AND EXISTS(
+        SELECT 1 FROM events e WHERE e.account_id=u.id AND e.event_type='document_view' AND e.created_at>=u.created_at)) AS new_accounts_with_document_view,
       (SELECT count(*)::int FROM hirelix_private_files d JOIN users u ON u.id=d.user_id::text WHERE d.created_at>=${f.from}::timestamptz AND d.created_at<${f.to}::timestamptz) AS files,
       (SELECT count(*)::int FROM hirelix_private_deliverables d JOIN users u ON u.id=d.user_id::text WHERE d.created_at>=${f.from}::timestamptz AND d.created_at<${f.to}::timestamptz) AS documents,
       (SELECT count(*)::int FROM hirelix_private_records d JOIN users u ON u.id=d.user_id::text WHERE d.kind='feedback' AND d.person_id IS NOT NULL AND d.created_at>=${f.from}::timestamptz AND d.created_at<${f.to}::timestamptz) AS feedback,

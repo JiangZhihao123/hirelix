@@ -138,7 +138,7 @@ export function ProductAnalyticsDashboard() {
         ["页面浏览", data.traffic.page_views],
         ["新增账号", data.product.new_accounts],
         ["发起对话账号", data.product.conversation_accounts],
-        ["有评估 / 推荐成果", data.product.outcome_accounts],
+        ["有评估 / 人选文档", data.product.outcome_accounts],
         ["页面有效阅读（秒）", data.engagement.active_seconds],
         ["交互失败 / 前端错误", data.traffic.errors],
       ]
@@ -340,7 +340,7 @@ export function ProductAnalyticsDashboard() {
                 </div>
                 <Table
                   title="新增账号的激活情况"
-                  note="同一注册 cohort 的独立行为覆盖率，不要求先上传文件；截至筛选结束时间。成果指已保存且关联人选的推荐或非空评估，不把问候、空记录或后台索引当成果。"
+                  note="同一注册 cohort 的独立行为覆盖率，截至筛选结束时间；不要求按固定顺序。候选人检索包含空结果和浏览，不能证明有用；多人文档不自动证明比较质量。成果指带人选的简报/推荐或非空评估。"
                   columns={[
                     ["stage", "阶段"],
                     ["accounts", "账号数"],
@@ -348,7 +348,11 @@ export function ProductAnalyticsDashboard() {
                   ]}
                   rows={[
                     ["注册账号", data.product.new_accounts],
-                    ["上传过文件", data.product.new_accounts_with_files],
+                    ["有保存文件（含生成）", data.product.new_accounts_with_files],
+                    ["保存过候选人", data.product.new_accounts_with_candidates],
+                    ["候选人库检索已完成（含空结果）", data.product.new_accounts_with_candidate_search],
+                    ["保存过多人文档", data.product.new_accounts_with_multi_candidate_document],
+                    ["查看过成果", data.product.new_accounts_with_document_view],
                     ["产生可核验成果", data.product.new_accounts_with_outcome],
                   ].map(([stage, count]) => ({
                     stage: String(stage),
@@ -487,9 +491,13 @@ export function ProductAnalyticsDashboard() {
                           new_accounts: "新增账号",
                           conversation_accounts: "发起对话账号",
                           outcome_accounts: "产生成果账号",
-                          new_accounts_with_files: "新账号中已上传资料",
+                          new_accounts_with_files: "新账号中已有文件（含生成）",
                           new_accounts_with_outcome: "新账号中已有成果",
-                          files: "上传文件",
+                          new_accounts_with_candidates: "新账号中已保存候选人",
+                          new_accounts_with_candidate_search: "新账号中已检索候选人（含空结果）",
+                          new_accounts_with_multi_candidate_document: "新账号中已有多人文档",
+                          new_accounts_with_document_view: "新账号中已查看成果",
+                          files: "保存文件（含生成）",
                           documents: "保存推荐 / 文稿",
                           feedback: "逐人反馈",
                           roles: "新增职位",
