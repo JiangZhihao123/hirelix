@@ -144,12 +144,12 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             <p className="ha-eyebrow">HIRELIX — YOUR AI RECRUITING PARTNER</p>
             <h1>
               5 minutes to your first shortlist.
-              <span>100 searches later, it still knows your clients.</span>
+              <span>100 jobs later, it still knows how you work.</span>
             </h1>
             <p className="ha-lead">
-              Give Hirelix a job description. It researches, finds candidates,
-              reviews resumes, and helps prepare client submissions — all while
-              remembering your notes, feedback, and past work.
+              Drop in a JD. Your AI partner finds candidates, reviews resumes,
+              and prepares client submissions — remembering your client
+              preferences, notes, and past searches along the way.
             </p>
             <div className="ha-hero-actions">
               <a

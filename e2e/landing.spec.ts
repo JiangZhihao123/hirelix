@@ -11,7 +11,7 @@ test.describe("Personal agent landing", () => {
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "5 minutes to your first shortlist.100 searches later, it still knows your clients.",
+      "5 minutes to your first shortlist.100 jobs later, it still knows how you work.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(page.getByTestId("hero-primary-cta")).toHaveAccessibleName(
@@ -42,7 +42,7 @@ test.describe("Personal agent landing", () => {
       "Hirelix | Your Personal AI Agent for Headhunting",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "5 minutes to your first shortlist.100 searches later, it still knows your clients.",
+      "5 minutes to your first shortlist.100 jobs later, it still knows how you work.",
     );
   });
 
