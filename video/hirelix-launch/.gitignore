@@ -1,0 +1,4 @@
+node_modules/
+# Rendered deliverables are rebuilt from source (see README).
+out/
+public/audio/

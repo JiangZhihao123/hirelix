@@ -1,0 +1,22 @@
+{
+  "name": "hirelix-launch-film",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hirelix 35s product launch film (Remotion)",
+  "scripts": {
+    "studio": "remotion studio",
+    "audio": "node audio/build-score.mjs",
+    "render": "remotion render HirelixLaunch out/hirelix-launch-master.mp4",
+    "still": "remotion still HirelixLaunch out/hirelix-launch-cover.png --frame=1020"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.539",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "^4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

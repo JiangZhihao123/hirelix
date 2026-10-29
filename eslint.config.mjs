@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     ".playwright-cli/**",
     ".playwright-mcp/**",
     "output/**",
+    // Standalone Remotion film project with its own toolchain.
+    "video/**",
     "tmp/**",
     "runs/**",
     // Local utility scripts are not part of the web app lint gate.
