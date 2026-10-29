@@ -7,6 +7,7 @@ import { MockLanguageModelV3 } from "ai/test";
 import type { LanguageModelV3StreamPart } from "@ai-sdk/provider";
 import { AGENT_EXECUTION_TIMEOUT_MS } from "../../src/lib/workspace/agent-stop";
 import { AgentCreditError } from "../../src/lib/agent-access";
+import { sql } from "drizzle-orm";
 
 const database = new URL(process.env.DATABASE_URL || "postgres://invalid/invalid");
 assert.equal(database.hostname, "127.0.0.1");
@@ -14,9 +15,11 @@ assert.ok(database.pathname.startsWith("/hirelix_workspace_qa_isolated_"));
 const usage = { inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 10, text: 10, reasoning: 0 } };
 let scripts: Array<LanguageModelV3StreamPart[] | Error> = [];
 let blockStream: (() => void) | undefined;
+let inspectInput: ((prompt: unknown) => void) | undefined;
 const model = new MockLanguageModelV3({
   doGenerate: { content: [{ type: "text", text: '{"title":"Runtime QA"}' }], finishReason: { unified: "stop", raw: "stop" }, usage, warnings: [] },
   doStream: async options => {
+    inspectInput?.(options.prompt);
     if (blockStream) {
       blockStream();
       return {stream: new ReadableStream({start(controller) {
@@ -40,7 +43,10 @@ const ready = (async () => {
   const connection = await import("../../src/db/client");
   const memories = await import("../../src/lib/workspace/memories");
   const channel = await import("../../src/lib/workspace/turn-channel");
-  return { ...conversations, ...control, ...jobs, ...store, ...connection, ...memories, ...channel };
+  const files = await import("../../src/lib/workspace/files");
+  const web = await import("../../src/lib/workspace/web-observations");
+  const tools = await import("../../src/lib/workspace/agent-tools");
+  return { ...conversations, ...control, ...jobs, ...store, ...connection, ...memories, ...channel, ...files, ...web, ...tools };
 })();
 after(async () => {
   const s = await ready;
@@ -104,6 +110,81 @@ test("runtime contract: exhausted credits pause rather than fail or keep samplin
   assert.equal(job.error, null);
   assert.equal(job.result.pause_reason, "credit_limit");
   assert.equal(scripts.length, 0);
+});
+
+test("runtime contract: web originals are readable, and Continue restores actual observations without repeating the search", async () => {
+  const s = await ready, owner = randomUUID(), originalFetch = globalThis.fetch;
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "controlled-contract-key";
+  const body = "Original professional evidence. ".repeat(1000) + "Tail fact: authored the demonstrated extension.";
+  let calls = 0;
+  try {
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({results: [{title: "Public original", url: "https://example.test/professional", snippet: "UI-only snippet", summary: "Verified public work evidence", content: body, rerank_score: 2.4, authority: 3, date: null, site_name: "QA"}]}));
+    };
+    scripts = [call("web_search", {query: "public professional work", count: 1, need_content: true}), new AgentCreditError()];
+    const sent = await s.sendMessage(owner, {message: "Research public professional work. Do not save candidates or contact anyone.", request_key: randomUUID()});
+    await s.processJob({chat: s.assistantReply});
+    const paused = await s.owned<import("../../src/lib/workspace/types").Job>(owner, "job", sent.job.id);
+    assert.equal(paused.result!.pause_reason, "credit_limit");
+    const observations = s.webObservations(paused.result);
+    assert.equal(observations.length, 1);
+    const view = observations[0].output.result as {sources: Array<{summary: string; content: string; truncated: boolean; content_reference: {file_id: string; read_with: {file_id: string; offset: number; limit: number}}}>; original_response: {file_id: string}};
+    assert.equal(view.sources[0].summary, "Verified public work evidence");
+    assert.equal(view.sources[0].content.length, s.WEB_PAGE_CHARACTERS);
+    assert.equal(view.sources[0].truncated, true);
+    assert.ok(!JSON.stringify(view).includes("UI-only snippet"));
+    const file = await s.readFile(owner, view.sources[0].content_reference.file_id);
+    assert.equal(file.bytes.toString(), body);
+    await assert.rejects(s.readFile(randomUUID(), file.id), /not found/);
+    const raw = JSON.parse((await s.readFile(owner, view.original_response.file_id)).bytes.toString());
+    assert.equal(raw.output.result.sources[0].snippet, "UI-only snippet");
+    assert.equal(raw.output.result.sources[0].content, body);
+
+    let resumedEvidence = false, tailEvidence = false;
+    inspectInput = prompt => {
+      const serialized = JSON.stringify(prompt);
+      resumedEvidence ||= serialized.includes("completed_web_observations") && serialized.includes("Verified public work evidence") && serialized.includes("Original professional evidence.");
+      tailEvidence ||= serialized.includes("Tail fact: authored the demonstrated extension.");
+    };
+    scripts = [call("read_file", view.sources[0].content_reference.read_with), [...text("Research completed using the preserved original evidence."), finish("stop")]];
+    // The next page ends before the tail; explicitly request that original tail.
+    scripts.splice(1, 0, call("read_file", {file_id: file.id, offset: body.length - 100, limit: 100}));
+    await s.controlConversation(owner, sent.conversation_id, {action: "resume"});
+    await s.processJob({chat: s.assistantReply});
+    assert.equal((await s.owned<{status: string}>(owner, "job", sent.job.id)).status, "done");
+    assert.ok(resumedEvidence, "The resumed model receives earlier evidence, not only UI URLs");
+    assert.ok(tailEvidence, "Omitted original text reaches the model through the existing file tool");
+    assert.equal(calls, 1, "Local original reads and Continue do not refetch or bill for the public URL");
+  } finally {
+    inspectInput = undefined;
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = originalKey;
+  }
+});
+
+test("runtime contract: a web tool's own credit reservation error pauses the Agent instead of becoming a retryable 502", async () => {
+  const s = await ready, owner = randomUUID();
+  const sent = await s.sendMessage(owner, {message: "Research public professional work.", request_key: randomUUID()});
+  // Keep just 0.1 credit: enough to queue, less than a Search request. The mock
+  // model itself has no reservation; the real tool/PG reservation must refuse.
+  await s.rows(sql`INSERT INTO hirelix_private_jobs(id,user_id,kind,status,request_key,payload) VALUES(${randomUUID()}::uuid,${owner}::uuid,'chat','done',${randomUUID()},'{"qa_allowance_fixture":true}'::jsonb) RETURNING id`).then(async ([fixture]) => {
+    await s.rows(sql`INSERT INTO hirelix_agent_credit_usage(job_id,user_id,reserved_units,consumed_units) VALUES(${String((fixture as {id: string}).id)}::uuid,${owner}::uuid,1999000,1999000) RETURNING job_id`);
+  });
+  await s.rows(sql`UPDATE hirelix_agent_credit_usage SET reserved_units=1000 WHERE job_id=${sent.job.id}::uuid RETURNING job_id`);
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "controlled-contract-key";
+  try {
+    scripts = [call("web_search", {query: "public work", count: 1, need_content: false})];
+    await s.processJob({chat: s.assistantReply});
+    const paused = await s.owned<import("../../src/lib/workspace/types").Job>(owner, "job", sent.job.id);
+    assert.equal(paused.status, "cancelled");
+    assert.equal(paused.result!.pause_reason, "credit_limit");
+    assert.equal(scripts.length, 0);
+  } finally {
+    if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY; else process.env.DEEPSEEK_API_KEY = originalKey;
+  }
 });
 
 test("runtime contract: one fifteen-minute deadline aborts the active model and preserves a resumable pause", {timeout: 15000}, async t => {

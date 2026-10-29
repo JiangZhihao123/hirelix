@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     // Sharp loads libvips dynamically; tracing its JS entry alone omits the
     // shared library from Vercel functions.
-    "/api/workspace/**": ["./node_modules/@img/sharp-libvips-*/lib/**/*", "./src/lib/workspace/skills/*.md", "./node_modules/pdfjs-dist/cmaps/**/*", "./node_modules/pdfjs-dist/standard_fonts/**/*", "./node_modules/pdfjs-dist/wasm/**/*"],
+    "/api/workspace/**": ["./src/assets/tokenizers/deepseek-v4.json", "./node_modules/@img/sharp-libvips-*/lib/**/*", "./src/lib/workspace/skills/*.md", "./node_modules/pdfjs-dist/cmaps/**/*", "./node_modules/pdfjs-dist/standard_fonts/**/*", "./node_modules/pdfjs-dist/wasm/**/*"],
     "/api/workspace/deliverables/*/export": ["./src/assets/fonts/*"],
     "/api/workspace/deliverables/*/package": ["./src/assets/fonts/*"],
     "/recommendation/*/package": ["./src/assets/fonts/*"],

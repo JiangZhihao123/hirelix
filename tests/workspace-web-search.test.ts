@@ -15,11 +15,11 @@ test("structured results preserve source provenance and separate summaries from 
   assert.deepEqual(parseSearchResults({results: []}), {sources: [], billable: false});
   assert.throws(() => parseSearchResults({results: [{title: "I searched"}]}), /invalid response/);
 });
-test("retrieved content is bounded with explicit truncation", () => {
+test("retrieval retains original text so the Agent can page it without losing evidence", () => {
   const result = parseSearchResults({results: Array.from({length: 10}, (_, i) => ({...source, url: `https://example.com/${i}`, content: "a".repeat(20000)}))});
-  assert.equal(result.sources.reduce((sum, s) => sum + s.content.length, 0), 60000);
-  assert.ok(result.sources.every(s => s.truncated));
-  assert.equal(parseFetchedPage({title: "Page", content: "a".repeat(40001)}).truncated, true);
+  assert.equal(result.sources.reduce((sum, s) => sum + s.content.length, 0), 200000);
+  assert.ok(result.sources.every(s => !s.truncated));
+  assert.equal(parseFetchedPage({title: "Page", content: "a".repeat(40001)}).content.length, 40001);
   assert.equal(parseFetchedPage({title: "Page", content: ""}).content, "");
   assert.throws(() => parseFetchedPage({content: 123}), /invalid response/);
 });

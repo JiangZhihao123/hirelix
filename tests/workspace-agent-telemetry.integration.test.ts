@@ -103,8 +103,9 @@ test("mock transport + real PG: truncated provider output records usage and rele
     assert.equal(events[0].status, "error");
     assert.equal(events[0].output_tokens, 512);
     assert.equal((events[0].metadata as Record<string, unknown>).finish_reason, "length");
-    const [credit] = await db.execute(sql`SELECT call_reservations FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid`);
+    const [credit] = await db.execute(sql`SELECT call_reservations,consumed_units FROM hirelix_agent_credit_usage WHERE job_id=${job.id}::uuid`);
     assert.deepEqual(credit.call_reservations, {});
+    assert.ok(Number(credit.consumed_units) > 0, "An output pause retains the provider cost before releasing the hold");
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of Object.keys(process.env)) if (!(key in originalEnv)) delete process.env[key];

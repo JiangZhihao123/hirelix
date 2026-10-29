@@ -31,15 +31,14 @@ export function parseSearchResults(raw: unknown) {
   const parsed = z.object({results: z.array(resultSchema).max(50)}).safeParse(raw);
   if (!parsed.success) throw new WorkspaceError("DeepSeek Search returned an invalid response. Please retry.", 502);
   const sources = new Map<string, WebSource>();
-  let remaining = 60000;
   for (const item of parsed.data.results) {
     const href = publicWebUrl(item.url);
     if (!href || sources.has(href)) continue;
-    const content = item.content.slice(0, Math.min(12000, remaining));
-    remaining -= content.length;
-    sources.set(href, {title: item.title.slice(0, 300) || new URL(href).hostname, href,
-      snippet: item.snippet.slice(0, 2000), summary: item.summary.slice(0, 4000), content,
-      truncated: content.length < item.content.length, publishedAt: item.date,
+    // Retain the retrieved evidence. Agent observations page their model view
+    // separately, with owned file references for everything omitted there.
+    sources.set(href, {title: item.title || new URL(href).hostname, href,
+      snippet: item.snippet, summary: item.summary, content: item.content,
+      truncated: false, publishedAt: item.date,
       relevance: item.rerank_score, authority: item.authority, siteName: item.site_name});
   }
   return {sources: [...sources.values()], billable: parsed.data.results.length > 0};
@@ -48,8 +47,7 @@ export function parseSearchResults(raw: unknown) {
 export function parseFetchedPage(raw: unknown) {
   const parsed = fetchSchema.safeParse(raw);
   if (!parsed.success) throw new WorkspaceError("DeepSeek Fetch returned an invalid response. Please retry.", 502);
-  const content = parsed.data.content.slice(0, 40000);
-  return {title: parsed.data.title.slice(0, 300), content, truncated: content.length < parsed.data.content.length};
+  return {title: parsed.data.title, content: parsed.data.content, truncated: false};
 }
 
 // These endpoints execute the retrieval themselves: no extra model call or token usage.

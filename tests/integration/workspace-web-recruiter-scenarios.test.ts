@@ -118,12 +118,18 @@ async function verifyEngineering(evidence: Evidence, context: {role_ids?: string
     const observation = observations.find(o => o?.ok && o.result?.query === request.body.query)?.result;
     assert.ok(observation);
     assert.ok(typeof observation.searched_at === "string" && Number.isFinite(Date.parse(observation.searched_at)));
-    for (const source of observation.sources as Array<{href: string; snippet: string; summary: string; content: string; relevance: number; authority: number; publishedAt: string | null; truncated: boolean}>) {
+    const retained = observation.original_response as {file_id: string};
+    const original = JSON.parse((await readWorkspaceFile(evidence.owner, retained.file_id)).bytes.toString()) as {output: {result: {sources: Array<{href: string; snippet: string; summary: string; content: string}>}}};
+    for (const source of observation.sources as Array<{href: string; summary: string; content?: string; relevance: number; authority: number; publishedAt: string | null; truncated?: boolean; summary_truncated: boolean}>) {
       const raw = (event.body.results as Array<{url: string; snippet: string; summary: string; content: string; rerank_score: number; authority: number; date: string | null}>).find(r => new URL(r.url).href === source.href)!;
       assert.ok(raw, "Every source given to the LLM came from the provider");
       assert.equal(source.relevance, raw.rerank_score); assert.equal(source.authority, raw.authority); assert.equal(source.publishedAt, raw.date);
-      assert.ok(raw.snippet.startsWith(source.snippet) && raw.summary.startsWith(source.summary) && raw.content.startsWith(source.content), "Source text must not be rewritten by the engineering layer");
-      assert.equal(source.truncated, source.content.length < raw.content.length);
+      const saved = original.output.result.sources.find(item => item.href === source.href)!;
+      assert.equal(saved.snippet, raw.snippet); assert.equal(saved.summary, raw.summary); assert.equal(saved.content, raw.content);
+      assert.ok(!("snippet" in source), "UI snippets are retained in the original response, not duplicated in the model view");
+      assert.ok(raw.summary.startsWith(source.summary) && raw.content.startsWith(source.content ?? ""), "Evidence windows must not rewrite source text");
+      assert.equal(source.summary_truncated, source.summary.length < raw.summary.length);
+      if (source.content !== undefined) assert.equal(source.truncated, source.content.length < raw.content.length);
     }
   }
   for (const event of publicResponses.filter(e => e.status === 200 && e.path.endsWith("/fetch"))) {

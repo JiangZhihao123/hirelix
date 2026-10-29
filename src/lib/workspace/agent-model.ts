@@ -25,6 +25,7 @@ import { CREDIT_RETAIL_USD, CREDIT_UNITS } from "@/lib/agent-plan";
 import { recordLlmUsageEvent } from "@/lib/search/persistence";
 import { activeAgentJob } from "./agent-execution";
 import { AgentPause } from "./agent-stop";
+import { estimateDeepSeekInputTokens } from "./agent-token-count";
 import type { Job } from "./types";
 
 export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "tool_input_repair" = "reply") {
@@ -78,8 +79,6 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       requestPayload: null,
       responsePayload: null,
     });
-    if (!complete)
-      throw new AgentPause("output_limit");
     const body = responseBody as { usage?: { cost?: number } } | undefined;
     const cost = official
       ? llmServiceCost(modelId, startedAt, usage)
@@ -90,8 +89,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     // Product metadata and structural format repairs are not extra user work.
     // Record their provider usage without overwriting the active reply's
     // reservation while the SDK is still parsing that reply's tool calls.
-    if (!reservation) return;
-    await consumeAgentCredits(job, reservation, costToCreditUnits(cost, multiplier), cost, {
+    if (reservation) await consumeAgentCredits(job, reservation, costToCreditUnits(cost, multiplier), cost, {
       stage,
       model: modelId,
       provider,
@@ -102,6 +100,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       usage,
       ...metadata,
     });
+    if (!complete) throw new AgentPause("output_limit");
   }
   let lastStep: number | undefined, modelAttempt = 0;
   function callMetadata(params: {prompt: unknown; tools?: unknown}) {
@@ -124,10 +123,12 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
       errorMessage: error instanceof Error ? error.name : "Unknown", metadata});
     getLogger({component: "workspace_agent_model"}).warn({job_id: job.id, ...metadata, model_attempt: attempt, error_type: error instanceof Error ? error.name : "Unknown"}, "Agent model call failed");
   }
-  async function reserve(params: Parameters<typeof model.doGenerate>[0]) {
+  async function reserve(params: Parameters<typeof model.doGenerate>[0], metadata: Record<string, unknown>) {
     if (purpose !== "reply") return;
     const rates = official ? deepSeekRates(modelId, new Date(), true) : {input: 20, output: 20};
-    const inputBound = Buffer.byteLength(JSON.stringify({prompt: params.prompt, tools: params.tools}), "utf8") + 512;
+    const estimate = official ? await estimateDeepSeekInputTokens(params.prompt, params.tools) : null;
+    const inputBound = estimate?.reserved ?? Buffer.byteLength(JSON.stringify({prompt: params.prompt, tools: params.tools}), "utf8") + 512;
+    metadata.input_token_estimate = estimate ?? {reserved: inputBound, method: "utf8-byte-upper-bound"};
     const reservation = await reserveAgentCall(job, costToCreditUnits(inputBound * rates.input / 1e6, multiplier),
       params.maxOutputTokens ?? 16384, rates.output / 1e6 * multiplier / CREDIT_RETAIL_USD * CREDIT_UNITS);
     params.maxOutputTokens = reservation.maxOutputTokens;
@@ -142,7 +143,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     },
     wrapGenerate: async ({ doGenerate, params }) => {
       const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
-      const reservation = await reserve(params);
+      const reservation = await reserve(params, metadata);
       try {
         let result;
         try { result = await doGenerate(); }
@@ -153,7 +154,7 @@ export function agentModel(job: Job, purpose: "reply" | "conversation_title" | "
     },
     wrapStream: async ({ doStream, params }) => {
       const startedAt = new Date(), {metadata, attempt} = callMetadata(params);
-      const reservation = await reserve(params);
+      const reservation = await reserve(params, metadata);
       let result;
       try { result = await doStream(); }
       catch (error) {

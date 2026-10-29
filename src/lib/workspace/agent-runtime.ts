@@ -3,6 +3,7 @@ import { cleanupFileWorkspace } from "./file-execution";
 import { agentCreditContext } from "@/lib/agent-credit-context";
 import { appendAgentEvidence, executionTrace } from "./agent-telemetry";
 import { modelConversationMessages } from "./agent-context";
+import { webObservations } from "./web-observations";
 import { localTimeEvidence } from "./agent-time";
 import { ToolLoopAgent, generateText, Output, type ModelMessage } from "ai";
 import { AgentCreditError } from "@/lib/agent-access";
@@ -166,6 +167,11 @@ const runAssistantReply: JobHandler = async (job, progress) => {
   try {
     await writeReply.ready;
     const persisted = await activeAgentJob(job);
+    const previousWebObservations = webObservations(persisted.result);
+    for (const observation of previousWebObservations) {
+      const sources = observation.output.result?.sources as Array<{title: string; href: string}> | undefined;
+      for (const source of sources ?? []) ctx.sources.set(source.href, {title: source.title, href: source.href});
+    }
     const previousParts = job.payload.resuming
       ? structuredClone(turnParts({parts: persisted.result?.previous_parts}))
       : [];
@@ -215,6 +221,7 @@ const runAssistantReply: JobHandler = async (job, progress) => {
         1,
       explicit_preferences: await listPersonalMemories(job.user_id),
       completed_tools_from_prior_attempt: persisted.result?.tool_receipts ?? {},
+      ...(previousWebObservations.length ? {completed_web_observations: previousWebObservations} : {}),
     };
     if (job.payload.resuming || job.payload.continuation_job_id) {
       Object.assign(context, { continuation: {
