@@ -14,11 +14,11 @@ npm run still    # out/hirelix-launch-cover.png (frame 1020)
 npm run studio   # edit with live preview
 ```
 
-Web encodes for the landing-page player:
+Web encodes for the landing-page player. The master is tagged with an sRGB transfer (`iec61966-2-1`), which Chrome will not play from these files; tag the encodes BT.709 (pixels are unchanged):
 
 ```bash
-ffmpeg -i out/hirelix-launch-master.mp4 -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 128k out/hirelix-launch-web.mp4
-ffmpeg -i out/hirelix-launch-master.mp4 -c:v libvpx-vp9 -crf 36 -b:v 0 -row-mt 1 -c:a libopus -b:a 96k out/hirelix-launch-web.webm
+ffmpeg -i out/hirelix-launch-master.mp4 -c:v libx264 -crf 26 -preset slow -pix_fmt yuv420p -color_primaries bt709 -color_trc bt709 -colorspace bt709 -movflags +faststart -c:a aac -b:a 128k out/hirelix-launch-web.mp4
+ffmpeg -i out/hirelix-launch-master.mp4 -c:v libvpx-vp9 -crf 36 -b:v 0 -row-mt 1 -color_primaries bt709 -color_trc bt709 -colorspace bt709 -c:a libopus -b:a 96k out/hirelix-launch-web.webm
 ```
 
 ## Structure

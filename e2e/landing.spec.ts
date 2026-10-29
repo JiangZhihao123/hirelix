@@ -164,7 +164,7 @@ test.describe("Personal agent landing", () => {
       await video.evaluate((node: HTMLVideoElement) => node.networkState),
     ).toBe(1);
     await page
-      .getByRole("button", { name: "Watch the 31-second story", exact: true })
+      .getByRole("button", { name: "Watch the 35-second story", exact: true })
       .click();
     await expect
       .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime), { timeout: 15000 })
@@ -175,7 +175,7 @@ test.describe("Personal agent landing", () => {
     await expect(video).toHaveAttribute("controls", "");
     expect(
       await video.evaluate((node: HTMLVideoElement) => node.duration),
-    ).toBeCloseTo(31.2, 1);
+    ).toBeCloseTo(35.0, 1);
     await video.evaluate((node: HTMLVideoElement) => {
       node.pause();
       node.currentTime = 21;
@@ -187,14 +187,14 @@ test.describe("Personal agent landing", () => {
       await video.evaluate((node: HTMLVideoElement) => node.currentTime),
     ).toBeCloseTo(21, 1);
     await video.evaluate((node: HTMLVideoElement) => {
-      node.currentTime = 30.9;
+      node.currentTime = 34.7;
       void node.play();
     });
     await expect
       .poll(() => video.evaluate((node: HTMLVideoElement) => node.ended), { timeout: 15000 })
       .toBe(true);
     await page
-      .getByRole("button", { name: "Watch the 31-second story", exact: true })
+      .getByRole("button", { name: "Watch the 35-second story", exact: true })
       .click();
     await expect
       .poll(() => video.evaluate((node: HTMLVideoElement) => node.currentTime))

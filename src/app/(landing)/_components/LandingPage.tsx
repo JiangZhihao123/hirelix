@@ -165,7 +165,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                 className="ha-text-link ha-watch"
                 onClick={playFilm}
               >
-                <Play size={15} /> Watch the 31-second story
+                <Play size={15} /> Watch the 35-second story
               </button>
             </div>
             <p className="ha-hero-caption">
@@ -176,17 +176,24 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             <div className="ha-film-player">
               <video
                 ref={film}
-                poster="/landing/video/hirelix-headhunters-v3.3.jpg"
-                src="/landing/video/hirelix-headhunters-v3.3.mp4"
+                poster="/landing/video/hirelix-launch-cover.png"
                 preload="none"
                 playsInline
                 controls={filmStarted}
                 tabIndex={0}
-                aria-label="Hirelix: a Personal Agent built for headhunters"
+                aria-label="Hirelix: your AI recruiting partner"
                 aria-describedby="film-description"
                 onPlay={() => setFilmStarted(true)}
                 onError={() => setFilmError(true)}
-              />
+              >
+                <source src="/landing/video/hirelix-launch-web.mp4" type="video/mp4" />
+                {/* Source load failures fire on <source>; the last one failing means none could play. */}
+                <source
+                  src="/landing/video/hirelix-launch-web.webm"
+                  type="video/webm"
+                  onError={() => setFilmError(true)}
+                />
+              </video>
               {!filmStarted && (
                 <button
                   disabled={!hydrated}
@@ -197,14 +204,14 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                   <span>
                     <Play size={20} fill="currentColor" />
                   </span>{" "}
-                  Watch the story <small>0:31 · Sound on</small>
+                  Watch the story <small>0:35 · Sound on</small>
                 </button>
               )}
             </div>
             {filmError && (
               <p role="alert">
                 The video could not play.{" "}
-                <a href="/landing/video/hirelix-headhunters-v3.3.mp4">
+                <a href="/landing/video/hirelix-launch-web.mp4">
                   Open the video directly
                 </a>
                 , or read the story below.
@@ -212,21 +219,23 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             )}
             <figcaption>
               <span>
-                A relationship. A new role. The context that connects them.
+                One JD. A shortlist. A partner who remembers your client.
               </span>
               <span>Illustrative story · Fictional people &amp; client</span>
             </figcaption>
             <details className="ha-film-transcript">
               <summary>Read the story</summary>
               <p id="film-description">
-                In September, a headhunter saves notes about Mira Chen: she
-                built a product team from 6 to 28 and may consider a move in
-                November. Six weeks later, a new Head of Product brief arrives.
-                The agent brings Mira back into view using those saved notes,
-                then helps prepare a recommendation, a selected resume, and
-                questions for the next conversation. Her current availability
-                still needs confirming. Your Personal Agent. Built for
-                headhunters. With you for the long term.
+                A headhunter hands Hirelix one JD: a Senior Backend Engineer
+                role at Halden Pay. The agent researches public sources and
+                returns four sample candidates, each linked to the sources
+                behind the match. The headhunter asks it to prioritize payments
+                experience; it re-checks the sources and moves Priya Nair and
+                Sofia Lindqvist up. Later, a new Staff Platform Engineer role
+                arrives from the same client. The agent uses the client’s earlier
+                preferences, saved call notes, and past feedback to prepare a
+                recommendation for Priya, with availability still to confirm.
+                Find candidates faster. Keep the partner who knows your work.
               </p>
             </details>
           </figure>

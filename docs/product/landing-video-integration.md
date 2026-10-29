@@ -6,22 +6,23 @@
 首屏统一为 “Your Personal Agent. Built for headhunters.”，以 “With you for the long term” 补足长期定位。
 移除重复的模拟聊天、三场景 tabs 和长时间线。保留试用、登录、套餐及流量归因链路。
 
-推荐示例沿用影片中的虚构 Mira / Northstar，正文可以原位展开，包含依据、事实边界、下一次沟通问题、简历节选及反馈机制说明。明确标注 illustrative content；它是编辑制作的营销示例，不是实时 Agent 产物，也不连接真实客户记录或收集反馈。首次任务从一份 JD 和两三份简历开始，不承诺固定数量的任务可在试用额度内完成。
+推荐示例使用虚构 Mira / Northstar（出自旧版 v3.3 影片），正文可以原位展开，包含依据、事实边界、下一次沟通问题、简历节选及反馈机制说明。明确标注 illustrative content；它是编辑制作的营销示例，不是实时 Agent 产物，也不连接真实客户记录或收集反馈。首次任务从一份 JD 和两三份简历开始，不承诺固定数量的任务可在试用额度内完成。
 
 ## 视频资产与复现
 
-母版：相邻 `hirelix-video` 项目 `output/v3.3/hirelix-built-for-headhunters-v3.3.mp4`，用户已定稿。
-母版 SHA256：`ced70f0e1801df4c06642ce4981b77e8dd4e8afbbfd6ed101c0ccc85d884c3a3`。
-派生文件：`public/landing/video/hirelix-headhunters-v3.3.mp4`；封面同名 `.jpg`。
+2026-10-29 起 Hero 播放器改用 35 秒发布片。源工程：`video/hirelix-launch/`（Remotion，渲染与网页转码命令见其 `README.md`）；`out/` 不入库。
+母版 `out/hirelix-launch-master.mp4` SHA256：`fdef671b150ec7769fe062337a669a5906eed51a56da33982e2daa385deafb2d`。
+派生文件（`public/landing/video/`）：
 
-```bash
-ffmpeg -i MASTER.mp4 -vf fps=30 -c:v libx264 -preset slow -crf 24 -pix_fmt yuv420p -c:a copy -movflags +faststart hirelix-headhunters-v3.3.mp4
-ffmpeg -ss 21.6 -i MASTER.mp4 -frames:v 1 -q:v 2 hirelix-headhunters-v3.3.jpg
-```
+- `hirelix-launch-web.mp4`：H.264 + AAC，1080p / 30 fps，1050 帧，35.0 秒，约 4.8 MiB，`+faststart`。
+- `hirelix-launch-web.webm`：VP9 + Opus，约 6.1 MiB，作为第二个 `<source>`。
+- `hirelix-launch-cover.png`：第 1020 帧品牌收尾画面，约 74 KiB，用作 poster。
 
-网页版本约 4.1 MiB、1080p / 30 fps、936 帧、31.2 秒；音轨直接复制，不重混音或裁切。封面提取自 21.6 秒，约 95 KiB。网页默认只加载封面，点击才开始有声播放，随后显示原生控制条，支持拖动、全屏和重播。播放失败显示直接打开文件入口；另有可展开文字故事。没有自动播放或循环背景。
+旧 v3.3（31 秒 Mira / Northstar 版）视频和封面已从 `public/` 删除；下方推荐成果示例仍沿用 Mira / Northstar，与影片故事不再一一对应。
 
-音频解码 SHA256（母版和网页版相同）：`e5aeb70a5f92726defc78d1a93aeff79dd10d58d424de2cdbe430cdf6f85f375`。
+两份网页编码已把色彩标记从母版的 sRGB 传输（`iec61966-2-1`）改为 BT.709（`-c copy` 重封装，解码画面 MD5 不变）；未改标记前 Chrome 156 加载到 metadata 后不再前进。
+
+网页默认只加载封面（`preload="none"`），点击才开始有声播放，随后显示原生控制条，支持拖动、全屏和重播。MP4 在前，浏览器都无法播放时显示直接打开 MP4 的入口；“Read the story”文字稿已按新片内容改写。没有自动播放或循环背景。
 
 ## 验证范围
 
@@ -32,6 +33,12 @@ ffmpeg -ss 21.6 -i MASTER.mp4 -frames:v 1 -q:v 2 hirelix-headhunters-v3.3.jpg
 - ffprobe 确认视频和音频均 31.2 秒；FFmpeg 完整解码无报错，解码音频 hash 与母版相同。
 
 仅本地落地页验收；没有重新执行付费 AI 任务、发信、生产部署或 Google OAuth 完整登录。实际产品生成推荐材料的能力验收不由本营销示例代替。
+
+### 35 秒发布片接入验证（2026-10-29）
+
+- 本地 Chrome（应用内浏览器，1440 宽）：首屏只请求封面；点击后有声播放 MP4，时长 35.008 秒，原生控制条出现，seek 到 21 秒、跳至 34.7 秒播放到结束、再次点击从头重播均正常，无错误提示。WebM 单独加载可播放。
+- `e2e/landing.spec.ts`（`PLAYWRIGHT_CHANNEL=chrome`，chromium + mobile-chrome）：16/18 通过。失败的 2 项都是影片测试的“有声播放”步骤：本机 Playwright 驱动的 Chrome 和自带 Chromium 145 无法有声播放任何视频，旧 v3.3 文件同样卡住；只给该测试注入静音后，两项用例对新文件全部通过。属于本机测试环境限制，未在 CI 或其他机器复核。
+- `npx tsc --noEmit`、改动文件 ESLint 通过。未执行 `npm run build` 和生产部署。
 
 ## 三处局部优化（2026-10-19）
 
