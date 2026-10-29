@@ -25,6 +25,6 @@
 
 ## 推广状态与证据
 
-已准备免费目录的当前产品文案与专用 UTM；最终提交仍待浏览器操作时确认，未声称已发布、已收录或获客，见[推广准备](../growth/2026-10-29-cold-start-directory-submission.md)。未付费投放或发送营销邮件。
+已准备免费目录的当前产品文案与专用 UTM，随后获用户明确提交确认。工作邮箱与人机验证完成、最终提交已尝试，但目录自身脚本报 `grecaptcha.execute only works with invisible reCAPTCHA`，未取得成功回执，见[推广提交记录](../growth/2026-10-29-cold-start-directory-submission.md)。未声称已送达、已收录或获客，未付费投放或发送营销邮件。
 
 本机忽略目录 `output/release-promotion-20261029/` 保存 CI、Vercel 正式域名读回、生产主机健康、单个 QA job/账本、前后数据哈希、Chrome AX 与截图；未保存或读取其他账号业务资料。此记录本地提交，不另触发无产品改动的生产发布。
