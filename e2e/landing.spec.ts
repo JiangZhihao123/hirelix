@@ -7,13 +7,16 @@ test.describe("Personal agent landing", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
   });
 
-  test("explains private candidates and public research without a paid talent database", async ({
+  test("explains the first shortlist and continuing recruiting partnership", async ({
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your next shortlist.Start with what you have.",
+      "5 minutes to your first shortlist.100 searches later, it still knows your clients.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
+    await expect(page.getByTestId("hero-primary-cta")).toHaveAccessibleName(
+      "Find Your First Candidates",
+    );
     await expect(
       page.getByRole("heading", { name: /The next conversation/ }),
     ).toBeVisible();
@@ -39,7 +42,7 @@ test.describe("Personal agent landing", () => {
       "Hirelix | Your Personal AI Agent for Headhunting",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your next shortlist.Start with what you have.",
+      "5 minutes to your first shortlist.100 searches later, it still knows your clients.",
     );
   });
 

@@ -130,13 +130,15 @@
   padding: 48px 0 32px;
 }
 .ha-landing h1 {
-  font-size: clamp(40px, 4.6vw, 66px);
-  letter-spacing: -2.8px;
-  line-height: 1.08;
+  font-size: clamp(34px, 4vw, 52px);
+  letter-spacing: -2px;
+  line-height: 1.15;
   font-weight: 550;
   margin: 0;
 }
 .ha-landing h1 > span {
+  display: block;
+  margin-top: 14px;
   color: var(--ha-green);
 }
 .ha-lead {
@@ -144,7 +146,7 @@
   line-height: 1.75;
   color: var(--ha-muted);
   margin: 21px auto;
-  max-width: 660px;
+  max-width: 800px;
 }
 .ha-hero-actions {
   display: flex;

@@ -68,7 +68,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
     trackEvent(ANALYTICS_EVENTS.personalAgentCtaClick, {
       ...context,
       cta_location: source,
-      cta_label: signIn ? "Sign in" : "Start free trial",
+      cta_label: event.currentTarget.innerText.trim(),
     });
     void window.__hirelixGrowthTrack?.("personal_agent_cta_click", {
       cta_location: source,
@@ -141,16 +141,15 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
       <main id="main">
         <section className="ha-hero ha-wrap" data-growth-section="hero">
           <div className="ha-hero-copy">
-            <p className="ha-eyebrow">FOR NORTH AMERICAN HEADHUNTERS</p>
+            <p className="ha-eyebrow">HIRELIX — YOUR AI RECRUITING PARTNER</p>
             <h1>
-              Your next shortlist.
-              <br />
-              <span>Start with what you have.</span>
+              5 minutes to your first shortlist.
+              <span>100 searches later, it still knows your clients.</span>
             </h1>
             <p className="ha-lead">
-              Bring your existing candidates, or start with a role and research
-              people on the public web. Your personal AI agent explains the
-              evidence and builds on the resumes, notes, and feedback you save.
+              Give Hirelix a job description. It researches, finds candidates,
+              reviews resumes, and helps prepare client submissions — all while
+              remembering your notes, feedback, and past work.
             </p>
             <div className="ha-hero-actions">
               <a
@@ -159,7 +158,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                 data-testid="hero-primary-cta"
                 onClick={(event) => enter(event, "hero")}
               >
-                Start free trial <ArrowUpRight size={18} />
+                Find Your First Candidates <ArrowUpRight size={18} />
               </a>
               <button
                 disabled={!hydrated}
