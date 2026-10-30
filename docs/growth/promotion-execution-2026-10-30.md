@@ -37,6 +37,16 @@
 
 续批截图：`indiehackers-product-live.jpg`、`indiehackers-first-task.jpg`、`indiehackers-profile.jpg`、`indiehackers-replies.jpg`；均在 `output/promotion-20261030/`。上述可见社区反馈来自更早帖子，不代表本次新增注册。
 
+## 再续批：两家免费目录受理
+
+- Exa 连接本轮已恢复，检索并读取官方提交页；当前仓库推广记录中未发现 Ignlab、AiPikr、AI APP Spot 的既有提交记录。检索无命中不代表穷尽所有历史申请。
+- [Ignlab Launch](https://launch.ignlab.net/submit.html)：免费、无需账号提交，AI 分类、Paid 价格类型，当前定位、能力边界、7 天 200 credits 无卡试用、$49/月或 $490/年及每月 3,000 credits 已填写。用户逐次授权本次算术验证码后完成提交，页面显示 `Thanks! Your tool is in the queue.` 与 `We review every submission before it goes live.`。属于审核队列，没有公开收录或流量证据。私有编辑入口留在本机忽略目录及保留的成功页，不写入 Git 或公开链接。
+- [AiPikr](https://aipikr.com/submit)：Business 分类、Paid 价格类型，创始人身份、当前定位、试用、价格及能力边界已填写；提交后表单重置并明确出现 `Your tool was submitted for review.`，后者才是受理证据。没有把平台宣称的 48 小时作为保证，也未声称已获编辑评分、实测推荐或公开收录。
+- [AI APP Spot](https://www.aiappspot.com/submit)：站内搜索 Hirelix 显示 0 results；已准备 AI HR & Recruiting 分类、Paid、Free $0 上架档位和当前产品事实。读取上架规则及隐私通知后，用户明确授权本次勾选及 hCaptcha 验证。验证码实际报 `速率受限或网络错误。请重试。`，没有获得验证成功或申请回执，因此未计作受理；表单保留供恢复，未重复提交或购买 Featured/Sponsored。
+- 本轮重新打开工作邮箱连续导航超时；原生 Chrome 又被其他操作切换，未继续争抢前台，未能完成新回复/退信核查。不能据此声称没有新来信。SaaSHub 页面仍可见 Pending approval，没有新增审核通过证据。
+
+本轮零支出、未发送新的外联邮件、未修改产品代码。截图为本机 `output/promotion-20261030/ignlab-submitted.jpg`、`aipikr-submitted.jpg`、`aiappspot-ready.jpg`、`aiappspot-captcha-error.jpg`；Ignlab 成功页含私有编辑入口，不能公开传播该截图。两份受理回执不等于自然获客或成交。
+
 ## 已尝试但未完成
 
 - Reddit r/SideProject：创建了[产品介绍帖](https://www.reddit.com/r/SideProject/comments/1xj73xy/removed_by_reddit/)，随后被 Reddit 平台移除，页面明确显示 `Removed by Reddit on account of violating the content policy`。原因没有进一步细分，不能断言只是社区审核或已取得曝光。没有重复发帖、换号或绕过过滤。向版主询问规则的文字已准备，但发送按钮保持禁用，因此未发出。
