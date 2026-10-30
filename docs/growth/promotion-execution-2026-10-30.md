@@ -17,6 +17,26 @@
 
 邮件使用配置中的工作发件人与邮寄地址，含退出联系的方式，不含追踪像素、候选人资料或私人业务文件。活动链接只包含渠道级 UTM，不包含收件人邮箱。
 
+## 续批：Indie Hackers 与新目录
+
+- 复用原账号 `NoahJiang`，先确认 `/product/hirelix` 原先为 404，再创建 [Hirelix 产品页](https://www.indiehackers.com/product/hirelix)。页面显示 `Your product is live`；补全资料后回报 `Saved.`，公开页可读到标语、About、作者、官网 UTM 及一条产品动态。未填收入数据，未把作者自己的默认 upvote 计作外部反馈或获客；目录检索排名与搜索收录没有验证。
+- 必填团队事实来自用户本轮直接补充：2026 年 9 月开始、2 位创始人、2 位员工、自筹且正在寻求融资、最初为副业。按平台现有选项填写 September 2026、Multiple Founders、Under 10 Employees、Self Funded、Side Project；没有写成已经融资。业务类型为 Subscriptions，平台 Web，标签 AI / B2B / Jobs & Hiring / SaaS。开始年月按本次用户确认填写，不依据更早社区发帖日期自行推断。
+- 发布 [A small first test for Hirelix: two CVs and one role brief](https://www.indiehackers.com/post/a-small-first-test-for-hirelix-two-cvs-and-one-role-brief-taU8dpcA7p9FhUZ8s8eB)，给出两份虚构或匿名 CV、一个 JD 和带日期记录的试用例子，包含当前试用、价格与渠道链接。正文明确这是建议的试用方法，不是客户案例或节省时间的实测结论。发布后正文、作者和产品关联均已读回。
+- 在 [10 月 25 日原转向帖](https://www.indiehackers.com/post/hirelix-has-pivoted-helping-headhunters-reuse-the-candidates-they-already-know-61c83cfdb9)分别回复两条未回应反馈，并重新加载核对持久保存：
+  - [MichaelExitLine 回复](https://www.indiehackers.com/post/hirelix-has-pivoted-helping-headhunters-reuse-the-candidates-they-already-know-61c83cfdb9#comment-M5jjOipyv2t2i7HxeUnT)：区分存储 CV 与上下文可复用，提出小规模匿名旧搜索试用的观察点，没有虚构实际招聘效果。
+  - [Nishan Shrestha 回复](https://www.indiehackers.com/post/hirelix-has-pivoted-helping-headhunters-reuse-the-candidates-they-already-know-61c83cfdb9#comment-MwzP1hS8qaowxAtiAJ10)：说明资料相关性、时效与再次联系的判断不能混同，没有把产品宣传成自动执行保留政策或法律依据判断的合规工具。没有采纳评论中的法律结论作为法律建议。
+- 更新 [作者主页](https://www.indiehackers.com/NoahJiang)的 Bio 与 Products 卡片，加入 Hirelix 当前定位和官网渠道入口；保留 macOS 开发者身份。公开主页已读回卡片、描述和 Early access 标签；未填写收入或修改原有地点。
+- SaaSHub 免费申请已获 `Hirelix was submitted successfully` 回执；[产品条目](https://www.saashub.com/hirelix-alternatives)显示 `Pending approval...`，尚未正式收录。用户在本次免费提交前明确同意该平台条款，未购买优先审核或其他付费服务。
+- SaaSHub 验证信实际投递到了工作邮箱 Newsletter 文件夹。全邮箱搜索找到来自 `system@saashub.com` 的验证邮件，点击其官方验证入口后显示 `Hirelix was verified. You can update its details now.`；管理页 `Verification Status: ACTIVE`、`Latest Verification: 2026-10-30`。这是归属和资料验证，不等于审核通过。原匿名提交会话关闭后曾失去管理权限，邮件验证已恢复权限，没有重复创建产品或发送验证信。
+- SaaSHub 已保存并读回当前 873 字符说明、1–9 员工、六个相关分类、Recruit CRM / Recruiterflow 目录比较对象。价格页回执 `Hirelix's pricing details were updated.`：无永久免费方案、有免费试用、有付费方案、USD 49 / Monthly、Pro 每月 3,000 credits、税费另计；详情同时说明 7 天 200 credits、无卡、无自动付费转换及 $490/年。价格链接为官网 `/#pricing`。未虚构其他创始人姓名、所在地、收入或融资金额。
+- SaaSHub 绿色标志上传显示 `The logo was updated successfully`；重新进入图片页可见持久保存的 `Hirelix launch cover — Your AI Recruiting Partner` 发布封面，明确标为封面，不当作真实客户案例。证据为 `saashub-submitted.jpg`、`saashub-pending.jpg`、`saashub-pricing.jpg`、`saashub-images.jpg`、`saashub-verified.jpg`，均在本机忽略目录 `output/promotion-20261030/`。
+- 工作邮箱收件箱最新可见来信仍早于本次三封外联。已阅读的一封产品反馈实为设计服务报价，没有将其算作客户兴趣，未购买或回复报价。Product Hunt 新帖检查时尚无回复。
+- Exa 三个查询均在传输阶段失败，没有搜索结果；须恢复 Exa 连接后才能继续该技能的搜索。随后只核对已知官方目录及投稿入口，没有把请求数量当作检索来源数。
+- AlternativeTo 的站内搜索未见 Hirelix；Google 登录跳转报 `ERR_CONNECTION_CLOSED`，未创建产品。Capterra 首页停在 Cloudflare 安全验证，未提交申请。G2 官网指向的产品新增路径在网页读取中返回 410，真实 Chrome 仅显示空白/iframe，未取得申请受理。
+- [ERE 投稿规则](https://www.ere.net/write)明确不接受促销稿、泛化供应商观点或实质由 AI 完成的文章；本轮未发送不符合规则的宣传稿，也未作原创数据或从业经验承诺。
+
+续批截图：`indiehackers-product-live.jpg`、`indiehackers-first-task.jpg`、`indiehackers-profile.jpg`、`indiehackers-replies.jpg`；均在 `output/promotion-20261030/`。上述可见社区反馈来自更早帖子，不代表本次新增注册。
+
 ## 已尝试但未完成
 
 - Reddit r/SideProject：创建了[产品介绍帖](https://www.reddit.com/r/SideProject/comments/1xj73xy/removed_by_reddit/)，随后被 Reddit 平台移除，页面明确显示 `Removed by Reddit on account of violating the content policy`。原因没有进一步细分，不能断言只是社区审核或已取得曝光。没有重复发帖、换号或绕过过滤。向版主询问规则的文字已准备，但发送按钮保持禁用，因此未发出。
