@@ -118,5 +118,29 @@
     "at": "2026-10-30T09:01:07.891Z",
     "last_event": "delivered",
     "checked_at": "2026-10-30T09:50:02.329Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_partnerscale_v1",
+    "to": "kevin@partnerscale.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c45-3a69-76c2-a59e-7add3835d6d9",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T10:05:09.964Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T10:06:42.057Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_product_partners_v1",
+    "to": "dom@product-partners.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c45-4067-7299-823e-e5598161a3a9",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T10:05:11.394Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T10:06:43.047Z"
   }
 ]
