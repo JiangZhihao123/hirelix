@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-30",
+  "budget": 0,
+  "sender": "Noah Jiang <noah@hirelix.online>",
+  "invitations": [
+    {
+      "id": "talentstack_free_trial_share_20261030",
+      "organization": "TalentStack",
+      "recipient": "Patrick Buckingham via official submission form",
+      "source_url": "https://talent-stack.io/submit",
+      "tool_name": "Hirelix",
+      "website": "https://hirelix.online",
+      "category": "Productivity & Knowledge",
+      "name": "Noah Jiang, founder of Hirelix",
+      "email": "noah@hirelix.online",
+      "message": "Hirelix is a personal AI recruiting partner for independent recruiters and boutique search firms. It works with their own CVs, job briefs and notes to compare candidates, research public information when requested, and prepare client recommendations. Saved records can be used in later conversations. It is not an ATS or a proprietary candidate database.\n\nHi Patrick — I appreciate TalentStack's independent approach to comparing recruiting tools. I'd like to invite you to try Hirelix and give candid feedback: the existing free trial includes 7 days and 200 AI credits, with no credit card required. A useful first test is one role brief and two or three fictional or appropriately anonymized CVs. Start at https://hirelix.online .\n\nWe have no sponsorship budget. If you find it useful and relevant to your audience, would you consider an independent review or sharing it on LinkedIn or in your newsletter? There is no obligation to publish or be positive; any sharing should disclose the trial arrangement.\n\nThe 35-second introduction is https://www.youtube.com/watch?v=Swe056HRryw . It is an illustrative animation with fictional people and companies, not a live search recording.\n\nYou can reply to noah@hirelix.online. Thanks for considering it — Noah."
+    },
+    {
+      "id": "aihratlas_free_trial_share_20261030",
+      "organization": "AI HR Atlas",
+      "to": "hello@aihratlas.com",
+      "source_url": "https://www.aihratlas.com/contact",
+      "subject": "Hirelix: free-trial invitation for an independent review",
+      "body": "Hello AI HR Atlas team,\n\nYour contact page invites suggestions for tools to review. I'm Noah, founder of Hirelix, and I'd like to invite you to try it and give candid feedback.\n\nHirelix is a personal AI recruiting partner for independent recruiters and boutique search firms. It works with a recruiter's own CVs, role briefs and notes: compare candidates, research public information when requested, and prepare client recommendations. Saved records can be used in later conversations. It is not an ATS or a proprietary candidate database.\n\nThe existing free trial includes 7 days and 200 AI credits, with no credit card required: https://hirelix.online/?utm_source=aihratlas&utm_medium=review_invitation&utm_campaign=free_trial_20261030 . A useful first test is one role brief and two or three fictional or appropriately anonymized CVs.\n\nWe have no sponsorship budget. If the experience is useful and relevant to your readers, would you consider an independent review, newsletter mention, or sharing it on LinkedIn? There is no obligation to publish or give a positive verdict; any sharing should disclose the trial arrangement. We respect your editorial independence.\n\nHere is our 35-second introduction: https://www.youtube.com/watch?v=Swe056HRryw . It is an illustrative animation with fictional people and companies, not a live search recording.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this invitation is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}

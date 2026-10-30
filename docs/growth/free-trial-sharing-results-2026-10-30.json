@@ -1,0 +1,23 @@
+[
+  {
+    "id": "talentstack_free_trial_share_20261030",
+    "organization": "TalentStack",
+    "status": "submission_received",
+    "channel": "official_form",
+    "url": "https://talent-stack.io/submit",
+    "receipt": "Submission received. We will review Hirelix and publish it if it is a fit.",
+    "evidence": "output/free-trial-invitations-20261030/talentstack-received.jpg"
+  },
+  {
+    "id": "aihratlas_free_trial_share_20261030",
+    "to": "hello@aihratlas.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bb2-b402-7d2e-bdd4-e6cf1fda564c",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T07:25:07.446Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T07:26:07.850Z"
+  }
+]
