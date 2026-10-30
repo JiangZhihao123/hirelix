@@ -1,0 +1,80 @@
+[
+  {
+    "id": "hirelix_assistant_value_20261030_skyridge_v1",
+    "company": "Skyridge Executive Search",
+    "to": "rolando@skyridgesearch.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-c125-73bd-bbf4-e9b076187700",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:07.177Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:32.263Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_crescere_v1",
+    "company": "Crescere Executive Search",
+    "to": "michael@cescpg.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-c62c-7654-a08a-8b180c489c0a",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:08.473Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:33.368Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_meghanclare_v1",
+    "company": "Meghan Clare Executive Search",
+    "to": "meghan@meghanclare.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-cacf-7217-9bd8-da0f37623364",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:10.142Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:35.207Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_camilleri_v1",
+    "company": "Camilleri Appointments",
+    "to": "karen@camilleri-appointments.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-d142-7aaa-a07d-42820ab97889",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:11.297Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:36.580Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_talentstorm_v1",
+    "company": "Talent Storm Recruitment",
+    "to": "sarah@talent-storm.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-d5b6-705b-bb88-0c12dbd4d3cd",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:12.458Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:37.701Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_talentridge_v1",
+    "company": "TalentRidge",
+    "to": "simon.bell@talentridgegroup.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c95-ddea-77d9-a7dd-5c4a14f1f950",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:33:14.547Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:34:38.814Z"
+  }
+]

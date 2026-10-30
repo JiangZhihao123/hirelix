@@ -1,0 +1,70 @@
+{
+  "campaign": "recruiting_assistant",
+  "batch": "targeted_batch2",
+  "authorization": "用户明确要求精准发邮件，必须按每月49美元猎头助理、替客户省时间的思路发送。",
+  "from": "noah@hirelix.online",
+  "reply_to": "noah@hirelix.online",
+  "selection": "创始人/本人直接承担客户与候选人工作；官网公开工作邮箱；已读官方原文并查全仓库推广记录去重。六家各一次，不催促旧名单。相关性不等于对方已表达需求或愿意购买。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_value_20261030_skyridge_v1",
+      "company": "Skyridge Executive Search",
+      "name": "Rolando Gonzaga",
+      "to": "rolando@skyridgesearch.com",
+      "sources": ["https://www.skyridgesearch.com/"],
+      "verified_fit": "官网署名创始人 Rolando，明确客户每次search从头到尾直接与其本人工作，服务fintech/venture企业，并公开该工作邮箱。没有推断团队人数或当下工作负荷。",
+      "subject": "An assistant behind your personally led searches",
+      "body": "Hi Rolando,\n\nYour site says you personally lead every Skyridge search from start to finish. Keeping that personal service shouldn't mean doing all the preparation and paperwork yourself.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. It gives your desk an assistant's help without hiring another employee. Hand over organizing candidate notes, preparing for conversations and drafting client updates, so more of your time goes to people and placements.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=skyridge\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_crescere_v1",
+      "company": "Crescere Executive Search",
+      "name": "Michael McGowan",
+      "to": "michael@cescpg.com",
+      "sources": ["https://www.cescpg.com/"],
+      "verified_fit": "官网由 Michael 第一人称说明每次CPG search本人执行，无associates或junior handoffs，页尾署名Michael McGowan并公开该工作邮箱。",
+      "subject": "An assistant for the work behind your CPG searches",
+      "body": "Hi Michael,\n\nCrescere's site makes the personal model clear: clients work directly with you, with no junior handoffs. I thought an assistant for the work behind those CPG searches could fit that model.\n\nI'm Noah, founder of Hirelix. For USD $49/month, it gives you an AI recruiting assistant to organize records, prepare for candidate conversations and draft client recommendations and updates. The point is an assistant's help without another salary, leaving more of your day for the relationships your practice is built on.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=crescere\n\n7 days, 200 AI credits, no card or automatic paid conversion. You decide what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_meghanclare_v1",
+      "company": "Meghan Clare Executive Search",
+      "name": "Meghan Akers",
+      "to": "meghan@meghanclare.com",
+      "sources": ["https://meghanclare.com/"],
+      "verified_fit": "官网写明Meghan Akers(Langill)为创始人，直接与创业公司创始人及高管团队合作，业务包含executive search和talent advisory，公开该工作邮箱。未声称其公司只有一人。",
+      "subject": "More time with founders, less time on recruiting admin",
+      "body": "Hi Meghan,\n\nYour practice combines executive search with direct talent advisory for startup founders. I thought help with the preparation and written follow-through could be useful around that hands-on work.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. Think of it as help for your own desk without adding another salary: organize the notes, prepare for the next conversation and draft the client update, using your saved context next time. The value is time back for founders and candidates.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=meghanclare\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_camilleri_v1",
+      "company": "Camilleri Appointments",
+      "name": "Karen Camilleri",
+      "to": "karen@camilleri-appointments.co.uk",
+      "sources": ["https://www.camilleri-appointments.co.uk/about"],
+      "verified_fit": "官网明确Karen是Owner/MD，every assignment personally led from brief to appointment，主做transport executive/interim业务，公开该工作邮箱。未声称她正在招助理。",
+      "subject": "Your own recruiting assistant for $49/month",
+      "body": "Hi Karen,\n\nYour site says every Camilleri assignment is led personally by you, from brief to appointment. I thought an assistant for the preparation and paperwork could support that personal approach.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. Hand over organizing candidate records, preparing for conversations and drafting client recommendations and updates. It is an assistant's help on a software budget, so your own time can stay with clients and candidates.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=camilleri\n\n7 days, 200 AI credits, no card or automatic paid conversion. You decide what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_talentstorm_v1",
+      "company": "Talent Storm Recruitment",
+      "name": "Sarah",
+      "to": "sarah@talent-storm.co.uk",
+      "sources": ["https://talent-storm.co.uk/"],
+      "verified_fit": "官网Sarah第一人称介绍自创业务，强调所有服务本人交付，包含recruitment/embedded talent/coaching，公开该工作邮箱。仅对招聘日常工作推荐，不宣传coaching功能。",
+      "subject": "An assistant for your desk, without another salary",
+      "body": "Hi Sarah,\n\nTalent Storm's site says the work is personally delivered by you, across recruitment, embedded talent and coaching. I thought having help with the recruiting desk work could give that personal service more room.\n\nI'm Noah, founder of Hirelix. It is an AI recruiting assistant for USD $49/month: help with organizing candidate notes, preparing for conversations and drafting client updates, without hiring another employee. The aim is to take routine preparation and paperwork off your hands, so you have more time for people.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=talentstorm\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_talentridge_v1",
+      "company": "TalentRidge",
+      "name": "Simon Bell",
+      "to": "simon.bell@talentridgegroup.com",
+      "sources": ["https://www.talentridgegroup.com/", "https://www.talentridgegroup.com/contact-us", "https://linkedin.com/in/simon-bell-00a4277b"],
+      "verified_fit": "官网明确能源软件GTM招聘定位并在首页/Contact公开该工作邮箱；本人公开职业主页说明创始人身份和every assignment personally handled。邮箱依据为官网，不是猜测。",
+      "subject": "An assistant behind your energy-sector recruiting desk",
+      "body": "Hi Simon,\n\nI read how you personally handle TalentRidge assignments, and your site's focus on commercial and GTM hiring in energy. I thought support for the desk work around those searches could be relevant.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. It gives a founder-led desk an assistant's help without another salary: organize candidate notes, prepare for conversations and draft the client recommendations and updates. More time for clients and candidates is the reason to use it.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=talentridge\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
