@@ -1,0 +1,33 @@
+{
+  "campaign": "founder_launch_20261030",
+  "date": "2026-10-30",
+  "emails": [
+    {
+      "id": "recruitingdaily_editorial_20261030",
+      "to": "content@recruitingdaily.com",
+      "company": "RecruitingDaily",
+      "source_url": "https://recruitingdaily.com/content-submission-guidelines/",
+      "purpose": "Editorial query, not an article submission or exclusivity agreement",
+      "subject": "Contributor query: keeping candidate rediscovery evidence current",
+      "body": "Hello RecruitingDaily editorial team,\n\nI’m Noah Jiang, founder of Hirelix, a personal AI recruiting assistant. Your contributor guidelines invite questions at this address, so I’m checking whether the following vendor-neutral article would fit your editorial calendar:\n\n“Candidate rediscovery needs an evidence refresh, not another ranking.”\n\nThe practical angle: when reusing a candidate record for a new brief, separate dated evidence from current interest, record which client/role a piece of feedback belongs to, and keep unresolved questions visible in the recommendation. I would use an explicitly fictional example and give readers a reusable evidence-and-questions checklist.\n\nThis would contain no product links, demo pitch, customer claims or invented performance figures. My vendor affiliation would be disclosed in the author bio. If the topic fits, please send your current length requirements and editorial process before I prepare a submission.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this query is not relevant, reply “opt out” and I will not follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "celoria_partnership_20261030",
+      "to": "info@celoriarecruitment.com",
+      "company": "Celoria Recruitment Solutions",
+      "source_url": "https://celoriarecruitment.com/contact/",
+      "purpose": "Single inquiry to explicitly designated partnerships inbox",
+      "subject": "Recruiting-tool feedback inquiry for Celoria",
+      "body": "Hello Celoria team,\n\nYour contact page lists this inbox for partnerships and business inquiries. I’m Noah, founder of Hirelix, and I’m looking for recruiting practitioners willing to give candid feedback on a new AI recruiting assistant.\n\nHirelix works with a recruiter’s own CVs, role briefs and notes: compare candidates against a brief, keep evidence and open questions visible, and prepare a client recommendation. Saved records can be used in later conversations; preparing an email does not send it.\n\nWould this be relevant to whoever handles recruiting tools at Celoria? A concrete first test is one role and two or three anonymized CVs you are authorized to use. There is a 7-day, 200-credit trial with no card required; no call or purchase is necessary.\n\nProduct: https://hirelix.online/?utm_source=celoria&utm_medium=partnership&utm_campaign=founder_launch_20261030\n\nIf someone tries it, I’d value a reply naming the first place the comparison or recommendation falls short.\n\nBest,\nNoah Jiang\nFounder, Hirelix\n\nThis is a business introduction for Hirelix. If it is not relevant, reply “opt out” and I will not contact you again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "sourcrlab_update_20261030",
+      "to": "pieter@sourcrlab.com",
+      "company": "SourcrLab",
+      "source_url": "https://sourcrlab.com/",
+      "purpose": "Update an existing pending listing, no duplicate submission",
+      "subject": "Hirelix pending listing: updated product facts",
+      "body": "Hi Pieter,\n\nWe submitted Hirelix to SourcrLab on 23 September; the site then indicated the URL was already waiting for review. I’m sending updated facts for that existing submission rather than creating another one.\n\nHirelix is now positioned as a personal AI recruiting partner for independent recruiters and boutique search firms. It works with their own CVs, CSV exports, role briefs and notes; supports candidate comparison, public-web research when requested, client recommendation documents, exports and controlled sharing.\n\nPlease disregard older copy describing a standalone paid sourcing pipeline or a proprietary pool of profiles. That product has been retired. Public-web research depends on available sources and does not guarantee contact information or a fixed shortlist size.\n\nCurrent pricing: $49/month or $490/year, plus applicable tax; a 7-day trial includes 200 AI credits, no card required.\n\nCurrent product: https://hirelix.online/?utm_source=sourcrlab&utm_medium=directory&utm_campaign=founder_launch_20261030\n\nI also see your submission page now mentions a badge requirement. Please let me know whether the existing pending entry needs any further information or action. I am not requesting a paid ranking or editorial preference.\n\nBest,\nNoah Jiang\nFounder, Hirelix\n\nIf email updates are not useful, reply “opt out” and I won’t follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}

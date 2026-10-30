@@ -1,0 +1,38 @@
+[
+  {
+    "id": "celoria_partnership_20261030",
+    "to": "info@celoriarecruitment.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18b57-b3a7-7310-a0a0-556f12a2fd3a",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T05:45:43.305Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T05:49:58.120Z"
+  },
+  {
+    "id": "sourcrlab_update_20261030",
+    "to": "pieter@sourcrlab.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18b57-b8a5-7496-920d-81e98b23b2bc",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T05:45:44.575Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T05:49:58.119Z"
+  },
+  {
+    "id": "recruitingdaily_editorial_20261030",
+    "to": "content@recruitingdaily.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18b58-586f-7ae0-91e6-29e51f7b7b8e",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T05:46:25.483Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T05:49:58.113Z"
+  }
+]
