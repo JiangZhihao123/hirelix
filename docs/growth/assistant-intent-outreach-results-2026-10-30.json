@@ -1,0 +1,13 @@
+[
+  {
+    "id": "hirelix_assistant_intent_20261030_vruksha_v1",
+    "to": "info@vrukshaconsultancyservices.com",
+    "status": "provider_accepted",
+    "provider_id": "01a18d24-37e2-7d1b-b261-7598037e4137",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T14:08:44.302Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T14:10:47.163Z"
+  }
+]

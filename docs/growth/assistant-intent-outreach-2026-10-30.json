@@ -1,0 +1,20 @@
+{
+  "campaign": "recruiting_assistant",
+  "selection_change": "在用户指出没有实际进展后，先核查转化，再从人群适配改为要求公开具体问题与能力适配证据；不把找到帖子或再次发信算客户进展。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_intent_20261030_vruksha_v1",
+      "company": "Vruksha Consultancy Services",
+      "name": "Senthil Kumar B",
+      "to": "info@vrukshaconsultancyservices.com",
+      "source_post": "https://www.linkedin.com/posts/senthil-kumar-b-2aab26280_recruiters-recruitment-consultants-i-activity-7493047948751233024-r0x9",
+      "source_post_date": "2026-08-11",
+      "identity_source": "https://www.linkedin.com/in/senthil-kumar-b-2aab26280/",
+      "official_sources": ["https://vrukshaconsultancyservices.com/contact-us", "https://vrukshaconsultancyservices.com/senthil-kumar"],
+      "evidence": "原帖公开求助维护主动联系的候选人，Excel难以维护技能、偏好、联系记录及新职位相关性，希望适合小咨询公司的简单工具。职业主页About与官网Senthil介绍一致，可核对为同一业务；主页写Founder、官网写BD lead，因此邮件不自作职衔判断。官网仅公开通用工作邮箱，不猜个人地址。",
+      "uncertainty": "需求来自8月旧帖，不能声称目前仍未解决或已愿意付费。正文使用if still条件。此触达不是LinkedIn回复，也不保证邮件会转交本人。",
+      "subject": "For Senthil: an assistant for the candidate admin you described",
+      "body": "Hi Senthil,\n\nI saw your August LinkedIn question about keeping inbound candidates, skills and past contact notes organized in Excel. If that is still taking time away from client work, this may be relevant.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. The idea is an assistant's help without another salary: hand over organizing candidate records and notes, preparation for conversations, and client-update drafts. Saved records give your assistant context for later work, so you spend less time rebuilding the same background.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_campaign=recruiting_assistant&utm_content=vruksha_intent\n\nThe trial is 7 days with 200 AI credits, no card or automatic paid conversion. Use your own workspace and choose what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
