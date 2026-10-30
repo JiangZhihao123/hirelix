@@ -104,8 +104,8 @@
     "http_status": 200,
     "error": null,
     "at": "2026-10-30T09:01:06.981Z",
-    "last_event": "queued",
-    "checked_at": "2026-10-30T09:01:19.700Z"
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T09:50:01.248Z"
   },
   {
     "id": "hirelix_first_customer_20261030_cova_v1",
@@ -116,7 +116,7 @@
     "http_status": 200,
     "error": null,
     "at": "2026-10-30T09:01:07.891Z",
-    "last_event": "queued",
-    "checked_at": "2026-10-30T09:01:20.713Z"
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T09:50:02.329Z"
   }
 ]
