@@ -12,10 +12,10 @@
 
 - **Jilo.ai**：[免费提交页](https://jilo.ai/en/submit)选择 Free $0，产品定价 Paid、Web 平台，填写当前产品信息和可访问的公开标志。点击 `Submit for free review` 后，页面报 `Could not find the table 'public.submissions' in the schema cache`。属于站点后端错误，未获受理；没有调用内部接口绕过或重复点击。
 - **ListAi.cc**：[免费提交页](https://www.listai.cc/submit)两次 Chrome 导航失败，没有输入或提交资料；停止该路径并转向其他可访问渠道。
-- **The Next AI**：[免费目录入口](https://www.thenextai.com/submit-ai-tool/)已填写完整申请，选择 Free Basic、Productivity、Free Trial，附 7 天/200 credits 和当前价格边界；停在加法人机验证前，并向用户请求本次验证的现场确认。尚未提交。表单内容和截图保存在本机证据目录。
+- **The Next AI**：[免费目录入口](https://www.thenextai.com/submit-ai-tool/)已填写完整申请，选择 Free Basic、Productivity、Free Trial，附 7 天/200 credits 和当前价格边界；用户在现场明确允许后完成一次加法人机验证并提交。页面显示 `Tool Submitted!`、审核后上线并邮件通知；只证明受理，尚未确认公开收录。表单内容与成功回执截图保存在本机证据目录。
 
 两封邮件均通过 Resend 从已有工作发件身份发送，回复回到工作邮箱；用幂等键和本机记录去重，带退出联系方式及已有邮寄地址，没有追踪像素、逐人识别链接或真实候选人资料。记录中的邮寄地址使用占位符，没有将本机配置写入 Git。邀请说明无赞助预算、7 天/200 credits/无需卡、独立评测和分享自愿，不要求正面评价，不承诺额外权益。
 
 没有支付、购买排名、增加反向链接或变更产品代码。平台自述的访问量、SEO 效果及审核时限未独立验证，不作为成果。尚未取得任何分享承诺或自然注册证据。
 
-本机证据位于 Git 忽略目录 `output/zero-budget-promotion-20261030/`：表单受理和失败截图、10xats 投稿规则、邮件发送与状态回读记录，以及待确认的 The Next AI 申请。
+本机证据位于 Git 忽略目录 `output/zero-budget-promotion-20261030/`：表单受理和失败截图、10xats 投稿规则、邮件发送与状态回读记录，以及 The Next AI 免费申请成功回执。

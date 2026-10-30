@@ -49,9 +49,10 @@
   },
   {
     "company": "The Next AI",
-    "status": "prepared_pending_captcha_confirmation",
+    "status": "submission_received",
     "source_url": "https://www.thenextai.com/submit-ai-tool/",
-    "reason": "Free form filled; awaiting action-time confirmation for arithmetic human verification",
-    "evidence": "output/zero-budget-promotion-20261030/nextai-ready.jpg"
+    "evidence": "output/zero-budget-promotion-20261030/nextai-received.jpg",
+    "receipt": "Tool Submitted! Thanks for submitting your tool to The Next AI. Our team will review it within 24–48 hours. Once approved it goes live and we will email you.",
+    "captcha": "Completed once after explicit action-time approval from user"
   }
 ]

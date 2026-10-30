@@ -45,6 +45,21 @@
       "pricing_model": "Paid",
       "platform": "Web",
       "logo_url": "https://hirelix.online/logo-512.png"
+    },
+    {
+      "tool_name": "Hirelix",
+      "website": "https://hirelix.online",
+      "category": "📊 Productivity",
+      "pricing": "Free Trial",
+      "short": "Personal AI recruiting partner for independent recruiters and boutique search firms.",
+      "description": "Bring your own CVs, job briefs and recruiting notes into a conversation. Hirelix helps compare candidates, research public information when requested, and prepare client recommendation documents. Saved records can be used in later conversations. Built for independent recruiters and boutique search firms. Public research depends on available sources; there is no proprietary candidate database or guarantee of contact information. A 7-day trial includes 200 AI credits, with no credit card required. Paid plans are $49/month or $490/year, plus applicable taxes. The trial does not automatically convert to a paid subscription.",
+      "logo": "https://hirelix.online/logo-512.png",
+      "email": "noah@hirelix.online",
+      "tags": "recruiting, recruitment, AI assistant, candidate comparison, headhunters",
+      "id": "nextai_free_listing_20261030",
+      "company": "The Next AI",
+      "url": "https://www.thenextai.com/submit-ai-tool/",
+      "plan": "Free Basic $0"
     }
   ]
 }
