@@ -1,7 +1,7 @@
 import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata = publicMetadata("/contact", "Contact | Hirelix", "Contact YieldMirror about Hirelix.");
+export const metadata = publicMetadata("/contact", "Contact Hirelix Support | YieldMirror", "Contact YieldMirror, the operator of Hirelix, for product support, billing questions, subscription cancellation, refunds and privacy requests.");
 
 export default function ContactPage() {
   return (

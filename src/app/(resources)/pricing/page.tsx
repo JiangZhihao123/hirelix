@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AGENT_PLAN } from "@/lib/agent-plan";
-import { publicMetadata } from "@/lib/seo";
+import { applicationSchema, breadcrumbSchema, jsonLd, publicMetadata, SITE_URL } from "@/lib/seo";
 
 export const metadata = publicMetadata(
   "/pricing",
@@ -11,6 +11,28 @@ export const metadata = publicMetadata(
 export default function PricingPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({
+        "@context": "https://schema.org",
+        "@graph": [
+          applicationSchema,
+          {
+            "@type": "WebPage",
+            "@id": `${SITE_URL}/pricing#webpage`,
+            url: `${SITE_URL}/pricing`,
+            name: "Hirelix Pro pricing and free trial",
+            inLanguage: "en",
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+            about: { "@id": `${SITE_URL}/#application` },
+            breadcrumb: breadcrumbSchema([
+              { name: "Hirelix", path: "/" },
+              { name: "Pricing", path: "/pricing" },
+            ]),
+          },
+        ],
+      }) }} />
+      <nav className="hr-breadcrumb" aria-label="Breadcrumb">
+        <Link href="/">Hirelix</Link> / <span aria-current="page">Pricing</span>
+      </nav>
       <p className="ha-eyebrow">ONE ASSISTANT. WORK THAT BUILDS OVER TIME.</p>
       <h1>A personal assistant for your recruiting desk.</h1>
       <p className="hr-intro">
@@ -66,8 +88,8 @@ export default function PricingPage() {
             assistant preferences.
           </li>
           <li>
-            CV and CSV imports, candidate rediscovery, client drafts, and
-            exports.
+            Candidate list and resume imports, JD comparisons, candidate
+            rediscovery, public-web research, client drafts, and exports.
           </li>
           <li>
             Recurring role-update drafts when you agree on the schedule and

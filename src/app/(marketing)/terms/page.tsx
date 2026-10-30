@@ -1,7 +1,7 @@
 import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata = publicMetadata("/terms", "Terms of Service | Hirelix", "Terms of Service for Hirelix.");
+export const metadata = publicMetadata("/terms", "Terms of Service | Hirelix", "Terms for using Hirelix: accounts, authorized recruiting data, AI output, subscriptions, service availability and your responsibilities.");
 
 export default function TermsPage() {
   return (

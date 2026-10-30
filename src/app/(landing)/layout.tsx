@@ -4,8 +4,9 @@ import {
   SITE_TITLE,
   SITE_DESCRIPTION,
   jsonLd,
+  publicIdentity,
+  applicationSchema,
 } from "@/lib/seo";
-import { AGENT_PLAN } from "@/lib/agent-plan";
 import { landingFaqs } from "@/lib/landing-content";
 
 export const metadata = publicMetadata("/", SITE_TITLE, SITE_DESCRIPTION);
@@ -13,69 +14,17 @@ const base = SITE_URL;
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
+    ...publicIdentity,
+    applicationSchema,
     {
-      "@type": "Organization",
-      "@id": `${base}/#organization`,
-      name: "Hirelix",
-      parentOrganization: { "@type": "Organization", name: "YieldMirror" },
+      "@type": "WebPage",
+      "@id": `${base}/#webpage`,
       url: base,
-      logo: `${base}/logo-512.png`,
-      email: "support@hirelix.online",
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${base}/#website`,
-      name: "Hirelix",
-      url: base,
-      inLanguage: "en",
-      publisher: { "@id": `${base}/#organization` },
-    },
-    {
-      "@type": "SoftwareApplication",
-      "@id": `${base}/#application`,
-      name: "Hirelix",
-      url: base,
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
+      name: SITE_TITLE,
       description: SITE_DESCRIPTION,
-      featureList: [
-        "Search your saved candidate records",
-        "Update saved role requirements",
-        "Prepare client recommendations with selected resumes",
-        "Keep client feedback separate for each candidate",
-        "Continue saved assignments across conversations",
-        "Import CSV, PDF and DOCX candidate materials",
-        "Export candidate records",
-      ],
-      offers: [
-        {
-          "@type": "Offer",
-          name: `${AGENT_PLAN.name} monthly`,
-          price: AGENT_PLAN.monthlyCents / 100,
-          priceCurrency: AGENT_PLAN.currency,
-          url: `${base}/pricing`,
-          priceSpecification: {
-            "@type": "UnitPriceSpecification",
-            price: AGENT_PLAN.monthlyCents / 100,
-            priceCurrency: AGENT_PLAN.currency,
-            unitText: "MONTH",
-          },
-        },
-        {
-          "@type": "Offer",
-          name: `${AGENT_PLAN.name} annual`,
-          price: AGENT_PLAN.annualCents / 100,
-          priceCurrency: AGENT_PLAN.currency,
-          url: `${base}/pricing`,
-          priceSpecification: {
-            "@type": "UnitPriceSpecification",
-            price: AGENT_PLAN.annualCents / 100,
-            priceCurrency: AGENT_PLAN.currency,
-            unitText: "YEAR",
-          },
-        },
-      ],
-      provider: { "@id": `${base}/#organization` },
+      inLanguage: "en",
+      isPartOf: { "@id": `${base}/#website` },
+      about: { "@id": `${base}/#application` },
     },
     {
       "@type": "FAQPage",
@@ -95,6 +44,7 @@ export default function LandingLayout({
 }) {
   return (
     <>
+      <link rel="preload" as="image" href="/landing/video/hirelix-launch-cover.png" />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }}

@@ -1,7 +1,7 @@
 import { publicMetadata } from "@/lib/seo";
 import { MarketingLegalPage } from "@/components/MarketingLegalPage";
 
-export const metadata = publicMetadata("/privacy", "Privacy Policy | Hirelix", "Privacy Policy for Hirelix.");
+export const metadata = publicMetadata("/privacy", "Privacy Policy | Hirelix", "How Hirelix handles candidate records, uploaded files, AI processing and connected mailboxes, with information on access, export and deletion requests.");
 
 export default function PrivacyPage() {
   return (

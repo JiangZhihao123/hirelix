@@ -805,7 +805,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
         <div>
           <Link href="/product">Product</Link>
           <Link href="/pricing">Pricing</Link>
-          <Link href="/guides/candidate-rediscovery">Guides</Link>
+          <Link href="/guides">Guides</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>
           <Link href="/contact">Contact</Link>

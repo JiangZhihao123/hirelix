@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { jsonLd, publicIdentity } from "@/lib/seo";
 import "../(landing)/landing.css";
 import "./resources.css";
 
@@ -10,6 +11,9 @@ export default function ResourcesLayout({
 }) {
   return (
     <div className="ha-landing hr-site">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{
+        __html: jsonLd({ "@context": "https://schema.org", "@graph": publicIdentity }),
+      }} />
       <a className="ha-skip" href="#main">
         Skip to content
       </a>
@@ -22,7 +26,7 @@ export default function ResourcesLayout({
           <div className="hr-nav">
             <Link href="/product">Your assistant</Link>
             <Link href="/pricing">Pricing</Link>
-            <Link href="/guides/candidate-rediscovery">Guides</Link>
+            <Link href="/guides">Guides</Link>
           </div>
           <Link
             className="ha-button ha-button-small"
@@ -43,6 +47,7 @@ export default function ResourcesLayout({
         <div>
           <Link href="/product">Product</Link>
           <Link href="/pricing">Pricing</Link>
+          <Link href="/guides">Guides</Link>
           <Link href="/contact">Contact</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/terms">Terms</Link>

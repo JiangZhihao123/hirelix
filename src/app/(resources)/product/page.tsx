@@ -1,16 +1,38 @@
 import Link from "next/link";
 import { mailboxAvailability } from "@/lib/landing-content";
-import { publicMetadata } from "@/lib/seo";
+import { applicationSchema, breadcrumbSchema, jsonLd, publicMetadata, SITE_URL } from "@/lib/seo";
 
 export const metadata = publicMetadata(
   "/product",
-  "Your Personal AI Agent for Headhunting | Hirelix",
-  "Meet your personal AI agent for headhunting. Build on saved candidate relationships, client briefs, conversations, and the way you like to work.",
+  "AI Recruiting Assistant for Independent Headhunters | Hirelix",
+  "Compare CVs against a JD, rediscover saved candidates, research public sources and prepare client recommendations with your personal AI recruiting assistant.",
 );
 
 export default function ProductPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({
+        "@context": "https://schema.org",
+        "@graph": [
+          applicationSchema,
+          {
+            "@type": "WebPage",
+            "@id": `${SITE_URL}/product#webpage`,
+            url: `${SITE_URL}/product`,
+            name: "AI recruiting assistant for independent headhunters",
+            inLanguage: "en",
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+            mainEntity: { "@id": `${SITE_URL}/#application` },
+            breadcrumb: breadcrumbSchema([
+              { name: "Hirelix", path: "/" },
+              { name: "Product", path: "/product" },
+            ]),
+          },
+        ],
+      }) }} />
+      <nav className="hr-breadcrumb" aria-label="Breadcrumb">
+        <Link href="/">Hirelix</Link> / <span aria-current="page">Product</span>
+      </nav>
       <p className="ha-eyebrow">AN ASSISTANT THAT STAYS WITH YOUR WORK</p>
       <h1>
         Your work continues.
@@ -24,6 +46,16 @@ export default function ProductPage() {
         everyday questions. Keep building on the work you have already done
         together.
       </p>
+      <section className="hr-callout">
+        <h2>Hirelix at a glance</h2>
+        <dl className="hr-facts">
+          <dt>Built for</dt><dd>Independent headhunters and consultants at boutique search firms.</dd>
+          <dt>Works with</dt><dd>Your own candidate records, CVs, notes, role briefs and saved conversations, plus accessible public information when requested.</dd>
+          <dt>Helps with</dt><dd>Candidate rediscovery, JD comparisons, public-web research, client recommendations and individual feedback.</dd>
+          <dt>Your control</dt><dd>Ask for analysis, authorize saved changes, correct the work and decide what may be shared or sent.</dd>
+          <dt>Access</dt><dd>A web application for desktop browsers. See <Link href="/pricing">subscription pricing, AI credits and the free trial</Link>.</dd>
+        </dl>
+      </section>
       <section>
         <h2>Start with a conversation</h2>
         <p>
@@ -92,6 +124,20 @@ export default function ProductPage() {
         </p>
       </section>
       <section>
+        <h2>Research public information with evidence</h2>
+        <p>
+          Ask your assistant to investigate publicly available professional
+          information for a role. Review the source links, why a person may be
+          relevant and what remains uncertain. A public profile does not confirm
+          current interest, availability or permission to contact.
+        </p>
+        <p>
+          This depends on the pages that can actually be accessed. It does not
+          guarantee an exhaustive search or provide a paid talent database.
+          See the <Link href="/guides/public-web-candidate-research">public-web research guide</Link>.
+        </p>
+      </section>
+      <section>
         <h2>Can Hirelix work with email?</h2>
         <p>{mailboxAvailability}</p>
         <p>
@@ -116,6 +162,15 @@ export default function ProductPage() {
             <Link href="/guides/candidate-feedback">
               Keep individual feedback connected to the role
             </Link>
+          </li>
+          <li>
+            <Link href="/guides/candidate-import">Bring your existing lists, resumes and recruiting notes</Link>
+          </li>
+          <li>
+            <Link href="/guides/candidate-jd-comparison">Compare candidates against a job description</Link>
+          </li>
+          <li>
+            <Link href="/guides/ai-recruiting-assistant">Evaluate an AI assistant for your recruiting desk</Link>
           </li>
           <li>
             <Link href="/pricing">See pricing and the free trial</Link>

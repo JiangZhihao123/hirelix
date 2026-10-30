@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { load } from "cheerio";
 import { publicPages, SITE_URL } from "../src/lib/seo";
 import { AGENT_PLAN } from "../src/lib/agent-plan";
+import { recruitingGuides } from "../src/lib/recruiting-guides";
 
 test("all public URLs serve indexable English HTML with matching metadata and crawlable links", async ({
   request,
@@ -59,6 +60,96 @@ test("all public URLs serve indexable English HTML with matching metadata and cr
       .map(({ path }) => `${SITE_URL}${path === "/" ? "" : path}`)
       .sort(),
   );
+  for (const guide of recruitingGuides) {
+    const node = xml("url").filter((_, element) =>
+      xml(element).find("loc").text() === `${SITE_URL}/guides/${guide.slug}`,
+    );
+    expect(node.find("lastmod").text()).toBe(guide.updatedOn);
+  }
+});
+
+test("guides have visible evidence guidance, real update dates and matching linked article entities", async ({ request }) => {
+  const hub = await request.get("/guides");
+  expect(hub.status()).toBe(200);
+  const index = load(await hub.text());
+  const collection = index('script[type="application/ld+json"]').toArray()
+    .flatMap((element) => JSON.parse(index(element).html()!)["@graph"])
+    .find((entity) => entity["@type"] === "CollectionPage");
+  expect(collection.mainEntity.itemListElement).toHaveLength(recruitingGuides.length);
+  for (const guide of recruitingGuides) {
+    const path = `/guides/${guide.slug}`;
+    expect(index(`main a[href="${path}"]`).length).toBeGreaterThan(0);
+    const response = await request.get(path);
+    const $ = load(await response.text());
+    expect($("h1").text()).toBe(guide.title);
+    expect($("time").attr("datetime")).toBe(guide.updatedOn);
+    expect($("#key-points").length).toBe(1);
+    expect($("#example-request").text()).toContain(guide.examplePrompt);
+    expect($('a[href="/contact"]').length).toBeGreaterThan(0);
+    const entities = $('script[type="application/ld+json"]').toArray()
+      .flatMap((element) => JSON.parse($(element).html()!)["@graph"]);
+    const article = entities.find((entity) => entity["@type"] === "Article");
+    expect(article.headline).toBe(guide.title);
+    expect(article.dateModified).toBe(guide.updatedOn);
+    expect(entities.find((entity) => entity["@id"] === article.author["@id"]).name).toBe("Hirelix");
+    const breadcrumbs = entities.find((entity) => entity["@type"] === "BreadcrumbList");
+    expect(breadcrumbs.itemListElement.map((item: { item: string }) => item.item))
+      .toEqual([SITE_URL, `${SITE_URL}/guides`, `${SITE_URL}${path}`]);
+    for (const anchor of $('nav[aria-label="In this guide"] a').toArray()) {
+      expect($($(anchor).attr("href")!).length).toBe(1);
+    }
+    for (const related of guide.relatedSlugs) {
+      expect(related).not.toBe(guide.slug);
+      expect(recruitingGuides.some((item) => item.slug === related)).toBe(true);
+      expect($(`a[href="/guides/${related}"]`).length).toBeGreaterThan(0);
+    }
+  }
+});
+
+test("product and pricing expose the same truthful product identity and offers as the homepage", async ({ request }) => {
+  for (const path of ["/", "/product", "/pricing"]) {
+    const $ = load(await (await request.get(path)).text());
+    const entities = $('script[type="application/ld+json"]').toArray()
+      .flatMap((element) => JSON.parse($(element).html()!)["@graph"]);
+    const app = entities.find((entity) => entity["@type"] === "SoftwareApplication");
+    expect(app["@id"]).toBe(`${SITE_URL}/#application`);
+    expect(app.offers.map((offer: { price: number }) => offer.price))
+      .toEqual([AGENT_PLAN.monthlyCents / 100, AGENT_PLAN.annualCents / 100]);
+    expect(entities.some((entity) => entity.aggregateRating || entity.review)).toBe(false);
+    expect($('meta[name="robots"]').attr("content")).toContain("max-image-preview:large");
+  }
+});
+
+test("search and AI crawler requests receive public content without special access", async ({ request }) => {
+  for (const userAgent of ["Googlebot", "bingbot", "OAI-SearchBot", "PerplexityBot", "Claude-SearchBot"]) {
+    const response = await request.get("/guides/public-web-candidate-research", { headers: { "User-Agent": userAgent } });
+    expect(response.status(), userAgent).toBe(200);
+    const $ = load(await response.text());
+    expect($("h1").text(), userAgent).toContain("Public-web candidate research");
+    expect($('link[rel="canonical"]').attr("href")).toBe(`${SITE_URL}/guides/public-web-candidate-research`);
+    expect(response.headers()["x-robots-tag"] || "").not.toContain("noindex");
+  }
+  const key = await request.get("/indexnow-key.txt");
+  expect(key.status()).toBe(200);
+  expect((await key.text()).trim()).toMatch(/^[a-zA-Z0-9-]{8,128}$/);
+});
+
+test("guides can be discovered, read and followed to pricing without JavaScript", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
+  try {
+    const page = await context.newPage();
+    await page.goto("/product");
+    await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Guides", exact: true }).click();
+    await expect(page).toHaveURL(/\/guides$/);
+    await page.getByRole("heading", { name: "How to compare candidates against a job description", exact: true }).getByRole("link").click();
+    await expect(page).toHaveURL(/\/guides\/candidate-jd-comparison$/);
+    await page.getByRole("link", { name: "A request you can adapt", exact: true }).click();
+    await expect(page.locator("#example-request")).toBeInViewport();
+    await page.getByRole("link", { name: "Pricing and the free trial", exact: true }).click();
+    await expect(page).toHaveURL(/\/pricing$/);
+  } finally {
+    await context.close();
+  }
 });
 
 test("FAQ structured data matches visible answers and prices come from the paid plan", async ({

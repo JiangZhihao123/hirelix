@@ -19,6 +19,12 @@ ${AGENT_PLAN.name}: USD ${AGENT_PLAN.monthlyCents / 100}/month or USD ${AGENT_PL
 
 ${publicPages.map((page) => `- [${page.label}](${SITE_URL}${page.path === "/" ? "" : page.path}): ${page.description}`).join("\n")}
 
+## Reading and attribution
+
+The linked public HTML pages are the primary references. Recruiting guides contain practical methods and clearly illustrative requests, not customer case studies, independently verified candidate facts or hiring guarantees. Check the current pricing and product pages for terms and availability. A public profile does not establish current interest, availability or permission to contact.
+
+This file is a convenience index, not a crawler protocol, ranking signal or guarantee of inclusion in AI answers.
+
 ## Contact
 
 - Support: support@hirelix.online

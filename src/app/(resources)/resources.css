@@ -1,3 +1,7 @@
+/* Long-form guides use native anchor jumps, including without JavaScript. */
+html:has(.hr-site) {
+  scroll-behavior: auto;
+}
 .hr-site {
   min-height: 100vh;
 }
@@ -83,6 +87,72 @@
   border-top: 1px solid var(--ha-line);
   padding-top: 28px;
 }
+.hr-byline,
+.hr-guide-card small {
+  color: var(--ha-muted);
+  font-size: 14px;
+}
+.hr-toc {
+  margin: 36px 0;
+  padding: 22px 28px;
+  border: 1px solid var(--ha-line);
+  border-radius: 16px;
+}
+.hr-toc p {
+  font-weight: 600;
+}
+.hr-toc ol {
+  list-style: decimal;
+  padding-left: 24px;
+}
+.hr-toc li {
+  margin: 8px 0;
+  font-size: 16px;
+}
+.hr-main section[id] {
+  scroll-margin-top: 100px;
+}
+.hr-prompt {
+  margin: 24px 0;
+  border-left: 3px solid var(--ha-green);
+  padding-left: 20px;
+  font-size: 18px;
+  line-height: 1.8;
+}
+.hr-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 44px;
+}
+.hr-guide-card {
+  padding: 28px;
+  border: 1px solid var(--ha-line);
+  border-radius: 16px;
+  background: #fffef8;
+}
+.hr-guide-card h2 {
+  font-size: 24px;
+}
+.hr-guide-card p {
+  margin: 18px 0;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ha-muted);
+}
+.hr-facts {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 14px 24px;
+  font-size: 17px;
+  line-height: 1.8;
+}
+.hr-facts dt {
+  font-weight: 600;
+}
+.hr-facts dd {
+  margin: 0;
+}
 @media (max-width: 700px) {
   .hr-main {
     padding: 45px 24px 65px;
@@ -90,7 +160,15 @@
   .hr-nav {
     display: none;
   }
-  .hr-price-grid {
+  .hr-price-grid,
+  .hr-guide-grid {
     grid-template-columns: 1fr;
+  }
+  .hr-facts {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .hr-facts dd {
+    margin-bottom: 16px;
   }
 }

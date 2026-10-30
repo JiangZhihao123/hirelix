@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { AGENT_PLAN } from "./agent-plan";
+import { recruitingGuides } from "./recruiting-guides";
 
 export const SITE_URL = "https://hirelix.online";
 export const SITE_TITLE = "Hirelix | Your Personal AI Agent for Headhunting";
 export const SITE_DESCRIPTION =
   "AI recruiting assistant for independent headhunters. Compare your candidates against a JD, prepare client recommendations, and continue work across conversations.";
 
-export const publicPages = [
+export const publicPages: readonly {
+  path: string;
+  label: string;
+  description: string;
+  lastModified?: string;
+}[] = [
   { path: "/", label: "Hirelix", description: SITE_DESCRIPTION },
   {
     path: "/product",
@@ -20,23 +27,17 @@ export const publicPages = [
       "Hirelix Pro subscription pricing, free trial, and AI credits.",
   },
   {
-    path: "/guides/candidate-rediscovery",
-    label: "Candidate rediscovery",
+    path: "/guides",
+    label: "Recruiting guides and templates",
     description:
-      "Revisit candidates in your own database against a new client brief.",
+      "Practical guides for independent headhunters: candidate imports, JD comparisons, rediscovery, submissions, feedback, and public-web research.",
   },
-  {
-    path: "/guides/candidate-submissions",
-    label: "Candidate submissions",
-    description:
-      "Prepare a client-ready recommendation from saved candidate evidence.",
-  },
-  {
-    path: "/guides/candidate-feedback",
-    label: "Candidate feedback and follow-up",
-    description:
-      "Keep feedback separate for each candidate and continue a recruiting assignment across conversations.",
-  },
+  ...recruitingGuides.map((guide) => ({
+    path: `/guides/${guide.slug}`,
+    label: guide.title,
+    description: guide.description,
+    lastModified: guide.updatedOn,
+  })),
   {
     path: "/contact",
     label: "Contact",
@@ -57,7 +58,83 @@ export const publicPages = [
     label: "Refund Policy",
     description: "Refund and cancellation information.",
   },
-] as const;
+];
+
+// Stable entity IDs let public pages identify the same product and publisher.
+export const publicIdentity = [
+  {
+    "@type": "Organization",
+    "@id": `${SITE_URL}/#organization`,
+    name: "Hirelix",
+    parentOrganization: { "@type": "Organization", name: "YieldMirror" },
+    url: SITE_URL,
+    logo: `${SITE_URL}/logo-512.png`,
+    email: "support@hirelix.online",
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: "support@hirelix.online",
+      url: `${SITE_URL}/contact`,
+    },
+  },
+  {
+    "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
+    name: "Hirelix",
+    url: SITE_URL,
+    inLanguage: "en",
+    publisher: { "@id": `${SITE_URL}/#organization` },
+  },
+];
+
+export const applicationSchema = {
+  "@type": "SoftwareApplication",
+  "@id": `${SITE_URL}/#application`,
+  name: "Hirelix",
+  url: SITE_URL,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description: SITE_DESCRIPTION,
+  featureList: [
+    "Search your saved candidate records",
+    "Compare candidate evidence with a job description",
+    "Research public information with source links and uncertainties",
+    "Prepare client recommendations with selected resumes",
+    "Keep client feedback separate for each candidate and role",
+    "Continue saved assignments across conversations",
+    "Import candidate lists, resumes and related files",
+    "Export candidate records and recommendations",
+  ],
+  offers: [
+    { period: "MONTH", name: "monthly", cents: AGENT_PLAN.monthlyCents },
+    { period: "YEAR", name: "annual", cents: AGENT_PLAN.annualCents },
+  ].map(({ period, name, cents }) => ({
+    "@type": "Offer",
+    name: `${AGENT_PLAN.name} ${name}`,
+    price: cents / 100,
+    priceCurrency: AGENT_PLAN.currency,
+    url: `${SITE_URL}/pricing`,
+    priceSpecification: {
+      "@type": "UnitPriceSpecification",
+      price: cents / 100,
+      priceCurrency: AGENT_PLAN.currency,
+      unitText: period,
+    },
+  })),
+  provider: { "@id": `${SITE_URL}/#organization` },
+};
+
+export function breadcrumbSchema(items: readonly { name: string; path: string }[]) {
+  return {
+    "@type": "BreadcrumbList",
+    itemListElement: items.map(({ name, path }, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+      item: `${SITE_URL}${path === "/" ? "" : path}`,
+    })),
+  };
+}
 
 export function publicMetadata(
   path: string,
@@ -67,6 +144,7 @@ export function publicMetadata(
   return {
     title,
     description,
+    robots: { index: true, follow: true, "max-image-preview": "large" },
     alternates: { canonical: path },
     openGraph: {
       title,
