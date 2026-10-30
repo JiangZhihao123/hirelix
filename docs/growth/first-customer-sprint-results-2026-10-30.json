@@ -94,5 +94,29 @@
     "at": "2026-10-30T08:51:29.747Z",
     "last_event": "delivered",
     "checked_at": "2026-10-30T08:51:41.730Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_wildcard_v1",
+    "to": "natasha@wildcardexecutivesearch.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c0a-9455-7089-8a0f-579248dcafb6",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T09:01:06.981Z",
+    "last_event": "queued",
+    "checked_at": "2026-10-30T09:01:19.700Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_cova_v1",
+    "to": "oliver@covarecruitment.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c0a-9af8-7675-a58f-8c73adc4ee6d",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T09:01:07.891Z",
+    "last_event": "queued",
+    "checked_at": "2026-10-30T09:01:20.713Z"
   }
 ]
