@@ -77,4 +77,4 @@ I’m Noah, the founder of Hirelix. I’m building it for independent recruiters
 - 生产构建（含 TypeScript）与修改文件 ESLint 通过。既有服务端 HTML/SEO 回归四项通过：所有公开 URL 元数据和内链、统一产品与定价、FAQ 可见内容与结构化数据一致、当前产品事实可抓取。初次运行的两处旧文案断言不再适用，已按新定位更新后重跑通过；其余浏览器规格中的旧标题断言同步更新，未宣称整套 E2E 已执行。
 - 使用真实 Chrome 检查本地生产包：桌面首屏、390px 对比卡片（无横向溢出，价格单位完整）、产品页、价格页和分享图；实际点击首页试用按钮到达现有登录页，来源 campaign 保留。FAQ、账单说明与公开样例可展开。未提交 OAuth、发信或支付；本次不重验登录后 Agent 的完整业务能力。
 - 本地预览：`http://127.0.0.1:3200/`。截图保存在忽略目录 `output/assistant-positioning/landing-desktop.png`、`landing-390.png`、`share-card.png`。营销简介、短帖、成本对比内容与相关回复素材已准备，但本轮未发布新帖或触达。
-- 尚未推送或部署生产；生产网站及旧外部发布不能据此宣称已更新。原两小时首客冲刺未达标并已删除心跳，详见 `../growth/first-customer-sprint-2026-10-30.md`。
+- 后续已获用户明确发布授权：`83d79041` 已部署生产，线上验收、X 新帖/简介、Indie Hackers 介绍与三封新定向邀请均有回执，详见[发布与推广执行记录](../growth/assistant-value-release-promotion-2026-10-30.md)。上面的本地验证记录保留其证据范围；不是所有外部目录都已同步。原两小时首客冲刺未达标并已删除心跳，详见 `../growth/first-customer-sprint-2026-10-30.md`。

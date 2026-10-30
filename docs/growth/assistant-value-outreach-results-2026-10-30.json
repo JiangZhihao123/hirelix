@@ -1,0 +1,38 @@
+[
+  {
+    "id": "hirelix_assistant_value_20261030_alfonsina_v1",
+    "to": "meghan@hialfonsina.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c87-47cd-7887-8310-58323d7a0664",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:17:18.643Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:18:33.072Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_switch_v1",
+    "to": "mark@switchrecruit.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c87-4c94-72dd-b893-7cee96988467",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:17:19.850Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:18:34.186Z"
+  },
+  {
+    "id": "hirelix_assistant_value_20261030_jandj_v1",
+    "to": "jamie@jandjsearch.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c87-5149-7625-8f68-f9494f73ad35",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T11:17:21.063Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T11:18:35.291Z"
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "campaign": "recruiting_assistant",
+  "authorized_scope": "2026-10-30 用户批准生产发布后，按每月49美元猎头助理的省时价值继续推广；独立于已结束的两小时冲刺。",
+  "from": "noah@hirelix.online",
+  "reply_to": "noah@hirelix.online",
+  "policy": "本批仅联系以下三家新核验的独立招聘业务各一次。先查仓库历史去重；不追发原12家，不购买服务，不承诺固定省时或完整取代人类，不索取候选人邮件附件。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_value_20261030_alfonsina_v1",
+      "company": "Alfonsina",
+      "name": "Meghan O’Neil",
+      "to": "meghan@hialfonsina.com",
+      "source": "https://hialfonsina.com/",
+      "verified_fit": "官网描述 solo practice、服务美国独立创意机构、从需求到 offer 的全程招聘与客户进展沟通；Contact 公开该工作邮箱。不是已确认采购意愿。",
+      "subject": "An AI assistant for your solo recruiting desk — $49/month",
+      "body": "Hi Meghan,\n\nYour site describes Alfonsina as a solo practice supporting independent US agencies. I thought an assistant for the work around those searches might be relevant.\n\nI'm Noah, founder of Hirelix: a $49/month AI recruiting assistant for candidate records, conversation prep, client recommendations and follow-up drafts. The goal is to give you more time with clients and candidates, without adding another salary.\n\nYou can start whenever it fits your day: https://hirelix.online/?utm_source=founder_email&utm_medium=direct_outreach&utm_campaign=recruiting_assistant&utm_content=alfonsina\n\nThe trial is 7 days with 200 AI credits, no card and no automatic paid conversion. Keep candidate material in your own Hirelix workspace.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_switch_v1",
+      "company": "Switch Recruiting",
+      "name": "Mark Israel",
+      "to": "mark@switchrecruit.com",
+      "source": "https://www.markisrael.me/",
+      "verified_fit": "官网由 Mark 第一人称描述 solopreneur 创办的按需招聘业务，服务 startups/SMBs，页脚公开工作邮箱。没有把2012创办时的solo事实夸大为当前团队人数。",
+      "subject": "A $49/month AI assistant for the work around recruiting",
+      "body": "Hi Mark,\n\nI read how you started Switch Recruiting as a solopreneur to help startups and SMBs punch above their weight. I'm building a similar kind of extra help for the recruiter's own desk.\n\nHirelix is a $49/month AI recruiting assistant. Hand over candidate records, conversation prep, client recommendations and follow-up drafts, so more of your day can go to people and placements.\n\nTry it on the admin you would otherwise do yourself: https://hirelix.online/?utm_source=founder_email&utm_medium=direct_outreach&utm_campaign=recruiting_assistant&utm_content=switch\n\n7 days, 200 AI credits, no card and no automatic paid conversion. Candidate material stays in your own Hirelix workspace; you choose what to share or send.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_value_20261030_jandj_v1",
+      "company": "J&J Search",
+      "name": "Jamie Sears",
+      "to": "jamie@jandjsearch.com",
+      "source": "https://www.jandjsearch.com/",
+      "verified_fit": "官网 About me 明确 independent recruitment specialist，提供 Fintech/Financial Services 的招聘与客户服务，并公开该工作邮箱；未将 CV 求职服务当作产品目标。",
+      "subject": "An AI recruiting assistant for the admin on your desk",
+      "body": "Hi Jamie,\n\nYour J&J Search site describes an independent recruiting practice with a strong focus on understanding the client and keeping people informed. I thought help with the preparation and written work around that might be relevant.\n\nI'm Noah, founder of Hirelix: a $49/month AI recruiting assistant for candidate records, conversation prep, client recommendations and follow-up drafts. The value is time back for clients and candidates, at a monthly software price.\n\nStart whenever you like: https://hirelix.online/?utm_source=founder_email&utm_medium=direct_outreach&utm_campaign=recruiting_assistant&utm_content=jandj\n\nThe trial includes 7 days and 200 AI credits, no card and no automatic paid conversion. Use your own workspace and decide what gets shared or sent.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}
