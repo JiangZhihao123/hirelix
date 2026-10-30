@@ -82,5 +82,17 @@
     "at": "2026-10-30T08:40:21.912Z",
     "last_event": "delivered",
     "checked_at": "2026-10-30T08:43:36.766Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_planit_v1",
+    "to": "info@weareplanit.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18c01-c691-78c7-9730-be5a67ae8252",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:51:29.747Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:51:41.730Z"
   }
 ]

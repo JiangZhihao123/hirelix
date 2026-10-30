@@ -65,6 +65,15 @@
       "source_verified_at": "2026-10-30",
       "subject": "A current-role trial for Okto Search",
       "body": "Hi Octav,\n\nYour independent engineering and product search practice looks close to who I built Hirelix for: a recruiter keeping context across briefs, candidates and client recommendations.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner. Would you try it on a current search today? In your own account, add one brief and two anonymised CVs, then ask for a comparison, gaps to verify and a client-ready recommendation draft. You make the final judgment.\n\nStart here: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\n7 days / 200 AI credits, no card or automatic paid conversion. If useful, Pro is $49/month plus applicable tax. Reply with a question and I can help by email; please don't email candidate data.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_planit_v1",
+      "to": "info@weareplanit.com",
+      "company": "Plan:it",
+      "source_url": "https://weareplanit.co.uk/",
+      "source_verified_at": "2026-10-30",
+      "subject": "A current-role trial for Plan:it",
+      "body": "Hi Elliott and Will,\n\nYour site says Plan:it stays small so the same recruiter keeps the context throughout a search. That is close to the problem I am building Hirelix for: keeping a brief, CVs and notes useful across conversations.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner. Would you try one current brief and two anonymised CVs today? Ask it to compare the evidence, flag gaps and draft a client recommendation; you make the final judgment.\n\nhttps://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\nThe existing trial is 7 days / 200 AI credits, no card or automatic paid conversion. If useful, Pro is $49/month plus applicable tax. Reply with a question and I can help by email. Please keep candidate data inside your own account, not in an email reply.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
     }
   ]
 }
