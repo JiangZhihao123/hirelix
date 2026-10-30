@@ -44,3 +44,13 @@
 18:02:26 生产只读聚合仍为 0 Pro、冲刺期间 0 账单更新及 0 账单事件；刷新邮箱未见本轮客户回复，X 邀请帖仍为 0 回复。检索并核对 Partnerscale 官网正在展示的 Golang/AWS 管理岗位、创始人 Kevin 的公开职业主页工作邮箱，以及 Product Partners 官网独立 Product 招聘定位、Dom 的公开职业主页工作邮箱；本地记录无既有命中后分别发送一次具体任务试用邀请，Resend 均回报 `delivered`。职位使用“如果你仍在做这个职位”的条件语气，没有虚构对方需求或意向。
 
 累计冷邮件联系已达到本次冲刺 12 家上限；后续不得新增冷邮件，也不催促未回复者，集中处理真实回复和适合回应的公开需求。心跳已同步该上限和临近截止的收尾方式，避免固定间隔导致越过 18:36:31 才收尾。本轮发信和投递不代表任何有效对话、真实试用或付款，目标仍未达成。
+
+## 用户提出投递疑问后的实测
+
+18:20 起逐封回读 Resend：本次冲刺 12 封 From 均为 `Noah Jiang <noah@hirelix.online>`、Reply-To 为同一工作邮箱，全部 `delivered`；均为纯文本，域名 open_tracking / click_tracking 均为 false，因此没有客户阅读数据。`delivered` 只证明接收邮件服务器接受，不保证 Inbox，也不能推断无人阅读。
+
+Resend 域名状态 verified，DKIM 与 send 子域的 SPF 记录 verified；实际 DNS 可读到 `send.hirelix.online` 的 Amazon SES SPF、`resend._domainkey.hirelix.online` 公钥，以及根域 DMARC `v=DMARC1; p=none`。根域 SPF 为 Zoho，不能据此误判 Resend 发信缺 SPF，因为 Resend 使用 send 子域信封地址及对齐的域名 DKIM。
+
+18:22:14 向用户自己的 `noahjiang2@gmail.com` 发送一封同发信通道、同正文的诊断副本，主题加唯一诊断前缀；不是新的客户触达。Gmail 实际命中 `INBOX` + `CATEGORY_PROMOTIONS` + `UNREAD`，未带 SPAM；接收头 SPF、Hirelix DKIM、DMARC 全部 pass。该结果仅证明这一个自有 Gmail 的落点和认证，不能证明客户邮箱的分类、反垃圾信誉或阅读状态。未开启跟踪、未改 DNS 或安全设置。完整脱敏核验见 `email-delivery-audit-2026-10-30.json`。
+
+若用户选择亲自电话验证，已知公开业务入口可作为具体名单：Partnerscale 官网 `+44 1327 304812`、TechFocus 官网 Jonathan `+44 7753 289389`、ReVybe 官网伦敦业务号码 `+44 20 3053 6024`；均来自本轮已核验官网，不将办公室号码冒充创始人直线。当前没有可用真实电话拨号工具，本任务未拨号、未预约通话或替用户承诺出席。建议电话先确认是否本人、是否便于交流，以及是否有当前任务值得试用，再决定演示或正常订阅，而不是继续批量增加邮件。

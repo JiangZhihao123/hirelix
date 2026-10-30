@@ -1,0 +1,209 @@
+{
+  "checked_at": "2026-10-30T10:20:43.177Z",
+  "from": "Noah Jiang <noah@hirelix.online>",
+  "reply_to": "noah@hirelix.online",
+  "domain": {
+    "id": "a4b9b1c5-8281-493c-8696-ce9e21a49e40",
+    "name": "hirelix.online",
+    "status": "verified",
+    "open_tracking": false,
+    "click_tracking": false,
+    "records": [
+      {
+        "record": "DKIM",
+        "name": "resend._domainkey",
+        "type": "TXT",
+        "status": "verified",
+        "value": "[public key omitted]"
+      },
+      {
+        "record": "SPF",
+        "name": "send",
+        "type": "MX",
+        "status": "verified",
+        "value": "feedback-smtp.us-east-1.amazonses.com"
+      },
+      {
+        "record": "SPF",
+        "name": "send",
+        "type": "TXT",
+        "status": "verified",
+        "value": "v=spf1 include:amazonses.com ~all"
+      }
+    ]
+  },
+  "emails": [
+    {
+      "id": "01a18bf6-3555-773f-bbd6-68ba704f9b06",
+      "to": "Lucie@folkandfound.co.uk",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:38:51.129000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf6-38ca-7317-9ba5-eb4e30927dd2",
+      "to": "ben@revybeit.co.uk",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:38:52.009000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf6-43be-72fd-b7a5-524a24302b6b",
+      "to": "hello@scriptanddot.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:38:54.807000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf6-4e04-7dba-b5ab-ca942e155bd6",
+      "to": "hello@looprecruitment.co.uk",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:38:57.442000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf7-910e-73a2-958d-edcdc5a6d60a",
+      "to": "jonathan.hewitt@techfocusrecruitment.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:40:20.145000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf7-95eb-75e3-93e4-7d51b82e8900",
+      "to": "ben@paradigmtech.co",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:40:21.402000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18bf7-97b8-7125-8c9b-291976683182",
+      "to": "octav@oktosearch.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:40:21.882000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18c01-c691-78c7-9730-be5a67ae8252",
+      "to": "info@weareplanit.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 08:51:29.248000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18c0a-9455-7089-8a0f-579248dcafb6",
+      "to": "natasha@wildcardexecutivesearch.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 09:01:16.326000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18c0a-9af8-7675-a58f-8c73adc4ee6d",
+      "to": "oliver@covarecruitment.com",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 09:01:19.782000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18c45-3a69-76c2-a59e-7add3835d6d9",
+      "to": "kevin@partnerscale.co.uk",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 10:05:09.771000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    },
+    {
+      "id": "01a18c45-4067-7299-823e-e5598161a3a9",
+      "to": "dom@product-partners.co.uk",
+      "from": "Noah Jiang <noah@hirelix.online>",
+      "reply_to": [
+        "noah@hirelix.online"
+      ],
+      "last_event": "delivered",
+      "created_at": "2026-10-30 10:05:11.350000+00",
+      "has_html": false,
+      "has_text": true,
+      "contains_tracking_pixel": false
+    }
+  ],
+  "controlled_gmail_test": {
+    "sent_at": "2026-10-30T10:22:14.788Z",
+    "recipient": "noahjiang2@gmail.com",
+    "gmail_message_id": "1a18c54ddd95c462",
+    "labels": [
+      "CATEGORY_PROMOTIONS",
+      "UNREAD",
+      "INBOX"
+    ],
+    "authentication": {
+      "spf": "pass",
+      "dkim_hirelix_online": "pass",
+      "dmarc": "pass"
+    },
+    "limitations": "Single controlled copy to an owned Gmail account, with a diagnostic subject prefix. Does not establish customer mailbox placement or reading."
+  }
+}
