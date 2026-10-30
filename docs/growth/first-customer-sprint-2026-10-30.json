@@ -1,0 +1,70 @@
+{
+  "window_start": "2026-10-30T16:36:31+08:00",
+  "deadline": "2026-10-30T18:36:31+08:00",
+  "goal": "One genuine external customer pays the published subscription price",
+  "emails": [
+    {
+      "id": "hirelix_first_customer_20261030_folk_found_v1",
+      "to": "Lucie@folkandfound.co.uk",
+      "company": "Folk & Found",
+      "source_url": "https://www.folkandfound.co.uk/",
+      "source_verified_at": "2026-10-30",
+      "subject": "One live role and two CVs — a Hirelix trial for Folk & Found",
+      "body": "Hi Lucie,\n\nYour focus on RF, silicon and AI infrastructure searches made me think the useful test is comparing evidence against a specialist brief, rather than generating more generic profiles.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner for independent recruiters. Bring one role brief and two anonymised CVs into the app; ask it to compare the evidence, flag gaps and draft a client recommendation. Saved records can be used in later conversations. It works with your material; it is not a proprietary candidate database.\n\nWould you be open to trying that on a current search today? The existing trial is 7 days / 200 AI credits, no card and no automatic paid conversion: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\nIf useful, Pro is $49/month plus applicable tax. No call needed; reply with your question and I can help you get started by email. Please keep any candidate data inside your own account, not in an email reply.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_revybe_v1",
+      "to": "ben@revybeit.co.uk",
+      "company": "ReVybe",
+      "source_url": "https://revybeit.co.uk/contact-us",
+      "source_verified_at": "2026-10-30",
+      "subject": "One live role and two CVs — a Hirelix trial for ReVybe",
+      "body": "Hi Ben,\n\nYour DevOps and Cloud specialism made me think a useful test would be comparing two candidates you already know against one current platform-engineering brief.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner for independent recruiters. Bring one role brief and two anonymised CVs into the app; ask it to compare the evidence, flag gaps and draft a client recommendation. Saved records can be used in later conversations. It works with your material; it is not a proprietary candidate database.\n\nWould you be open to trying that on a current search today? The existing trial is 7 days / 200 AI credits, no card and no automatic paid conversion: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\nIf useful, Pro is $49/month plus applicable tax. No call needed; reply with your question and I can help you get started by email. Please keep any candidate data inside your own account, not in an email reply.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_script_dot_v1",
+      "to": "hello@scriptanddot.com",
+      "company": "Script & Dot",
+      "source_url": "https://www.scriptanddot.com",
+      "source_verified_at": "2026-10-30",
+      "subject": "One live role and two CVs — a Hirelix trial for Script & Dot",
+      "body": "Hi Script & Dot team,\n\nYour focus on tailored DevOps, Cloud and Web recruitment made me think this might be relevant to preparing a clearly reasoned client recommendation from candidates you already know.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner for independent recruiters. Bring one role brief and two anonymised CVs into the app; ask it to compare the evidence, flag gaps and draft a client recommendation. Saved records can be used in later conversations. It works with your material; it is not a proprietary candidate database.\n\nWould you be open to trying that on a current search today? The existing trial is 7 days / 200 AI credits, no card and no automatic paid conversion: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\nIf useful, Pro is $49/month plus applicable tax. No call needed; reply with your question and I can help you get started by email. Please keep any candidate data inside your own account, not in an email reply.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_loop_v1",
+      "to": "hello@looprecruitment.co.uk",
+      "company": "Loop Recruitment",
+      "source_url": "https://looprecruitment.co.uk/",
+      "source_verified_at": "2026-10-30",
+      "subject": "One live role and two CVs — a Hirelix trial for Loop Recruitment",
+      "body": "Hi Loop team,\n\nYour four-person team and focus on relationships that carry across searches made me think reusing candidate context for the next role could be a useful test.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner for independent recruiters. Bring one role brief and two anonymised CVs into the app; ask it to compare the evidence, flag gaps and draft a client recommendation. Saved records can be used in later conversations. It works with your material; it is not a proprietary candidate database.\n\nWould you be open to trying that on a current search today? The existing trial is 7 days / 200 AI credits, no card and no automatic paid conversion: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\nIf useful, Pro is $49/month plus applicable tax. No call needed; reply with your question and I can help you get started by email. Please keep any candidate data inside your own account, not in an email reply.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_techfocus_v1",
+      "to": "jonathan.hewitt@techfocusrecruitment.com",
+      "company": "TechFocus Recruitment",
+      "source_url": "https://www.techfocusrecruitment.com/",
+      "source_verified_at": "2026-10-30",
+      "subject": "A current-role trial for TechFocus Recruitment",
+      "body": "Hi Jonathan,\n\nYour site lists a C# Lead Developer / InsurTech search. That seems a concrete way to test whether Hirelix can turn two existing CVs and the brief into a useful client recommendation.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner. Would you try it on a current search today? In your own account, add one brief and two anonymised CVs, then ask for a comparison, gaps to verify and a client-ready recommendation draft. You make the final judgment.\n\nStart here: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\n7 days / 200 AI credits, no card or automatic paid conversion. If useful, Pro is $49/month plus applicable tax. Reply with a question and I can help by email; please don't email candidate data.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_paradigm_v1",
+      "to": "ben@paradigmtech.co",
+      "company": "Paradigm Tech",
+      "source_url": "https://www.paradigmtech.co/",
+      "source_verified_at": "2026-10-30",
+      "subject": "A current-role trial for Paradigm Tech",
+      "body": "Hi Ben,\n\nYour point that OT roles need hands-on evidence rather than generic IT titles stood out. A useful Hirelix test would be comparing two existing CVs against one of your specialist briefs and flagging unsupported claims.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner. Would you try it on a current search today? In your own account, add one brief and two anonymised CVs, then ask for a comparison, gaps to verify and a client-ready recommendation draft. You make the final judgment.\n\nStart here: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\n7 days / 200 AI credits, no card or automatic paid conversion. If useful, Pro is $49/month plus applicable tax. Reply with a question and I can help by email; please don't email candidate data.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_first_customer_20261030_okto_v1",
+      "to": "octav@oktosearch.com",
+      "company": "Okto Search",
+      "source_url": "https://www.oktosearch.com/",
+      "source_verified_at": "2026-10-30",
+      "subject": "A current-role trial for Okto Search",
+      "body": "Hi Octav,\n\nYour independent engineering and product search practice looks close to who I built Hirelix for: a recruiter keeping context across briefs, candidates and client recommendations.\n\nI'm Noah, founder of Hirelix, a personal AI recruiting partner. Would you try it on a current search today? In your own account, add one brief and two anonymised CVs, then ask for a comparison, gaps to verify and a client-ready recommendation draft. You make the final judgment.\n\nStart here: https://hirelix.online/?utm_source=founder_outreach&utm_medium=email&utm_campaign=first_customer_20261030\n\n7 days / 200 AI credits, no card or automatic paid conversion. If useful, Pro is $49/month plus applicable tax. Reply with a question and I can help by email; please don't email candidate data.\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ]
+}

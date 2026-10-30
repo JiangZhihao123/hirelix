@@ -1,0 +1,86 @@
+[
+  {
+    "id": "hirelix_first_customer_20261030_folk_found_v1",
+    "to": "Lucie@folkandfound.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf6-3555-773f-bbd6-68ba704f9b06",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:38:51.190Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:29.196Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_revybe_v1",
+    "to": "ben@revybeit.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf6-38ca-7317-9ba5-eb4e30927dd2",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:38:52.743Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:30.415Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_script_dot_v1",
+    "to": "hello@scriptanddot.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf6-43be-72fd-b7a5-524a24302b6b",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:38:54.875Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:31.540Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_loop_v1",
+    "to": "hello@looprecruitment.co.uk",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf6-4e04-7dba-b5ab-ca942e155bd6",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:38:57.518Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:32.736Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_techfocus_v1",
+    "to": "jonathan.hewitt@techfocusrecruitment.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf7-910e-73a2-958d-edcdc5a6d60a",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:40:20.220Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:34.119Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_paradigm_v1",
+    "to": "ben@paradigmtech.co",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf7-95eb-75e3-93e4-7d51b82e8900",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:40:21.511Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:35.239Z"
+  },
+  {
+    "id": "hirelix_first_customer_20261030_okto_v1",
+    "to": "octav@oktosearch.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bf7-97b8-7125-8c9b-291976683182",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T08:40:21.912Z",
+    "last_event": "delivered",
+    "checked_at": "2026-10-30T08:43:36.766Z"
+  }
+]
