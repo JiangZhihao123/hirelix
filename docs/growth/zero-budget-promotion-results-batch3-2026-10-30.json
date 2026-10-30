@@ -1,0 +1,29 @@
+[
+  {
+    "id": "rankmyai_free_listing_20261030",
+    "company": "RankmyAI",
+    "url": "https://www.rankmyai.com/tool-addition",
+    "status": "submitted_unconfirmed",
+    "observation": "Clicked Send; form cleared. No visible success receipt, JS dialog or captured console error. Did not submit again.",
+    "evidence": "output/zero-budget-promotion-batch3-20261030/rankmyai-after-submit.jpg"
+  },
+  {
+    "id": "tipseason_free_listing_20261030",
+    "company": "TipSeason",
+    "url": "https://www.tipseason.com/ai-tools/submit-free/success",
+    "status": "free_queue_received",
+    "receipt": "Submission Received! Your AI Tool Is In The Standard Queue",
+    "limitation": "Success page displays 180+ days wait time and heavy backlog. No paid upgrade or advertising requested; no published listing verified.",
+    "evidence": "output/zero-budget-promotion-batch3-20261030/tipseason-queued.jpg"
+  },
+  {
+    "id": "vibecodepicks_free_listing_20261030",
+    "company": "VibeCodePicks",
+    "url": "https://vibecodepicks.com/submit-ai-tool-free/",
+    "status": "submission_received",
+    "reference": "VCP-261030-41EDC1",
+    "receipt": "Thank you, your submission was received",
+    "limitation": "Editorial review pending; page says acknowledgement/result by email but receipt in mailbox was not independently checked. No live listing verified.",
+    "evidence": "output/zero-budget-promotion-batch3-20261030/vibecodepicks-received.jpg"
+  }
+]

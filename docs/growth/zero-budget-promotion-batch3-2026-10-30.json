@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-30",
+  "budget": 0,
+  "common": {
+    "name": "Hirelix",
+    "website": "https://hirelix.online",
+    "email": "noah@hirelix.online",
+    "contact_name": "Noah Jiang",
+    "pricing_url": "https://hirelix.online/pricing",
+    "social_url": "https://www.youtube.com/watch?v=Swe056HRryw",
+    "short": "Personal AI recruiting partner for independent recruiters and boutique search firms.",
+    "long": "Hirelix is a personal AI recruiting partner for independent recruiters and boutique search firms. Bring your own CVs, job briefs and recruiting notes into a conversation. Ask the agent to compare candidates, research public information when requested, and prepare client recommendation documents. Saved records can be used in later conversations. Recruiters remain responsible for checking evidence and deciding what to share. Public research depends on available sources and does not guarantee contact information or a fixed shortlist size. A 7-day trial includes 200 AI credits, with no credit card required. Paid plans are $49/month or $490/year, plus applicable taxes; the trial does not automatically convert to a paid subscription."
+  },
+  "forms": [
+    {
+      "id": "rankmyai_free_listing_20261030",
+      "company": "RankmyAI",
+      "url": "https://www.rankmyai.com/tool-addition",
+      "company_name": "YieldMirror",
+      "company_name_source": "https://hirelix.online/terms",
+      "use_cases": "Compare candidate CVs against a role brief; research public evidence when requested; prepare client recommendations; reuse saved candidate records and recruiting notes.",
+      "description": "Hirelix is a personal AI recruiting partner for independent recruiters and boutique search firms. It works with their own CVs, role briefs and notes to compare candidates, research public information when requested, and prepare client recommendations. A 7-day trial includes 200 AI credits, no card required.",
+      "producthunt": "https://www.producthunt.com/products/hirelix",
+      "pricing": "Paid"
+    },
+    {
+      "id": "tipseason_free_listing_20261030",
+      "company": "TipSeason",
+      "url": "https://www.tipseason.com/ai-tools/submit-free",
+      "pricing": "Paid",
+      "category": "Productivity",
+      "use_case": "Candidate comparison and client recommendation preparation",
+      "advertising": false,
+      "discovery": "Web search for free AI tool submission directories"
+    },
+    {
+      "id": "vibecodepicks_free_listing_20261030",
+      "company": "VibeCodePicks",
+      "url": "https://vibecodepicks.com/submit-ai-tool-free/",
+      "pricing": "Paid only",
+      "starting_price": "$49/mo; 7-day/200-credit trial",
+      "video_note": "The linked 35-second video is an illustrative product animation with fictional candidates and companies, not a live search recording.",
+      "independent_reviews": [],
+      "paid_video_service": false,
+      "arena": false,
+      "category": "Indie side project built with AI",
+      "description": "Personal AI recruiting partner for independent recruiters: compare your own CVs and prepare client recommendations. Video note: illustrative product animation with fictional people and companies, not a recording of a live search."
+    }
+  ]
+}
