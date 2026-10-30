@@ -1,5 +1,7 @@
 # Personal Agent 英文落地页
 
+> 2026-10-30：当前首页与营销定位已调整为 **Your recruiting assistant. $49 a month.**，突出替独立猎头承担日常工作与省时价值。现行口径、人工助理成本来源、可用推广文案及执行方式见 [猎头助理定位](recruiting-assistant-positioning.md)。下文是历史改版记录，不再约束当前主标题。
+
 > 2026-10-08 发布准备：当前定位、价格和 SEO/GEO 范围以 [seo-geo-launch.md](seo-geo-launch.md) 为准。下文记录 2026-09 初次改版时的决定与验证；其中“价格尚未确定”等描述不再代表当前状态。
 
 ## 产品决定

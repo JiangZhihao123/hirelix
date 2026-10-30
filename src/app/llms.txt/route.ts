@@ -9,7 +9,7 @@ export function GET() {
 
 > ${SITE_DESCRIPTION}
 
-Hirelix is operated by YieldMirror. It serves independent headhunters and consultants at boutique search firms. As a long-term AI assistant, the personal agent works with saved candidate profiles, CVs, notes, role requirements, conversations, and explicit preferences. Recruiters can update or forget saved preferences. It does not promise unlimited recall or independent recruiting decisions.
+Hirelix is operated by YieldMirror. It serves independent headhunters and consultants at boutique search firms. Its AI recruiting assistant helps users delegate digital recruiting admin: organizing candidate records, preparing for conversations, and drafting client recommendations, progress updates and follow-up emails. The value is time back for clients and candidates, with help at a monthly software price. It works with saved profiles, resumes, notes, role requirements, conversations and explicit preferences. Recruiters can update or forget saved preferences. It does not promise unlimited recall or independent recruiting decisions.
 
 Hirelix works with the user's own candidate pool and can research publicly available information when asked, preserving source links and uncertainties. Public evidence can be incomplete or inaccessible. It does not sell talent-database access. Client drafts require review. ${mailboxAvailability} Provider acceptance of a send is not confirmation of recipient delivery.
 

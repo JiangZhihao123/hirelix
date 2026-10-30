@@ -181,7 +181,7 @@ test("FAQ structured data matches visible answers and prices come from the paid 
   expect(await llms.text()).toContain(
     `USD ${AGENT_PLAN.monthlyCents / 100}/month`,
   );
-  expect(await llms.text()).toContain("long-term AI assistant");
+  expect(await llms.text()).toContain("AI recruiting assistant");
 });
 
 test("private routes, missing pages, crawler rules, and the www redirect have the right boundaries", async ({
@@ -220,7 +220,7 @@ test("a reader can follow the assistant story to a guide, pricing, and the real 
     )
     .not.toBeNull();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "Your work continues.",
+    "Your business needs you.",
   );
   await page.screenshot({ path: "output/seo-geo/product.png", fullPage: true });
   await page
@@ -237,7 +237,7 @@ test("a reader can follow the assistant story to a guide, pricing, and the real 
     .getByRole("link", { name: "Pricing and the free trial", exact: true })
     .click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "A personal assistant",
+    "Your AI recruiting assistant.",
   );
   await page.screenshot({ path: "output/seo-geo/pricing.png", fullPage: true });
   await page
@@ -257,7 +257,7 @@ test("a reader can follow the assistant story to a guide, pricing, and the real 
 
 test("current product facts and practical feedback guide are crawlable without JavaScript", async ({ request }) => {
   const $ = load(await (await request.get("/")).text());
-  expect($("#first-assignment").text()).toContain("Start with one resume");
+  expect($("#first-assignment").text()).toContain("Start with work that is taking up your time");
   expect($('a[href="/guides/candidate-feedback"]').length).toBeGreaterThan(0);
   expect($("details").text()).toContain("Gmail inbox reading is not currently available");
   const guide = await request.get("/guides/candidate-feedback");

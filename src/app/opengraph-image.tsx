@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { AGENT_PLAN } from "@/lib/agent-plan";
 
-export const alt = "Hirelix — Your personal AI agent for headhunting";
+export const alt = "Hirelix — Your AI recruiting assistant";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -30,8 +31,8 @@ export default function OpenGraphImage() {
           lineHeight: 1.1,
         }}
       >
-        <span>Your personal AI agent</span>
-        <span style={{ color: "#48664b" }}>for headhunting.</span>
+        <span>Your recruiting assistant.</span>
+        <span style={{ color: "#48664b" }}>${AGENT_PLAN.monthlyCents / 100} a month.</span>
       </div>
       <div
         style={{
@@ -41,7 +42,7 @@ export default function OpenGraphImage() {
           color: "#65716a",
         }}
       >
-        Your candidates. Your context. From one role to the next.
+        Less admin. More time for clients and candidates.
       </div>
       <div
         style={{

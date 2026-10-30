@@ -1,6 +1,17 @@
 import { AGENT_PLAN } from "./agent-plan";
 
-export const firstAssignmentPrompt = "Save the role and candidate profiles I attach, compare them against the client brief, and recommend whom I should speak with first. Explain the key trade-offs and what I still need to confirm. Keep the work internal.";
+export const LANDING_TITLE = `Hirelix | Your AI Recruiting Assistant — $${AGENT_PLAN.monthlyCents / 100}/month`;
+export const LANDING_DESCRIPTION = `An AI recruiting assistant for independent headhunters. Delegate recruiting admin, prepare client work, and get time back for $${AGENT_PLAN.monthlyCents / 100}/month. Try it free for ${AGENT_PLAN.trialDays} days.`;
+
+// General administrative support is a salary reference, not a quote for a
+// recruiting assistant or a claim that the AI replaces every human duty.
+export const assistantSalaryBenchmark = {
+  annualUsd: 47540,
+  period: "May 2025",
+  sourceUrl: "https://www.bls.gov/ooh/office-and-administrative-support/secretaries-and-administrative-assistants.htm#tab-5",
+};
+
+export const firstAssignmentPrompt = "Organize the resumes and call notes I attach, save the candidate records, and use the client brief to draft a progress update. Flag missing information and anything that needs my decision. Keep the work internal.";
 
 export const mailboxAvailability =
   "Connected-mailbox sending requires your explicit authorization. Gmail inbox reading is not currently available. Outlook access depends on granted permissions and the provider’s account restrictions. You can also paste an email or upload it as a PDF or text file for analysis.";
@@ -8,7 +19,15 @@ export const mailboxAvailability =
 export const landingFaqs = [
   [
     "What is Hirelix?",
-    "Hirelix is a personal AI agent for headhunters, designed to work with you over time. It builds on the candidate records, resumes, notes, client briefs, and preferences you save, helping you continue your work from one conversation and role to the next.",
+    `Hirelix is your AI recruiting assistant for $${AGENT_PLAN.monthlyCents / 100}/month. It takes on the preparation and admin around your recruiting work, so you can spend more time with clients and candidates. Delegate work in a conversation, give it the relevant materials, and come back to results you can use and refine.`,
+  ],
+  [
+    "What work can I hand over to my assistant?",
+    "Ask Hirelix to organize resumes and call notes into candidate records, prepare questions for a candidate conversation, compare people against a client brief, or draft recommendations, progress updates and follow-up emails. Your saved records and explicit preferences provide context for later work. You decide what is shared or sent.",
+  ],
+  [
+    "How does Hirelix compare with hiring an assistant?",
+    "Hirelix gives an independent recruiter help with digital preparation, records and written client work at a monthly software price. A human assistant can also handle phone calls, live coordination and other duties outside Hirelix’s scope. The salary comparison is a U.S. administrative-support benchmark, not a recruiting-assistant quote or a promise of equivalent staffing capacity. Try delegating work you would otherwise do yourself and judge the time it gives back.",
   ],
   [
     "Can Hirelix help me find people on the public web?",

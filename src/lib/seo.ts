@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { AGENT_PLAN } from "./agent-plan";
 import { recruitingGuides } from "./recruiting-guides";
+import { LANDING_TITLE, LANDING_DESCRIPTION } from "./landing-content";
 
 export const SITE_URL = "https://hirelix.online";
-export const SITE_TITLE = "Hirelix | Your Personal AI Agent for Headhunting";
-export const SITE_DESCRIPTION =
-  "AI recruiting assistant for independent headhunters. Compare your candidates against a JD, prepare client recommendations, and continue work across conversations.";
+export const SITE_TITLE = LANDING_TITLE;
+export const SITE_DESCRIPTION = LANDING_DESCRIPTION;
 
 export const publicPages: readonly {
   path: string;
@@ -16,9 +16,9 @@ export const publicPages: readonly {
   { path: "/", label: "Hirelix", description: SITE_DESCRIPTION },
   {
     path: "/product",
-    label: "Personal AI agent for headhunters",
+    label: "AI recruiting assistant for independent headhunters",
     description:
-      "How Hirelix works with your candidates, client briefs, and recruiting records.",
+      "Delegate recruiting preparation, records and written client work to your AI assistant.",
   },
   {
     path: "/pricing",
@@ -158,7 +158,7 @@ export function publicMetadata(
           url: `${SITE_URL}/opengraph-image`,
           width: 1200,
           height: 630,
-          alt: "Hirelix — your personal AI agent for headhunting",
+          alt: "Hirelix — your AI recruiting assistant",
         },
       ],
     },

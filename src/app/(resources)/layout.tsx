@@ -43,7 +43,7 @@ export default function ResourcesLayout({
         <Link className="ha-logo" href="/">
           Hirelix
         </Link>
-        <span>Your personal AI agent for headhunting.</span>
+        <span>Your AI recruiting assistant.</span>
         <div>
           <Link href="/product">Product</Link>
           <Link href="/pricing">Pricing</Link>

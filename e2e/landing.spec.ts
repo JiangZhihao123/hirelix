@@ -7,18 +7,18 @@ test.describe("Personal agent landing", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
   });
 
-  test("explains the first shortlist and continuing recruiting partnership", async ({
+  test("explains the assistant value, monthly price and salary comparison", async ({
     page,
   }) => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "5 minutes to your first shortlist.100 jobs later, it still knows how you work.",
+      "Your recruiting assistant.$49 a month.",
     );
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(page.getByTestId("hero-primary-cta")).toHaveAccessibleName(
-      "Find Your First Candidates",
+      "Try your assistant free",
     );
     await expect(
-      page.getByRole("heading", { name: /The next conversation/ }),
+      page.getByRole("heading", { name: /Less explaining/ }),
     ).toBeVisible();
     await expect(page.getByRole("main")).not.toContainText(
       /profile scan|ranked shortlist|Start Starter|Start Pro|AI sourcing/i,
@@ -39,10 +39,10 @@ test.describe("Personal agent landing", () => {
     await expect(page.getByTestId("hero-primary-cta")).toBeEnabled();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page).toHaveTitle(
-      "Hirelix | Your Personal AI Agent for Headhunting",
+      "Hirelix | Your AI Recruiting Assistant — $49/month",
     );
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "5 minutes to your first shortlist.100 jobs later, it still knows how you work.",
+      "Your recruiting assistant.$49 a month.",
     );
   });
 

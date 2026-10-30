@@ -33,8 +33,8 @@ export default function PricingPage() {
       <nav className="hr-breadcrumb" aria-label="Breadcrumb">
         <Link href="/">Hirelix</Link> / <span aria-current="page">Pricing</span>
       </nav>
-      <p className="ha-eyebrow">ONE ASSISTANT. WORK THAT BUILDS OVER TIME.</p>
-      <h1>A personal assistant for your recruiting desk.</h1>
+      <p className="ha-eyebrow">AN ASSISTANT’S HELP. A SOLO RECRUITER’S BUDGET.</p>
+      <h1>Your AI recruiting assistant. ${AGENT_PLAN.monthlyCents / 100} a month.</h1>
       <p className="hr-intro">
         Start with a {AGENT_PLAN.trialDays}-day trial and{" "}
         {AGENT_PLAN.trialCredits} AI credits. No card required. Choose a

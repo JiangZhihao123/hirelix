@@ -1,5 +1,7 @@
 # Hirelix SEO & GEO 发布准备
 
+> 2026-10-30 定位更新：现行购买理由是 **Your recruiting assistant. $49 a month.**；搜索摘要、分享图与首页统一突出替独立猎头接手日常工作、腾出时间。Personal AI Agent 仍是产品技术类别，不再作为首页主要价值主张。当前口径见 [猎头助理定位](recruiting-assistant-positioning.md)，以下保留历史发布与核验记录。
+
 更新：2026-10-08。目标市场是海外英语国家的独立猎头与精品猎头公司顾问。
 
 ## 定位与内容

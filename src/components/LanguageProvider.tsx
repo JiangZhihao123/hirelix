@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { fetchWithUserSession } from "@/lib/client-auth";
 import { isLocale, type Locale } from "@/lib/locale";
 import { uiZh } from "@/lib/ui-zh";
+import { LANDING_TITLE } from "@/lib/landing-content";
 
 type LanguageContextValue = {
   locale: Locale;
@@ -60,7 +61,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (pathname === "/") {
       document.documentElement.lang = "en";
-      document.title = "Hirelix | Your Personal AI Agent for Headhunting";
+      document.title = LANDING_TITLE;
       return;
     }
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";

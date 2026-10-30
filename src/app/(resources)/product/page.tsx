@@ -5,7 +5,7 @@ import { applicationSchema, breadcrumbSchema, jsonLd, publicMetadata, SITE_URL }
 export const metadata = publicMetadata(
   "/product",
   "AI Recruiting Assistant for Independent Headhunters | Hirelix",
-  "Compare CVs against a JD, rediscover saved candidates, research public sources and prepare client recommendations with your personal AI recruiting assistant.",
+  "Get help with the work behind every placement. Delegate candidate records, conversation preparation, client recommendations and update drafts to your AI recruiting assistant.",
 );
 
 export default function ProductPage() {
@@ -33,18 +33,17 @@ export default function ProductPage() {
       <nav className="hr-breadcrumb" aria-label="Breadcrumb">
         <Link href="/">Hirelix</Link> / <span aria-current="page">Product</span>
       </nav>
-      <p className="ha-eyebrow">AN ASSISTANT THAT STAYS WITH YOUR WORK</p>
+      <p className="ha-eyebrow">HELP WITH THE WORK BEHIND EVERY PLACEMENT</p>
       <h1>
-        Your work continues.
+        Your business needs you.
         <br />
-        So does your assistant.
+        Your admin needs an assistant.
       </h1>
       <p className="hr-intro">
-        Hirelix is a personal AI agent for independent headhunters and
-        consultants at boutique search firms, built for a working relationship
-        that continues over time. Bring it your candidates, client briefs, and
-        everyday questions. Keep building on the work you have already done
-        together.
+        Hirelix is an AI recruiting assistant for independent headhunters and
+        consultants at boutique search firms. Hand over the records,
+        preparation, and written client work you would otherwise do yourself.
+        Spend more of your day talking to people and moving placements forward.
       </p>
       <section className="hr-callout">
         <h2>Hirelix at a glance</h2>

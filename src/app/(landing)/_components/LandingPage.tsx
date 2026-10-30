@@ -21,7 +21,7 @@ import {
 import "../landing.css";
 import { BrandMark as AgentMark } from "@/components/BrandMark";
 import { AGENT_PLAN } from "@/lib/agent-plan";
-import { landingFaqs as faqs, firstAssignmentPrompt } from "@/lib/landing-content";
+import { landingFaqs as faqs, firstAssignmentPrompt, assistantSalaryBenchmark } from "@/lib/landing-content";
 
 // Video controls need their client handlers; navigation links work without them.
 const subscribeToHydration = () => () => {};
@@ -114,8 +114,8 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             Hirelix
           </Link>
           <div className="ha-nav-links">
-            <a href="#how-it-works">The work you get</a>
-            <a href="#first-assignment">Try it with your work</a>
+            <a href="#how-it-works">What you can delegate</a>
+            <a href="#assistant-cost">Assistant cost</a>
             <a href="#pricing">Pricing</a>
             <a href="#questions">FAQs</a>
           </div>
@@ -141,15 +141,15 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
       <main id="main">
         <section className="ha-hero ha-wrap" data-growth-section="hero">
           <div className="ha-hero-copy">
-            <p className="ha-eyebrow">HIRELIX — YOUR AI RECRUITING PARTNER</p>
+            <p className="ha-eyebrow">BUILT FOR INDEPENDENT HEADHUNTERS</p>
             <h1>
-              5 minutes to your first shortlist.
-              <span>100 jobs later, it still knows how you work.</span>
+              Your recruiting assistant.
+              <span>${AGENT_PLAN.monthlyCents / 100} a month.</span>
             </h1>
             <p className="ha-lead">
-              Drop in a JD. Your AI partner finds candidates, reviews resumes,
-              and prepares client submissions — remembering your client
-              preferences, notes, and past searches along the way.
+              You run the business. Let Hirelix organize the records, prepare
+              client recommendations, and draft the follow-ups — so you have
+              more time for clients, candidates, and closing placements.
             </p>
             <div className="ha-hero-actions">
               <a
@@ -158,7 +158,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                 data-testid="hero-primary-cta"
                 onClick={(event) => enter(event, "hero")}
               >
-                Find Your First Candidates <ArrowUpRight size={18} />
+                Try your assistant free <ArrowUpRight size={18} />
               </a>
               <button
                 disabled={!hydrated}
@@ -170,6 +170,25 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             </div>
             <p className="ha-hero-caption">
               {AGENT_PLAN.trialDays} days · {AGENT_PLAN.trialCredits} AI credits · No card required
+            </p>
+          </div>
+          <div className="ha-cost" id="assistant-cost" role="group" aria-label="Assistant cost comparison">
+            <p className="ha-cost-heading">Help for your desk. Room in your budget.</p>
+            <div className="ha-cost-grid">
+              <div>
+                <p>Hiring an admin assistant</p>
+                <strong>≈ ${Math.round(assistantSalaryBenchmark.annualUsd / 12).toLocaleString("en-US")}<small> / month</small></strong>
+                <span>U.S. salary benchmark</span>
+              </div>
+              <div className="ha-cost-hirelix">
+                <p>Your AI recruiting assistant</p>
+                <strong>${AGENT_PLAN.monthlyCents / 100}<small> / month</small></strong>
+                <span>Hirelix Pro · USD, plus applicable tax</span>
+              </div>
+            </div>
+            <p className="ha-cost-source">
+              <a href={assistantSalaryBenchmark.sourceUrl} target="_blank" rel="noreferrer">U.S. Bureau of Labor Statistics</a>: ${assistantSalaryBenchmark.annualUsd.toLocaleString("en-US")} annual median ÷ 12, rounded ({assistantSalaryBenchmark.period}).
+              {" "}General administrative support, not a recruiter-specific quote; salary only. Hirelix covers AI assistance within plan credits.
             </p>
           </div>
           <figure className="ha-film" id="story">
@@ -219,7 +238,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             )}
             <figcaption>
               <span>
-                One JD. A shortlist. A partner who remembers your client.
+                One example of work you can hand to your assistant.
               </span>
               <span>Illustrative story · Fictional people &amp; client</span>
             </figcaption>
@@ -251,40 +270,41 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
         >
           <div className="ha-wrap ha-delivery-grid">
             <div className="ha-delivery-copy">
-              <p className="ha-eyebrow">FROM CONTEXT TO CLIENT WORK</p>
-              <h2>A recommendation you can put in front of a client.</h2>
+              <p className="ha-eyebrow">TAKE WORK OFF YOUR DESK</p>
+              <h2>You build relationships. Your assistant handles the prep.</h2>
               <p>
-                The reasoning, the selected resumes, and the questions still
-                worth asking. Prepared around the role, using the materials you
-                bring.
+                Running your own desk means doing every job yourself. Hand over
+                the records, preparation, and written work that fill the gaps
+                between your conversations.
               </p>
               <ul className="ha-delivery-points">
                 <li>
                   <span>01</span>
                   <div>
-                    <strong>The case for each person</strong>
+                    <strong>Keep the records in order</strong>
                     <p>
-                      Relevant experience, supporting evidence, and clear
-                      trade-offs.
+                      Turn resumes and call notes into saved candidate records
+                      you can use again.
                     </p>
                   </div>
                 </li>
                 <li>
                   <span>02</span>
                   <div>
-                    <strong>The materials together</strong>
+                    <strong>Prepare for your next conversation</strong>
                     <p>
-                      A recommendation page and the resumes you choose to
-                      include.
+                      Review the brief, compare relevant experience, and
+                      prepare the questions you need to ask.
                     </p>
                   </div>
                 </li>
                 <li>
                   <span>03</span>
                   <div>
-                    <strong>A way to keep moving</strong>
+                    <strong>Get the client work ready</strong>
                     <p>
-                      Open questions and client feedback tied to each candidate.
+                      Prepare recommendations, progress updates, and follow-up
+                      emails from your saved work.
                     </p>
                   </div>
                 </li>
@@ -523,17 +543,17 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
         >
           <div className="ha-wrap ha-first-grid">
             <div>
-              <p className="ha-eyebrow">YOUR FIRST ASSIGNMENT</p>
+              <p className="ha-eyebrow">GIVE YOUR ASSISTANT A JOB</p>
               <h2>
-                A real role.
+                What would you
                 <br />
-                The people you know.
+                hand to an assistant
                 <br />
-                <span>Start there.</span>
+                <span>today?</span>
               </h2>
               <p>
-                Bring a search you are working on. Start with one resume if
-                that is what you have; add other candidates or notes as you go.
+                The notes you have not organized. The client update you still
+                need to write. Start with work that is taking up your time.
               </p>
               <a
                 href={entryHref(false, undefined, firstAssignmentPrompt)}
@@ -549,7 +569,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
               </p>
             </div>
             <div className="ha-assignment">
-              <p className="ha-mini-label">BRING YOUR OWN MATERIALS</p>
+              <p className="ha-mini-label">A NOTE TO YOUR ASSISTANT</p>
               <div className="ha-attachments">
                 <span>
                   <FileText size={16} /> Role brief
@@ -557,16 +577,19 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                 <span>
                   <FileText size={16} /> Candidate resumes
                 </span>
+                <span>
+                  <FileText size={16} /> Call notes
+                </span>
               </div>
               <blockquote>
-                “Compare these candidates against this role. Explain who I
-                should put forward and what I still need to confirm.”
+                “Organize these resumes and call notes, save the candidate
+                records, and draft a progress update for my client.”
               </blockquote>
               <div className="ha-assignment-result">
                 <AgentMark small />
                 <p>
-                  Start with an evidence-based comparison. Then ask your agent
-                  to prepare a recommendation for the people you choose.
+                  Records organized. Client update prepared. Missing details
+                  flagged for your decision. You choose what to share or send.
                 </p>
               </div>
               <Link
@@ -588,9 +611,9 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
             <div>
               <p className="ha-eyebrow">WITH YOU BEYOND THIS ROLE</p>
               <h2>
-                The next conversation
+                Less explaining.
                 <br />
-                starts with context.
+                Less starting over.
               </h2>
             </div>
             <div>
@@ -640,11 +663,11 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
         </section>
 
         <section id="pricing" className="ha-pricing ha-section">
-          <p className="ha-eyebrow">ONE PERSONAL AGENT</p>
+          <p className="ha-eyebrow">YOUR OWN AI ASSISTANT</p>
           <h2>
-            Start with your work.
+            More help for your desk.
             <br />
-            Stay for what you build.
+            More time for your business.
           </h2>
           <p>
             Try it for {AGENT_PLAN.trialDays} days with{" "}
@@ -676,8 +699,8 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
                     {AGENT_PLAN.monthlyCredits} AI credits each monthly
                     subscription period
                   </li>
-                  <li>Your candidates, roles, and conversation history</li>
-                  <li>Resume and CSV imports, recommendations, and exports</li>
+                  <li>Candidate records and conversation preparation</li>
+                  <li>Client recommendations, update drafts, and exports</li>
                 </ul>
                 <a
                   href={entryHref(false, plan.code)}
@@ -770,14 +793,14 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
         >
           <div className="ha-wrap ha-final">
             <AgentMark />
-            <p className="ha-eyebrow">MAKE IT YOURS</p>
+            <p className="ha-eyebrow">YOU DO NOT HAVE TO DO IT ALL YOURSELF</p>
             <h2>
-              Your next role.
+              Run your own desk.
               <br />
-              Your Personal Agent.
+              Get an assistant.
             </h2>
             <p>
-              Built for headhunters. With you for the long term.
+              ${AGENT_PLAN.monthlyCents / 100}/month for help with the work behind every placement.
               <br />
               Start with the work on your desk today.
             </p>
@@ -801,7 +824,7 @@ export default function LandingPage({ attributionQuery }: { attributionQuery: st
           <AgentMark small />
           Hirelix
         </Link>
-        <span>Your personal AI agent for headhunting.</span>
+        <span>Your AI recruiting assistant.</span>
         <div>
           <Link href="/product">Product</Link>
           <Link href="/pricing">Pricing</Link>
