@@ -1,0 +1,57 @@
+[
+  {
+    "id": "rtr_free_trial_share_20261030",
+    "company": "Recruiting Tools Review",
+    "to": "contact@recruitingtoolsreview.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bb7-9b24-70a0-9c29-efc81609da35",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T07:30:28.691Z",
+    "last_event": "sent",
+    "checked_at": "2026-10-30T07:31:46.484Z"
+  },
+  {
+    "id": "10xats_free_trial_share_20261030",
+    "company": "10xats",
+    "to": "matt@10xats.com",
+    "status": "provider_accepted",
+    "provider": "resend",
+    "provider_id": "01a18bb7-a57c-7a15-896f-10e35d51c89e",
+    "http_status": 200,
+    "error": null,
+    "at": "2026-10-30T07:30:31.291Z",
+    "last_event": "bounced",
+    "checked_at": "2026-10-30T07:31:47.515Z"
+  },
+  {
+    "id": "platypus_suggestion_20261030",
+    "company": "Platypus Reviews",
+    "status": "submission_received",
+    "receipt": "Thanks! We got your suggestion and we'll take a look.",
+    "source_url": "https://platypusreviews.com/suggest-a-tool/",
+    "evidence": "output/zero-budget-promotion-20261030/platypus-received.jpg"
+  },
+  {
+    "id": "jilo_free_listing_20261030",
+    "company": "Jilo.ai",
+    "status": "site_error",
+    "error": "Could not find the table 'public.submissions' in the schema cache",
+    "source_url": "https://jilo.ai/en/submit",
+    "evidence": "output/zero-budget-promotion-20261030/jilo-error.jpg"
+  },
+  {
+    "company": "ListAi.cc",
+    "status": "navigation_failed",
+    "source_url": "https://www.listai.cc/submit",
+    "reason": "Two Chrome navigation attempts timed out; no submission"
+  },
+  {
+    "company": "The Next AI",
+    "status": "prepared_pending_captcha_confirmation",
+    "source_url": "https://www.thenextai.com/submit-ai-tool/",
+    "reason": "Free form filled; awaiting action-time confirmation for arithmetic human verification",
+    "evidence": "output/zero-budget-promotion-20261030/nextai-ready.jpg"
+  }
+]

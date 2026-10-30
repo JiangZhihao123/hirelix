@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-30",
+  "budget": 0,
+  "emails": [
+    {
+      "id": "rtr_free_trial_share_20261030",
+      "company": "Recruiting Tools Review",
+      "to": "contact@recruitingtoolsreview.com",
+      "source_url": "https://recruitingtoolsreview.com/contact",
+      "permission_basis": "Official contact page welcomes feedback, submissions and content inquiries.",
+      "subject": "A small-agency AI recruiting tool for independent review",
+      "body": "Hello Recruiting Tools Review team,\n\nYour contact page welcomes submissions. I'm Noah, founder of Hirelix, a personal AI recruiting partner for independent recruiters and boutique search firms.\n\nHirelix works with a recruiter's own CVs, job briefs and notes to compare candidates, research public information when requested, and prepare client recommendations. Saved records can be used in later conversations.\n\nThe review angle is whether a conversational assistant helps a solo recruiter prepare a client recommendation from their own materials. Hirelix is not a full ATS or a proprietary candidate database.\n\nThe existing self-serve trial includes 7 days and 200 AI credits, with no card required. A first test can use one job brief and two or three fictional or appropriately anonymized CVs.\nhttps://hirelix.online/?utm_source=recruitingtoolsreview&utm_medium=review_invitation&utm_campaign=free_trial_20261030\n\nWe have no sponsorship budget. If it is useful to your audience, would you consider an independent review or voluntary mention? There is no obligation to publish or be positive; any sharing should disclose the trial arrangement.\n\n35-second introduction: https://www.youtube.com/watch?v=Swe056HRryw (an illustrative animation with fictional people and companies, not a live search recording).\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "10xats_free_trial_share_20261030",
+      "company": "10xats",
+      "to": "matt@10xats.com",
+      "source_url": "https://10xats.com/faq",
+      "permission_basis": "Expanded FAQ explicitly says vendors may pitch coverage to matt@10xats.com, without coverage promises.",
+      "subject": "For your editorial consideration: Hirelix, an assistant alongside an ATS",
+      "body": "Hi Matt,\n\nYour FAQ invites vendor coverage pitches and values publicly priced, self-serve tools. I'm Noah, founder of Hirelix. It is a personal AI recruiting partner for independent recruiters and boutique search firms, not an ATS replacement. If adjacent tools fit your editorial scope, I'd welcome your candid assessment.\n\nHirelix works with a recruiter's own CVs, job briefs and notes to compare candidates, research public information when requested, and prepare client recommendations. Saved records can be used in later conversations.\n\nThe existing self-serve trial includes 7 days and 200 AI credits, with no card required. A first test can use one job brief and two or three fictional or appropriately anonymized CVs.\nhttps://hirelix.online/?utm_source=10xats&utm_medium=review_invitation&utm_campaign=free_trial_20261030\n\nWe have no sponsorship budget. If it is useful to your audience, would you consider an independent review or voluntary mention? There is no obligation to publish or be positive; any sharing should disclose the trial arrangement.\n\n35-second introduction: https://www.youtube.com/watch?v=Swe056HRryw (a fictional product animation, not a live search recording).\n\nBest,\nNoah Jiang\nFounder, Hirelix\nhttps://hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I won't follow up.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ],
+  "forms": [
+    {
+      "id": "platypus_suggestion_20261030",
+      "company": "Platypus Reviews",
+      "url": "https://platypusreviews.com/suggest-a-tool/",
+      "tool_name": "Hirelix",
+      "website": "https://hirelix.online",
+      "category": "AI tools",
+      "email": "noah@hirelix.online",
+      "works_for_company": true,
+      "message": "I'm Noah, founder of Hirelix, suggesting our own product for independent consideration. It is a personal AI recruiting partner for independent recruiters and boutique search firms. Hirelix works with a recruiter's own CVs, job briefs and notes to compare candidates, research public information when requested, and prepare client recommendations. Saved records can be used in later conversations.\n\nThe existing self-serve trial includes 7 days and 200 AI credits, with no card required. A first test can use one job brief and two or three fictional or appropriately anonymized CVs.\n\nA practical test is one role brief, two fictional CVs, and a request for a client recommendation with evidence and unresolved questions. We have no sponsorship budget and are not requesting a favorable score or guaranteed coverage. Your published method mentions at least 30 days of testing; our existing free trial is 7 days, so please consider it only if it fits your process. No extended access is promised.\n\nIf it proves useful, we would appreciate an independent review or voluntary sharing. Please disclose any trial arrangement. Introduction: https://www.youtube.com/watch?v=Swe056HRryw (illustrative animation with fictional people and companies)."
+    },
+    {
+      "id": "jilo_free_listing_20261030",
+      "company": "Jilo.ai",
+      "url": "https://jilo.ai/en/submit",
+      "plan": "Free $0",
+      "email": "noah@hirelix.online",
+      "tool_name": "Hirelix",
+      "website": "https://hirelix.online",
+      "pitch": "Personal AI recruiting partner for independent recruiters: compare your own CVs against a job brief, research public information, and prepare client recommendations.",
+      "pricing_model": "Paid",
+      "platform": "Web",
+      "logo_url": "https://hirelix.online/logo-512.png"
+    }
+  ]
+}
