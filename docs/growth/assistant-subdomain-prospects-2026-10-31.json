@@ -1,0 +1,69 @@
+{
+  "campaign": "assistant_subdomain_1031",
+  "date": "2026-10-31",
+  "status": "blocked_provider_policy_drafts_only",
+  "from": "Noah Jiang <noah@outreach.hirelix.online>",
+  "reply_to": "noah@hirelix.online",
+  "sent_count": 0,
+  "scheduled_count": 0,
+  "provider_restriction": {
+    "provider": "resend",
+    "source": "https://resend.com/legal/acceptable-use",
+    "policy_updated": "2026-10-13",
+    "finding": "明确禁止cold outreach；所有收件人须明确opt in。公开商务邮箱、精准画像、一对一和退出方式不等同同意。",
+    "send_gate": "No sending or scheduling on Resend without documented recipient opt-in. Cold outreach requires a provider that expressly permits the intended use."
+  },
+  "deduplication": {
+    "scope": "仓库全部文件及忽略的output历史记录，排除Git、依赖、构建缓存、env及本轮研究快照；按邮箱、公司域名及旧别名检索。",
+    "new_contacts_found_in_prior_records": 0,
+    "note": "名单适配不等于当下需求或购买意愿；尚未联系，不计为获客进展。"
+  },
+  "copy_rules": "明确创始人身份；强调减少文书和准备时间、获得助理帮助而不增加工资；不保证替代真人全部工作、不虚构节省小时数或助理工资；链接仅公司级UTM，无阅读像素、跳转跟踪或收件人邮箱参数。未来允许发送时选收件人当地工作日白天，并在发送前重新去重、核验退出及投递状态。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_subdomain_20261031_mcintyre_v1",
+      "status": "draft_not_sent",
+      "company": "McIntyre Associates",
+      "name": "Kyle McIntyre",
+      "to": "kyle@mcintyreassociates.com",
+      "official_sources": ["https://mcintyreassociates.com/"],
+      "evidence": "当前官网200：Kyle为Owner & Executive Recruiter，明确本人执行全部搜索及相关工作，专注网络安全。官网正文和mailto均公布此邮箱；当前域名有MX记录。",
+      "source_correction": "检索缓存旧About页和kyle@mcassoc.com已过时：旧页实际404；使用当前首页公布的邮箱，不用缓存旧地址。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "subject": "An assistant for the work around your searches",
+      "body": "Hi Kyle,\n\nYour site says you handle every cybersecurity search personally, end to end. The candidate write-ups and client updates around that work seem like a useful place for an assistant.\n\nI'm Noah, founder of Hirelix. For USD $49/month plus applicable tax, it helps organize CVs and notes and draft client recommendations from your materials. The aim is to give you time back and help with the desk work without adding an assistant's salary. You keep the relationships and final judgment.\n\nWould taking candidate write-ups off your desk be useful? There's a 7-day, no-card trial: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1031&utm_content=mcintyre\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261031_keith_v1",
+      "status": "draft_not_sent",
+      "company": "Keith Recruiting / TechSearch LLC",
+      "name": "Keith Goldberg",
+      "to": "keith@techsearchllc.com",
+      "official_sources": ["https://keithgoldberg.com/"],
+      "evidence": "当前个人官网200：本人创办招聘业务，Scotch Plains, NJ，聚焦软件及高管招聘，描述客户例会和候选人复盘；官网当前公开页面JS资产中验证工作邮箱、地点及创办自己公司的原文。techsearchllc.com有MX记录。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "subject": "More time with clients, less recruiting paperwork",
+      "body": "Hi Keith,\n\nI read about your hands-on approach to software searches and the candidate debriefs you run with clients. I thought an assistant for the written preparation could fit that way of working.\n\nI'm Noah, founder of Hirelix. It helps organize candidate notes and draft client recommendations and follow-ups for USD $49/month plus applicable tax. The idea is more time for the conversations clients hire you for, with assistant help for the paperwork and no additional salary. You review the drafts and decide what goes out.\n\nWould getting that preparation off your desk be useful? Try it for 7 days, no card: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1031&utm_content=keith\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261031_sandy_v1",
+      "status": "draft_not_sent",
+      "company": "Sandy Li Executive Solutions",
+      "name": "Sandy Li",
+      "to": "sli@sandyliexec.com",
+      "official_sources": ["https://www.sandyliexec.com/"],
+      "evidence": "当前官网200：Sandy于2014年开设独立高管招聘与辅导业务，洛杉矶背景，服务金融及其他领域；官网直接公布sli工作邮箱，域名有Google Workspace MX记录。未断言目前只有一名员工。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "subject": "Assistant help without another salary",
+      "body": "Hi Sandy,\n\nYour independent practice combines executive recruiting and coaching. I thought help organizing candidate materials and preparing client write-ups could leave more of your time for that personal work.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month plus applicable tax. It helps organize CVs and notes and draft recommendations and follow-ups from the material you add. The aim is assistant help without another salary, while you keep the personal conversations and final judgment.\n\nWould less time spent on candidate paperwork help your practice? There's a 7-day, no-card trial: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1031&utm_content=sandy\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ],
+  "excluded_existing_contacts": [
+    {"company": "Crescere Executive Search", "to": "michael@cescpg.com", "prior_record": "docs/growth/assistant-value-targeted-batch2-results-2026-10-30.json"},
+    {"company": "Alfonsina", "to": "meghan@hialfonsina.com", "prior_record": "docs/growth/assistant-value-outreach-results-2026-10-30.json"},
+    {"company": "Skyridge Executive Search", "to": "rolando@skyridgesearch.com", "prior_record": "docs/growth/assistant-value-targeted-batch2-results-2026-10-30.json"}
+  ]
+}

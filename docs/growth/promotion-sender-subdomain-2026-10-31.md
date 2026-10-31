@@ -2,6 +2,12 @@
 
 2026-10-31，经用户明确授权，将 Hirelix 推广发信与日常工作邮件、产品通知分开。
 
+## 冷邮件渠道限制（配置完成后核实）
+
+Resend [Acceptable Use Policy](https://resend.com/legal/acceptable-use) 于 2026-10-13 更新，2026-10-31 核实：Prohibited Sending Purposes 第 1 条明确禁止 cold outreach；Appropriate Mailing Lists 要求所有收件人明确 opt in。官网公开工作邮箱、精准一对一、提供退出方式或用户授权，均不能替代收件人同意。
+
+因此，此子域名的技术认证和内部收件测试已经完成，但**不得继续通过 Resend 向陌生猎头发推广**。本地配置检查只检查必需配置，不证明收件人同意或服务商允许。此前未先核对此限制，已向用户说明；本轮新名单只保存未发送草稿，没有发送或预约发送。后续实际冷触达须有明确允许此用途的发送服务及适用规则支持，不能换账号、复用工作邮箱或更换子域名绕过服务商限制。已同意接收的联系人可继续按原规则使用此子域名。
+
 ## 生效配置
 
 - 推广 From：`Noah Jiang <noah@outreach.hirelix.online>`。
