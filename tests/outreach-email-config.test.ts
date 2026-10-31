@@ -17,7 +17,7 @@ function checkConfig(overrides: Partial<NodeJS.ProcessEnv>) {
         NODE_ENV: process.env.NODE_ENV ?? "test",
         PATH: process.env.PATH,
         HOME: process.env.HOME,
-        OUTREACH_FROM_EMAIL: "Noah Jiang <noah@hirelix.online>",
+        OUTREACH_FROM_EMAIL: "Noah Jiang <noah@outreach.hirelix.online>",
         OUTREACH_REPLY_TO: "noah@hirelix.online",
         OUTREACH_POSTAL_ADDRESS: "1 Test Street, Test City",
         ...overrides,
@@ -66,7 +66,7 @@ test("outreach config defaults to Resend without reporting a missing provider", 
 test("outreach config accepts Zoho SMTP credentials", () => {
   const result = checkConfig({
     OUTREACH_EMAIL_PROVIDER: "zoho_smtp",
-    ZOHO_SMTP_USER: "noah@hirelix.online",
+    ZOHO_SMTP_USER: "noah@outreach.hirelix.online",
     ZOHO_SMTP_APP_PASSWORD: "test-app-password",
   });
 
@@ -77,7 +77,7 @@ test("outreach config accepts Zoho SMTP credentials", () => {
 test("outreach config rejects partially numeric SMTP values", () => {
   const base = {
     OUTREACH_EMAIL_PROVIDER: "zoho_smtp",
-    ZOHO_SMTP_USER: "noah@hirelix.online",
+    ZOHO_SMTP_USER: "noah@outreach.hirelix.online",
     ZOHO_SMTP_APP_PASSWORD: "test-app-password",
   };
   const invalidPort = checkConfig({ ...base, ZOHO_SMTP_PORT: "465abc" });
@@ -99,6 +99,14 @@ test("outreach config requires the Zoho sender to match the authenticated mailbo
 
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /OUTREACH_FROM_EMAIL must use the configured ZOHO_SMTP_USER/);
+});
+
+test("outreach config rejects the work and notification domains as senders", () => {
+  for (const from of ["Noah Jiang <noah@hirelix.online>", "notifications@hirelix.online"]) {
+    const result = checkConfig({ RESEND_API_KEY: "test-resend-key", OUTREACH_FROM_EMAIL: from });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /OUTREACH_FROM_EMAIL must use @outreach.hirelix.online/);
+  }
 });
 
 test("outreach dry run adds the founder signature before the opt-out footer", () => {

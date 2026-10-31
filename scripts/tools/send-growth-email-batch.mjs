@@ -45,8 +45,8 @@ function usage() {
 
 Required for --send:
   OUTREACH_EMAIL_PROVIDER  resend (default) or zoho_smtp
-  OUTREACH_FROM_EMAIL      e.g. "Noah Jiang <founder@hirelix.online>"
-  OUTREACH_REPLY_TO        e.g. "founder@hirelix.online"
+  OUTREACH_FROM_EMAIL      e.g. "Noah Jiang <noah@outreach.hirelix.online>"
+  OUTREACH_REPLY_TO        e.g. "noah@hirelix.online"
   OUTREACH_POSTAL_ADDRESS  valid physical postal address or registered mailbox
 
 Provider credentials:
@@ -379,8 +379,11 @@ function getSendConfigIssues(env) {
   ) {
     issues.push("OUTREACH_POSTAL_ADDRESS must be a real physical postal address or registered mailbox.");
   }
-  if (env.OUTREACH_FROM_EMAIL && /notifications@hirelix\.online/i.test(env.OUTREACH_FROM_EMAIL)) {
-    issues.push("Refusing to send outreach from notifications@hirelix.online.");
+  const fromAddress = (env.OUTREACH_FROM_EMAIL?.match(/<([^<>]+)>\s*$/)?.[1] || env.OUTREACH_FROM_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  if (fromAddress && !fromAddress.endsWith("@outreach.hirelix.online")) {
+    issues.push("OUTREACH_FROM_EMAIL must use @outreach.hirelix.online; work mail and product notifications must stay separate.");
   }
   if (
     provider === ZOHO_SMTP_PROVIDER &&
