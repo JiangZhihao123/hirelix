@@ -200,6 +200,8 @@ Production scheduler environment variables are loaded from `/etc/hirelix.env`. F
 
 The web service runs as `noah` and loads `/etc/hirelix.env`, then the root-owned `/etc/hirelix-web.env` for web-specific production overrides; database and internal-service credentials remain inherited from the VPS base environment. Keep web notification settings separate from scheduler settings, and never commit these environment files. Its unit and HTTPS vhost are in `deploy/systemd/hirelix-web.service` and `deploy/nginx/hirelix.online.conf`. Web releases are currently deployed separately from the scheduler workflow: build a new release with the intended web environment, verify it, switch `/opt/hirelix-web-current`, restart only `hirelix-web`, and verify the public HTTPS page. A scheduler deployment or Vercel Ready status does not update or verify this web release. Web logs: `ssh us-2 'sudo journalctl -u hirelix-web -f'`. TLS renewal uses the existing certbot timer and Nginx reload hook.
 
+Billing portal sessions require a nonempty Live `PADDLE_API_KEY` in the web runtime; the public Paddle client token and webhook secret serve different purposes. During environment migration, an empty exported value alone does not establish that the old deployment lacked a variable: compare the provider's variable inventory and verify critical settings in the running process. Verify credentials without printing them or committing authenticated portal URLs.
+
 ## Commit & Pull Request Guidelines
 
 Commit after each substantial fix or feature. Recent history uses concise Chinese messages, for example `备份现有代理说明` or `修正候选人交付和按需深调口径`. Do not mix unrelated changes, and do not revert user changes unless explicitly asked.

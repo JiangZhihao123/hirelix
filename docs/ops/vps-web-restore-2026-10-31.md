@@ -43,7 +43,15 @@ Chrome 实际发出的 landing-event 请求均 200，响应 `{ok:true}`；只读
 
 原 Vercel 网页配置与 scheduler 配置有通知开关、发信凭据等差异，不能让网页直接继承后台的全部行为。已从原项目的 production 环境提取 63 项应用配置到独立 web 环境文件，排除 Vercel 平台变量；DATABASE_URL、INTERNAL_API_SECRET 和 NODE_ENV 由 VPS 基础环境保留。读取实际运行进程环境，63 项均与原 production 值完全一致，数据库主机为 127.0.0.1。没有修改 scheduler 的基础环境或重启该服务。
 
-Paddle 当前 Agent 套餐的公开配置、客户端 token 和 webhook secret 均存在；原 Vercel 与 VPS 均未设置 PADDLE_API_KEY，账单门户缺少配置是已有问题，本次未用本地测试凭据替代生产凭据，也未声称付款/门户链路验收通过。
+Paddle 当前 Agent 套餐的公开配置、客户端 token 和 webhook secret 均存在。迁移后的 VPS 网页环境中 PADDLE_API_KEY 为空，导致已订阅账号无法使用自助账单门户。此前仅凭环境导出文件中的空值，记录为“原 Vercel 与 VPS 均未设置”不准确：随后 `vercel env ls production` 确认原项目存在该配置项，历史发布记录也有门户成功证据。导出空值不能单独证明原部署从未配置。
+
+### 账单门户配置修复
+
+用户要求解决上述问题后，核实本机 Git 忽略的 `.env.local` 已保存正式 Live 密钥；用其访问 Paddle 官方 `/event-types` 返回 200，未使用 Sandbox 密钥。已将有效密钥写入 root/0600 的 `/etc/hirelix-web.env`，替换迁移导入的空值，原文件备份在 `/var/backups/hirelix-web-20261031/hirelix-web.env.before-portal`（root/0600）。只重启 hirelix-web，未改动 scheduler 环境、套餐或权益，也未创建新密钥。
+
+从实际网页进程读取运行配置，以 noah 身份、相同环境及相同发布代码执行现有业务函数：正式 Paddle 认证 200；网站所有者的既有内部账号 billing summary 返回 `paddlePortalConfigured=true`；`createBillingPortalSessionForUser` 为该账号已有的 customer/subscription 成功创建正式门户，包含订阅管理、取消表单和更新付款方式链接。访问返回的正式门户地址得到 HTML 200，域名为 customer-portal.paddle.com。门户带认证信息的完整 URL 未写入 Git 或报告。
+
+本轮 Chrome 插件未连接，原生 Chrome 检查到当前登录的是无付费订阅的内部 QA 账号；没有为了门户检查切换或冒充账号。以上证明生产配置、实际门户业务函数及正式页面 HTTP 可达，不把它表述为已从付费账号浏览器点击并完整验收。没有新扣款、取消续费、变更支付方式、修改客户资料或变更数据库订阅字段；全新付款和 webhook 链路仍未重测。生产首页修复后仍返回 200。
 
 若后续需停止 VPS web，只停止 `hirelix-web.service`；不要停止 `hirelix-scheduler` 或共享 Nginx/PostgreSQL。DNS 可回到上表原值，但原 Vercel 团队仍被封停，回切不能恢复业务。
 
