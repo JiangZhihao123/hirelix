@@ -1,0 +1,20 @@
+[Unit]
+Description=Hirelix web application
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=noah
+Group=noah
+WorkingDirectory=/opt/hirelix-web-current
+EnvironmentFile=/etc/hirelix.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3220
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+SyslogIdentifier=hirelix-web
+
+[Install]
+WantedBy=multi-user.target
