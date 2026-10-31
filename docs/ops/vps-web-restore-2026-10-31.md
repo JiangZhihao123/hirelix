@@ -21,6 +21,8 @@
 
 未观察到 apex AAAA。只修改上述网站记录，保留邮箱 MX、SPF、DKIM、DMARC 及其他子域名。Chrome 已打开对应域名 Advanced DNS 地址，但被 Namecheap 引导到登录页；已请求用户在浏览器登录，不能把登录缺失称为已切换。
 
+后续用户明确要求代为登录。已用 Chrome 原生保存密码自动填充，未读取或输出密码明文；正常键盘输入、刷新及官方账户入口均未解除主登录按钮的 disabled 状态。控制台持续观察到 Namecheap 全局脚本相关的 `Invalid regular expression: /^/support(/: Unterminated group`，但尚未证明该报错就是按钮禁用的根因。未登录成功、未进入 DNS 管理、未改记录。没有强行解除按钮禁用、调用隐藏提交接口、重置密码或绕过验证。页面保留等待用户接管，截图为 `output/vps-web-20261031/namecheap-login-blocked.png`。
+
 VPS 已安装仅 HTTP 的 ACME bootstrap vhost，`nginx -t` 通过、reload 成功，Host 为 hirelix.online 时返回预期 HTTPS 301；既有其他站点重复 server_name 告警未改动。正式 TLS 配置源在 `deploy/nginx/hirelix.online.conf`，当前尚未安装，因为 apex/www 的证书尚未签发。
 
 用户登录后完成步骤：
