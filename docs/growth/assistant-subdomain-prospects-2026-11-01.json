@@ -1,0 +1,148 @@
+{
+  "campaign": "assistant_subdomain_1101",
+  "date": "2026-11-01",
+  "status": "scheduled",
+  "from": "Noah Jiang <noah@outreach.hirelix.online>",
+  "reply_to": "noah@hirelix.online",
+  "provider": "resend",
+  "sent_count": 0,
+  "scheduled_count": 5,
+  "authorization": {
+    "instruction": "继续多找一些独立猎头，按省时间、省下请助理的钱这个思路写，用子域名安排当地工作时间发送，注意别重复联系。",
+    "provider_exception": "user_reported",
+    "exception_source": "用户在本聊天2026-10-31直接说明已获得Resend额外授权；本轮明确要求继续使用该子域名预约发送。",
+    "independently_verified": false,
+    "scope": "本批五家已核验的美国独立或创始人亲自执行搜索的小型猎头业务，一家一封新邀请，尊重退出，不追发未回复者。"
+  },
+  "deduplication": {
+    "scope": "仓库及忽略的output历史记录，按邮箱、公司域名和姓名检索；已发送及已预约均算已有联系。Resend全量51封邮件记录亦无五家目标命中。",
+    "prior_matches": 0,
+    "provider_emails_checked": 51,
+    "suppression_matches": 0,
+    "mailbox_check": {
+      "account": "noah@hirelix.online",
+      "scope": "五家公司域名分别搜索，包含垃圾邮件和回收站",
+      "matches": 0
+    }
+  },
+  "selection_boundary": "官网证明其经营招聘业务并直接服务客户；不等于正在考虑请助理、已购买或愿意试用。没有收件人opt-in证据，不将用户说明的服务商额外授权误记为收件人同意。",
+  "tracking": "纯文本，仅公司级第一方UTM；不使用阅读像素、跳转追踪或包含收件人邮箱的URL。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_subdomain_20261101_primer_v1",
+      "status": "scheduled",
+      "company": "Primer Talent",
+      "name": "Ryan McGuinness",
+      "to": "ryan@primertalent.com",
+      "official_sources": [
+        "https://primertalent.com/"
+      ],
+      "evidence": "官网200，正文及mailto公开Ryan工作邮箱；介绍创始人本人从首次联系至offer执行每次搜索，覆盖航空航天、国防和制造业，所在地Florida。域名存在MX。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "scheduled_at": "2026-11-02T15:30:00Z",
+      "recipient_timezone": "America/New_York",
+      "timezone_basis": "官网仅写Florida，未确认州内具体位置；选择此时刻在佛州东部为10:30，在中部为09:30，均属当地周一工作日上午，不将具体时区称为已确认。",
+      "local_send_time": "Monday 2026-11-02, 10:30 Eastern / 09:30 Central",
+      "subject": "More time for your searches, without another salary",
+      "body": "Hi Ryan,\n\nYour site says every Primer search stays with you from the first message to the signed offer, including interview prep and feedback. That's a lot of written preparation around the conversations.\n\nI'm Noah, founder of Hirelix. For USD $49/month plus applicable tax, it gives your recruiting desk AI assistant help: organize CVs and notes, draft candidate recommendations, and prepare follow-ups from your materials. The aim is more time with clients and candidates, without adding an assistant's salary. You keep the relationships and final judgment.\n\nWould taking that preparation off your desk be useful? Try it for 7 days, no card: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1101&utm_content=primer\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}",
+      "resend_id": "01a192bc-692d-7ed0-ad3b-9f45d52ac962"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261101_mdm_v1",
+      "status": "scheduled",
+      "company": "MDM Recruiting LLC",
+      "name": "Marc McRoberts",
+      "to": "marc@mdmrecruitingllc.com",
+      "official_sources": [
+        "https://mdmrecruitingllc.com/",
+        "https://mdmrecruitingllc.com/contact/"
+      ],
+      "evidence": "官网首页与联系页均200且公开marc工作邮箱；本人明确一人经营，并亲自处理有限数量的财会搜索；联系页明确居住Middleton，服务南威斯康星和北伊利诺伊。域名有MX。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "scheduled_at": "2026-11-02T15:20:00Z",
+      "recipient_timezone": "America/Chicago",
+      "timezone_basis": "Middleton, Wisconsin，官网联系页。",
+      "local_send_time": "Monday 2026-11-02 09:20 Central",
+      "subject": "An assistant for a one-person recruiting desk",
+      "body": "Hi Marc,\n\nYou describe MDM as a one-person firm by choice, taking on only a few searches so you can understand each client properly. I thought help with the desk work could support that model.\n\nI'm Noah, founder of Hirelix: AI recruiting assistant help for USD $49/month plus applicable tax. It organizes candidate materials and notes and drafts client recommendations and follow-ups from the information you add. The idea is to spend less time on preparation and paperwork without putting another salary on a one-person desk. You review the work and decide what goes out.\n\nWould that kind of help be useful? There's a 7-day, no-card trial: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1101&utm_content=mdm\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}",
+      "resend_id": "01a192bc-7412-779d-bc85-d4ca3ad81d83"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261101_oliver_v1",
+      "status": "scheduled",
+      "company": "The Oliver Group LLC",
+      "name": "Shawn Gillespie",
+      "to": "shawn@theolivergroupllc.com",
+      "official_sources": [
+        "https://theolivergroupllc.com/"
+      ],
+      "evidence": "当前官网200且通过公开mailto与正文核验shawn工作邮箱；官网明确创始人直接执行会计、财务、税务和风险搜索，Shawn居住南加州，业务立足Orange County。未声称只有一名员工。域名有MX。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "scheduled_at": "2026-11-02T17:30:00Z",
+      "recipient_timezone": "America/Los_Angeles",
+      "timezone_basis": "Orange County / Southern California，官网。",
+      "local_send_time": "Monday 2026-11-02 09:30 Pacific",
+      "subject": "Less recruiting paperwork, without an assistant's salary",
+      "body": "Hi Shawn,\n\nI saw that you run The Oliver Group's finance, accounting, tax and risk searches directly. Keeping that personal service doesn't have to mean doing every candidate write-up yourself.\n\nI'm Noah, founder of Hirelix. For USD $49/month plus applicable tax, it helps organize CVs and interview notes and draft client recommendations and follow-ups. Think assistant help for the preparation around a search, without adding another salary. Your experience and judgment still decide who you recommend.\n\nWould less time spent preparing those materials be useful? Try it for 7 days, no card: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1101&utm_content=oliver\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}",
+      "resend_id": "01a192bc-7dc7-7c4c-a74f-43b04c91cdf0"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261101_mam_v1",
+      "status": "scheduled",
+      "company": "Mary Ann Markowitz Recruiting",
+      "name": "Mary Ann Markowitz",
+      "to": "contact@mamrecruiting.com",
+      "official_sources": [
+        "https://mamrecruiting.com/"
+      ],
+      "evidence": "当前官网200，Contact Info正文公开此商务邮箱；首页以Mary Ann本人介绍DFW财会招聘，明确一个猎头从头服务到尾。未猜测个人姓名邮箱。Dallas–Fort Worth, Texas，域名有MX。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "scheduled_at": "2026-11-02T15:35:00Z",
+      "recipient_timezone": "America/Chicago",
+      "timezone_basis": "Dallas–Fort Worth, Texas，官网。",
+      "local_send_time": "Monday 2026-11-02 09:35 Central",
+      "subject": "More time for your DFW clients, less desk work",
+      "body": "Hi Mary Ann,\n\nYour site promises one recruiter from start to finish for DFW accounting searches. I thought an assistant for the preparation and paperwork could leave more time for the clients who come back to you.\n\nI'm Noah, founder of Hirelix. It helps organize CVs and notes and draft candidate recommendations and client follow-ups for USD $49/month plus applicable tax. The aim is an assistant's help without another salary, so more of your day stays with people instead of preparing documents. You review the work and make the final calls.\n\nWould taking some of that desk work off your hands help? There's a 7-day, no-card trial: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1101&utm_content=mam\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}",
+      "resend_id": "01a192bc-876e-7d21-a508-816c8c044b7c"
+    },
+    {
+      "id": "hirelix_assistant_subdomain_20261101_bauhinia_v1",
+      "status": "scheduled",
+      "company": "Bauhinia Search Partners",
+      "name": "Puja Venkataraman",
+      "to": "puja@bauhiniasearch.com",
+      "official_sources": [
+        "https://www.bauhiniasearch.com/"
+      ],
+      "identity_source": "https://www.linkedin.com/company/bauhinia-search-partners",
+      "evidence": "当前官网200，About the Founder列Puja；Focused Reporting承诺有定性分析的精选名单，页尾公开puja工作邮箱及Bay Area, California。公司公开职业页显示Myself Only，作为小规模辅助证据，不作为已知采购需求。采用官网当前邮箱，不用较旧资料中的hello或前雇主邮箱。域名有MX。",
+      "current_need_evidence": null,
+      "recipient_opt_in_evidence": null,
+      "scheduled_at": "2026-11-02T17:45:00Z",
+      "recipient_timezone": "America/Los_Angeles",
+      "timezone_basis": "Bay Area, California，官网。",
+      "local_send_time": "Monday 2026-11-02 09:45 Pacific",
+      "subject": "Help preparing shortlist notes — $49/month",
+      "body": "Hi Puja,\n\nBauhinia's site describes curated shortlists with qualitative insights on each candidate. I thought help preparing those written summaries could support the personal service you're building.\n\nI'm Noah, founder of Hirelix. For USD $49/month plus applicable tax, it gives your own recruiting desk AI assistant help: organize CVs and interview notes and prepare recommendation and follow-up drafts. The aim is less preparation time and no extra assistant salary on your desk. You keep the client relationships, candidate assessment and final judgment.\n\nWould help with those shortlist write-ups be useful? Try it for 7 days, no card: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_subdomain_1101&utm_content=bauhinia\n\nNoah Jiang\nFounder, Hirelix\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}",
+      "resend_id": "01a192bc-956e-7665-bb53-74790f01de08"
+    }
+  ],
+  "not_contacted": [
+    {
+      "company": "Skousen Search",
+      "reason": "作为研究备选；当前About为JS页面，尚未核验具体所在地及本人执行模式，本轮优先五位证据更完整者。"
+    },
+    {
+      "company": "PMB Recruitment",
+      "reason": "检索结果虽符合独立经营，但实际位于英国，未纳入本批美国目标。"
+    },
+    {
+      "company": "Novo Staffing",
+      "reason": "备选为创始人经营的医疗招聘公司，本轮优先独立本人执行业务证据更明确的五位，未发送。"
+    }
+  ]
+}

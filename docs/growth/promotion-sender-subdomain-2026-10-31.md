@@ -61,3 +61,23 @@ Resend 子域名 ID：`75f3ade3-5d63-43b2-8c6c-c8a307f499b8`。API 回读子域�
 三个时间均通过 IANA 时区格式化核对，包含 11 月 1 日美国夏令时结束后的偏移。逐封 GET `/emails/{id}` 回读 From、Reply-To、`scheduled_at` 与请求一致，`last_event=scheduled`。本次记录为**预约 3 封、当场发出 0 封**，不计为投递、阅读、回复或转化成功。每封保留回复退出方式及现有真实邮寄地址；正文为纯文本，无阅读像素或跳转追踪。
 
 文案及预约状态：`docs/growth/assistant-subdomain-prospects-2026-10-31.json`；可审计回执：`docs/growth/assistant-subdomain-results-2026-10-31.json`。忽略目录 `output/assistant-subdomain-prospects-20261031/` 保存原始来源、邮箱检查、发信去重、suppression 检查及逐封回读。邮寄地址不进入 Git，提交内容仅保留占位符。任何后续发送均须将这三封预约视为已有触达，不能重复提交；只有明确失败或取消并完成核对后才能另作处理。
+
+## 2026-11-01 追加五家预约
+
+用户再次明确要求继续找独立猎头、按省时间和助理开支定位写邮件、用子域名预约当地工作时间，并避免重复联系。沿用用户此前说明的 Resend 额外授权；未将其写成收件人同意或服务商批准函已独立核验。
+
+本批选定 Primer Talent / Ryan McGuinness、MDM Recruiting / Marc McRoberts、The Oliver Group / Shawn Gillespie、Mary Ann Markowitz Recruiting、Bauhinia Search Partners / Puja Venkataraman。逐家官网实时 200 且原文公开业务邮箱，均有 MX；仓库记录、忽略的推广日志、姓名及公司域名查重无命中。Resend 完整 51 封邮件（含已预约）记录无这五家的联系；平台 suppression 检查无命中。真实工作邮箱逐域名搜索，包含垃圾邮件与回收站，五家均无匹配消息。不猜测姓名邮箱，不追发已有未回复对象，不将服务模式匹配当作当前采购意愿。
+
+| 收件人 | 美国当地工作时间 | 北京时间 |
+| --- | --- | --- |
+| Ryan | 11 月 2 日 10:30 Eastern / 09:30 Central | 11 月 2 日 23:30 |
+| Marc | 11 月 2 日 09:20 Central | 11 月 2 日 23:20 |
+| Shawn | 11 月 2 日 09:30 Pacific | 11 月 3 日 01:30 |
+| Mary Ann | 11 月 2 日 09:35 Central | 11 月 2 日 23:35 |
+| Puja | 11 月 2 日 09:45 Pacific | 11 月 3 日 01:45 |
+
+Ryan 官网仅标注 Florida，未核验州内具体地点，因此选取同时落在佛州东部及中部工作日上午的时刻。其余时区由官网地点确定；用 IANA 时区核对夏令时结束后的实际时间。
+
+五封均已逐封 GET 回读确认 `scheduled`、子域名 From、原工作邮箱 Reply-To、单个收件人及预约时间。最终全量发信清单再次确认原三封与新五封共 **8 封仍为 scheduled**；本轮新增预约 **5 封，当场发出 0 封**，不计为投递、阅读或获客成功。文案约 120 个英文单词，包含具体业务联系、$49/月（适用税费另计）的助理价值、7 天免卡试用和回复退出；无未经证实的节省时数或工资数字，纯文本且关闭阅读/点击追踪。
+
+本批名单与文案：`docs/growth/assistant-subdomain-prospects-2026-11-01.json`；正式预约回执：`docs/growth/assistant-subdomain-results-2026-11-01.json`。忽略目录 `output/assistant-subdomain-batch2-20261101/` 保留官网、MX、邮箱查询、去重、suppression、逐封回读和最终八封预约状态。后续查重须包含此批预约，不能把尚未发出理解为可以再联系。
