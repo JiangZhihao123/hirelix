@@ -85,7 +85,7 @@ Hirelix 的主要交互是 AI Agent：用户交代目标和资料，Agent 理解
 
 Agent 工作进度、结果和失败重试应留在对应对话中；从职位、候选人或文档页面发起的操作在原页面提供状态和恢复入口。不要重新引入面向用户的“后台任务”技术列表，也不要让用户离开当前工作去找执行结果。
 
-Deployment is split across Vercel and `us-2`: Vercel hosts the Next.js app/API routes; `us-2` runs PostgreSQL 17 and the `hirelix-scheduler` systemd service from `/opt/hirelix`. Auth is better-auth with Google OAuth; sessions are stored in the same Postgres database. Production domain: `hirelix.online`.
+Production runs on `us-2`: Nginx terminates HTTPS and proxies the Next.js app/API to `hirelix-web.service` on `127.0.0.1:3220`; `/opt/hirelix-web-current` points to an immutable release under `/opt/hirelix-web-releases/`. The same host runs PostgreSQL 17 and `hirelix-scheduler` from `/opt/hirelix`. Vercel is the historical web deployment and is paused; production DNS now points to the VPS. Auth is better-auth with Google OAuth; sessions remain in the same Postgres database. Production domain: `hirelix.online`. Deployment evidence and DNS/HTTPS details: `docs/ops/vps-web-restore-2026-10-31.md`.
 
 独立的外部付费人才寻访已退出产品：已删除新建、结果列表、结果详情及旧结果分享页面和专属产品 API，不保留旧路由跳转或历史结果兼容。任务执行器禁止启动该链路；私人候选人库搜索、匹配和 Agent 工作继续正常运行。未上线产品无需为测试数据保留废弃功能。不要通过重开旧入口、环境变量或内部操作员身份绕过此产品边界。
 
@@ -183,6 +183,8 @@ git status --short --branch
 git log --oneline --decorate --left-right --graph origin/main...HEAD
 ssh us-2 'cd /opt/hirelix && sudo git status --short --branch && sudo git rev-parse --short HEAD'
 ssh us-2 'sudo systemctl status hirelix-scheduler --no-pager'
+ssh us-2 'readlink -f /opt/hirelix-web-current && sudo systemctl status hirelix-web --no-pager'
+ssh us-2 'sudo nginx -t && curl --resolve hirelix.online:443:127.0.0.1 -I https://hirelix.online/'
 ssh us-2 'sudo systemctl is-active postgresql && sudo -u postgres psql -tAc "SELECT version();"'
 ```
 
@@ -195,6 +197,8 @@ ssh us-2 'sudo jq '"'"'select(.job_id == "JOB_ID")'"'"' /var/log/hirelix/schedul
 ```
 
 Production scheduler environment variables are loaded from `/etc/hirelix.env`. File logging is opt-in with `LOG_FILE_ENABLED=true` and `LOG_FILE_PATH=/var/log/hirelix/scheduler.log`; daily rotation is documented in `docs/ops/logging.md` and configured by `deploy/logrotate/hirelix-scheduler`. The scheduler is deployed by GitHub Actions after pushes to `main`: build, type check, unit tests, then pull/install/restart on `us-2`. If disabling the production scheduler is explicitly requested, use `sudo systemctl disable --now hirelix-scheduler` and verify ownership before stopping services on shared hosts.
+
+The web service runs as `noah` and loads `/etc/hirelix.env`, then the root-owned `/etc/hirelix-web.env` for web-specific production overrides; database and internal-service credentials remain inherited from the VPS base environment. Keep web notification settings separate from scheduler settings, and never commit these environment files. Its unit and HTTPS vhost are in `deploy/systemd/hirelix-web.service` and `deploy/nginx/hirelix.online.conf`. Web releases are currently deployed separately from the scheduler workflow: build a new release with the intended web environment, verify it, switch `/opt/hirelix-web-current`, restart only `hirelix-web`, and verify the public HTTPS page. A scheduler deployment or Vercel Ready status does not update or verify this web release. Web logs: `ssh us-2 'sudo journalctl -u hirelix-web -f'`. TLS renewal uses the existing certbot timer and Nginx reload hook.
 
 ## Commit & Pull Request Guidelines
 

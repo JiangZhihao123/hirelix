@@ -9,6 +9,7 @@ User=noah
 Group=noah
 WorkingDirectory=/opt/hirelix-web-current
 EnvironmentFile=/etc/hirelix.env
+EnvironmentFile=/etc/hirelix-web.env
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3220
 Restart=on-failure
