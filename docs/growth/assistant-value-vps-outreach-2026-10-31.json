@@ -1,0 +1,93 @@
+{
+  "campaign": "assistant_vps_1031",
+  "date": "2026-10-31",
+  "from": "Noah Jiang <noah@hirelix.online>",
+  "reply_to": "noah@hirelix.online",
+  "provider": "resend",
+  "authorization": "用户明确要求继续寻找独立猎头并按省时间、减少请助理开支的定位发送精准邮件。",
+  "selection": "美国独立或创始人亲自执行搜索的小型猎头业务；逐家核验官网业务邮箱、服务模式，并与既有推广记录去重。一家公司一封新邀请，不追发未回复者。画像匹配不等于已有购买意愿。",
+  "tracking": "仅第一方渠道UTM；不使用邮件阅读像素、跳转追踪链接或包含收件邮箱的URL。",
+  "emails": [
+    {
+      "id": "hirelix_assistant_vps_20261031_watermark_v1",
+      "company": "WaterMark LLC",
+      "name": "Paul Barrett",
+      "to": "paul@wmrk.com",
+      "official_sources": [
+        "https://wmrk.com/"
+      ],
+      "identity_source": "https://www.linkedin.com/in/paulaaronbarrett",
+      "evidence": "官网明确由Paul本人执行搜索、筛选和候选人沟通，保持小规模业务，页脚公开paul@wmrk.com。公开职业主页和公司主页均指向美国加州的同一业务。",
+      "subject": "More time for your GTM searches — $49/month",
+      "body": "Hi Paul,\n\nYour site says you still run the searches and candidate calls yourself, keeping the bench deliberately small. I thought an assistant for the work around those calls could fit that model.\n\nI'm Noah, founder of Hirelix. It gives independent recruiters an AI assistant's help for USD $49/month, without adding another salary. Hand over organizing CVs and call notes, preparing for conversations, and drafting client recommendations and follow-ups — so more of your day stays with clients and candidates.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_vps_1031&utm_content=watermark\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent. Paid plans are USD, plus applicable tax.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_vps_20261031_bishoptalent_v1",
+      "company": "Bishop Talent",
+      "name": "Elizabeth Bishop Peterson",
+      "to": "ebp@bishoptalent.com",
+      "official_sources": [
+        "https://www.bishoptalent.co/"
+      ],
+      "evidence": "官网以Elizabeth本人的口吻介绍直接服务创始人和高管、承担复杂岗位招聘的独立业务，列明Atlanta及美国客户城市，公开ebp@bishoptalent.com。网站与邮箱域名不同，但邮箱为官网直接公布，不作地址推测。",
+      "subject": "Less recruiting admin, more time for your clients",
+      "body": "Hi Elizabeth,\n\nI read how you work directly with founders and leadership teams on nuanced roles. That personal work is exactly where I think a recruiter's time belongs.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. Before taking on an assistant's salary, you can hand over organizing candidate records and notes, preparing for calls, and drafting client recommendations and follow-ups. The point is less preparation and paperwork on your desk, with more time for the relationships and judgment your clients hire you for.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_vps_1031&utm_content=bishoptalent\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent. Paid plans are USD, plus applicable tax.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_vps_20261031_rach_v1",
+      "company": "Rach Recruiting",
+      "name": "Brian Rach",
+      "to": "brian.rach@rachrecruiting.com",
+      "official_sources": [
+        "https://www.rachrecruiting.com/about",
+        "https://www.rachrecruiting.com/contact"
+      ],
+      "evidence": "官网Our Team仅列创始人兼Principal Recruiter Brian Rach，业务聚焦制造业的工程、运营、研发及供应链等搜索，服务地为Milwaukee。官网CONTACT链接直接指向brian.rach@rachrecruiting.com，虽显示文字为info邮箱，实际地址来自公开mailto链接。",
+      "subject": "An assistant for your manufacturing recruiting desk",
+      "body": "Hi Brian,\n\nI saw that you founded Rach Recruiting and focus on engineering, operations and supply-chain searches for manufacturers. I thought extra help with the desk work around those searches could be useful.\n\nI'm Noah, founder of Hirelix. For USD $49/month, it gives you an AI recruiting assistant without adding another salary: organize CVs and call notes, prepare for candidate conversations, and draft client recommendations and updates. You keep the client relationships and final judgment; the assistant helps take the preparation and paperwork off your hands.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_vps_1031&utm_content=rach\n\n7 days, 200 AI credits, no card or automatic paid conversion. You choose what gets shared or sent. Paid plans are USD, plus applicable tax.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_vps_20261031_24hour_v1",
+      "company": "24 Hour Search",
+      "name": "Kristin Taylor Connelly",
+      "to": "kristin@24hoursearch.com",
+      "official_sources": [
+        "https://www.24hoursearch.com/meet-the-team/kristin-taylor-connelly",
+        "https://www.24hoursearch.com/"
+      ],
+      "evidence": "官网创始人介绍位于纽约Hudson Valley，并明确本人执行Director至C-suite搜索，每位入围者附书面评估。官网列两位招聘伙伴，属于本人执行业务的小型团队，不称其只有一名员工。创始人工作邮箱在其官网人物页直接公开。",
+      "subject": "Help preparing client recommendations — $49/month",
+      "body": "Hi Kristin,\n\nYour site says you lead Director-to-C-suite searches yourself, and every finalist comes with a written assessment. I thought an assistant for the preparation behind that personal service could be relevant.\n\nI'm Noah, founder of Hirelix: an AI recruiting assistant for USD $49/month. It helps organize candidate records and notes and prepare client-recommendation and follow-up drafts from the material you add. The idea is an assistant's help without another salary, freeing more of your time for client and candidate conversations. You review the work and decide what goes out.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_vps_1031&utm_content=24hour\n\n7 days, 200 AI credits, no card or automatic paid conversion. Paid plans are USD, plus applicable tax.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    },
+    {
+      "id": "hirelix_assistant_vps_20261031_topcandidate_v1",
+      "company": "Top Candidate Recruiting",
+      "name": "Betty Serafino",
+      "to": "bserafino@topcandidaterecruiting.com",
+      "official_sources": [
+        "https://topcandidaterecruiting.com/about/",
+        "https://topcandidaterecruiting.com/contact-us/"
+      ],
+      "evidence": "官网介绍Betty为President & Owner，经营制造业猎头业务，覆盖从初始委托至最终offer的沟通；联系页明确Carmel, Indiana商务地址，并直接公开bserafino工作邮箱。没有声称她已在招聘助理或明确需要该工具。",
+      "subject": "Manufacturing recruiting help without another salary",
+      "body": "Hi Betty,\n\nYour site describes handling manufacturing searches from the initial assignment through the offer, with communication at every step. I thought help with the records and written follow-through could support that personal service.\n\nI'm Noah, founder of Hirelix. It gives a recruiter's desk an AI assistant for USD $49/month, without the cost of another salary. Hand over organizing CVs and call notes, preparing for conversations, and drafting client recommendations and updates — so more of your own time can go to clients and candidates. You decide what gets shared or sent.\n\nTry your assistant: https://hirelix.online/?utm_source=founder_email&utm_medium=email&utm_campaign=assistant_vps_1031&utm_content=topcandidate\n\n7 days, 200 AI credits, no card or automatic paid conversion. Paid plans are USD, plus applicable tax.\n\nNoah Jiang\nFounder, Hirelix\nnoah@hirelix.online\n\nIf this is not relevant, reply \"opt out\" and I will not email again.\nMailing address: {{MAILING_ADDRESS_REQUIRED_BEFORE_SEND}}"
+    }
+  ],
+  "not_contacted": [
+    {
+      "company": "The Montgomery Group",
+      "source": "https://www.themontgomerygroup.com/privacy-policy",
+      "reason": "其AI政策要求仅使用有不训练客户数据合同承诺的企业工具，并明确候选人评估及推荐不使用AI；本轮未核实当前产品能满足其条件，未推广。"
+    },
+    {
+      "company": "Blake Hackett / go pirl",
+      "source": "https://www.linkedin.com/in/blakethackett",
+      "reason": "官网仍介绍solo recruiter，但公开职业主页显示独立业务于2026年9月结束、现为Tau内部招聘；身份时效存在冲突，不按现任独立猎头发送。"
+    },
+    {
+      "company": "Charles VERNON",
+      "source": "https://www.charles-vernon.com/",
+      "reason": "两位合伙人的精品搜索业务，跨美国与英国办公室；本轮优先上述五位已明确美国业务身份的对象，未发送。"
+    }
+  ]
+}
