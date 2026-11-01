@@ -1,0 +1,31 @@
+name: Stage verified Linux web release
+on:
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: hirelix-web-stage
+  cancel-in-progress: false
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Verify successful build and download exact artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh run view 41288065744 --repo JiangZhihao123/hirelix --json conclusion --jq .conclusion)" = success
+          gh run download 41288065744 --repo JiangZhihao123/hirelix --name hirelix-web-9a80ada9d24e01aee4f94d1feb26845c597f3d12 --dir artifact
+          cd artifact && sha256sum -c hirelix-web.tgz.sha256
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          fingerprint: SHA256:9hAsS+jskWpnODw/Ko7YJHR7pG7CceICFwqK08OdDPA
+          source: artifact/hirelix-web.tgz,artifact/hirelix-web.tgz.sha256
+          target: /tmp/hirelix-web-stage-9a80ada9
+          strip_components: 1
