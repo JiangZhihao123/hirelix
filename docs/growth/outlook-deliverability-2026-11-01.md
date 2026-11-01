@@ -36,13 +36,23 @@
 
 ## 后续处理
 
-保留当前认证和分流配置，避免继续重复向同一测试箱发送或购买自动互发“养邮箱”服务。把提供商 ID、微软 Message-ID、接收时间与选定诊断标头提交给 Resend，请其核查发送域名及共享通道对 Outlook.com 的信誉、是否需要 Microsoft sender support 介入。已整理本地工单草稿，尚未向支持人员发送。
+保留当前认证和分流配置，避免继续重复向同一测试箱发送或购买自动互发“养邮箱”服务。用户随后明确授权提交给 Resend 支持；已提交提供商 ID、微软 Message-ID、接收时间与选定诊断标头，请其核查发送域名及共享通道对 Outlook.com 的信誉、是否需要 Microsoft sender support 介入。
+
+### Resend 支持提交与回复（当日北京时间 19:53–19:54）
+
+公开支持表单提交后返回 `Something went wrong while processing your request. Please try again later.`，未获得成功回执。改由现有 Zoho 邮箱 `noah@hirelix.online` 向官方技术支持地址 `support@resend.com` 发送一封邮件，无抄送、密送或附件；选定标头直接置于正文，没有客户邮件正文、密码或 token。主题为 `Outlook.com Junk placement despite passing authentication — outreach.hirelix.online`。该地址由 [Resend 官方联系方式](https://resend.com/legal/terms-of-service)核实。
+
+Zoho 已发送记录 ID `1793534025435144400`，状态为“已投递”。19:54:00 收到 `Team at Resend <support@resend.com>` 的已收到请求自动回执（Zoho ID `1793534040931141500`）；19:54:24 又收到 `Resend Support <support@resend.com>` 的具体回复（Zoho ID `1793534064964141500`）。未显示工单编号。
+
+支持回复认为，纯诊断通知也进入垃圾箱，更指向刚设置的 `outreach.hirelix.online` 缺乏微软发送历史和域名信誉；其表示持续监测共享发送 IP，但没有提供本账号或具体 IP 的信誉核查数据。支持不会代向 Microsoft 提交升级请求，并要求如需账号级排查，使用 Resend 团队成员邮箱来信。这是支持方的判断，尚不能证明唯一根因或排除其他过滤信号，也没有宣称问题已修复。未继续发送测试或调整 DNS / 生产设置。
+
+实际发送内容、自动回执、后续回复及截图保存在忽略目录 `output/outlook-deliverability-20261101/`；浏览器已保留最新支持回复供用户查看。
 
 若服务商处理了可识别的问题，再用新邮件验证原始文件夹和标头；若测试收件人已经白名单或手动移出垃圾箱，则必须单独记录，不能算作一般投递恢复。低流量信誉积累依靠真实、愿意接收邮件的收件人反馈；本轮不承诺恢复时间或成功率。
 
 ## 证据与官方资料
 
-忽略目录 `output/outlook-deliverability-20261101/` 保存 Microsoft Graph 收件端诊断标头、只读读取脚本和待提交支持草稿。使用用户已有的 Mail.Read OAuth 授权，读取前核验 Graph 身份为自有测试 Outlook 邮箱；未增加权限或启用产品邮件读取配置。Gmail 使用独立连接器读回标签及认证标头。原生 Outlook 也确认垃圾邮件文件夹与警告；原生查看源未返回可读标头，网页版加载超时，最终证据来自 Graph。
+忽略目录 `output/outlook-deliverability-20261101/` 保存 Microsoft Graph 收件端诊断标头、只读读取脚本、实际支持邮件与回复。使用用户已有的 Mail.Read OAuth 授权，读取前核验 Graph 身份为自有测试 Outlook 邮箱；未增加权限或启用产品邮件读取配置。Gmail 使用独立连接器读回标签及认证标头。原生 Outlook 也确认垃圾邮件文件夹与警告；原生查看源未返回可读标头，网页版加载超时，最终证据来自 Graph。
 
 - [Resend：How to avoid Outlook's spam folder](https://resend.com/guides/email/deliverability/avoid-outlook-spam-folder)：认证、SCL/BCL、低流量发信与信誉、测试箱限制及内容建议。
 - [Resend：Why are my emails going to spam?](https://resend.com/guides/email/deliverability/why-emails-go-to-spam)：域名认证、内容及 Deliverability Insights，未解决时联系支持。
