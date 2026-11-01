@@ -1,0 +1,50 @@
+# Outlook 推广邮件投递排查与复测
+
+2026-11-01，Asia/Shanghai。用户明确要求排查 Outlook 垃圾邮件原因、改善并重新测试。只向用户自有 Gmail / Outlook 测试邮箱发送；没有新增联系潜在客户。
+
+## 结果
+
+当前不能宣称 Outlook 投递已恢复。原推广正文、简化推广正文、纯诊断通知三种内容在 `noahjiang2@outlook.com` 都进入 **Junk Email**，`SCL=6`、`BCL=0`。三封 Outlook 收件端均为 `spf=pass`、`dkim=pass`、`dmarc=pass`、`compauth=pass reason=100`，Mailbox-Delivery 标头均包含 `dest:J`、`OFR:SpamFilterAuthJ`、`RF:JunkEmail`。不是单靠提供商 delivered 判断分类。
+
+| 样本 | 北京时间 / 收件时间 | 提供商 ID | 接收结果 |
+| --- | --- | --- | --- |
+| 原推广正文，含价格、试用及官网链接 | 19:31:54 | `01a196e1-49ed-73fe-8d16-fb698c5ec313` | Outlook Junk Email，SCL 6 / BCL 0 |
+| 简化推广正文，无外链、价格、试用语，增加邮件退订头 | 19:40:31 | `01a196e9-394e-7dd1-8a52-aef7d749dfb2` | Outlook Junk Email，SCL 6 / BCL 0 |
+| 不含推广内容、链接或附件的纯诊断通知 | 19:42:20 | `01a196ea-dd9c-7202-bac7-b0090a25dd80` | Outlook Junk Email，SCL 6 / BCL 0 |
+
+原文与简化推广正文也各向 `noahjiang2@gmail.com` 发一封：Gmail 均显示 `INBOX`、`CATEGORY_PROMOTIONS`，无 `SPAM` 标签，收件端 SPF / DKIM / DMARC 通过。
+
+- 原 Gmail：Resend `01a196e1-466e-7d61-839d-c31fa7382278`；Gmail `1a196e149ee35e6a`。
+- 简化 Gmail：Resend `01a196e9-35dd-7727-a610-096ca12fd7ca`；Gmail `1a196e939185249e`。
+- 本轮在原测试基础上新增 **3 封**：简化版 Gmail / Outlook 各 1 封，纯诊断 Outlook 1 封；不重复发送原样本。
+
+## 调整与诊断边界
+
+发件人始终是 `Noah Jiang <noah@outreach.hirelix.online>`，Reply-To 始终为 `noah@hirelix.online`。保持纯文本、无附件、关闭阅读及点击追踪。简化版增加 `List-Unsubscribe: <mailto:noah@hirelix.online?subject=unsubscribe>`；这是邮件方式退订，**不是 RFC 8058 HTTPS 一键退订**，没有伪造一键退订头或不存在的退订接口。
+
+简化版仍明确介绍 Hirelix 是独立猎头的 AI 助理，说明整理 CV、笔记、推荐及跟进草稿，用户审核后再发出；以询问是否希望看候选人摘要示例作为行动入口。保留原有回复退出与邮寄信息。没有伪装已有对话、添加 `Re:`、更换发件身份或修改收件人的安全设置。
+
+结论分层：
+
+- **已证明：** 微软在认证全部通过后仍执行垃圾邮件过滤；三种正文均未改善该测试邮箱的分类。
+- **不支持：** 不能把原邮件里的价格、试用、官网链接或缺少 List-Unsubscribe 单独认定为唯一原因。
+- **合理推断：** 应优先排查发件身份 / 域名及通道信誉。子域名在 10 月 31 日才完成设置，历史很少；但这不足以证明“新域名”就是唯一根因。
+- **未证明：** 不能区分子域名、主域名、共享 IP 池、收件人历史或微软其他信号的具体贡献。三封发送 IP 分别为 `54.240.48.56`、`54.240.48.63`、`54.240.48.58`，不能由此宣称整个 SES 池被封，也未开展公共黑名单全面扫描。
+- **样本限制：** 同一自有 Outlook.com 邮箱的连续测试，不代表陌生收件人的首封体验、企业 Microsoft 365 或全部 Outlook 用户。
+
+没有移动邮件、标记为非垃圾邮件、加联系人或白名单；没有用这些收件人操作包装“修复”。没有修改 DNS、主域名、生产应用配置或原先 8 封预约邮件。无证据支持把 DMARC 从 p=none 改成 p=reject 就能修复本问题，也没有购买独立 IP 或额外服务。
+
+## 后续处理
+
+保留当前认证和分流配置，避免继续重复向同一测试箱发送或购买自动互发“养邮箱”服务。把提供商 ID、微软 Message-ID、接收时间与选定诊断标头提交给 Resend，请其核查发送域名及共享通道对 Outlook.com 的信誉、是否需要 Microsoft sender support 介入。已整理本地工单草稿，尚未向支持人员发送。
+
+若服务商处理了可识别的问题，再用新邮件验证原始文件夹和标头；若测试收件人已经白名单或手动移出垃圾箱，则必须单独记录，不能算作一般投递恢复。低流量信誉积累依靠真实、愿意接收邮件的收件人反馈；本轮不承诺恢复时间或成功率。
+
+## 证据与官方资料
+
+忽略目录 `output/outlook-deliverability-20261101/` 保存 Microsoft Graph 收件端诊断标头、只读读取脚本和待提交支持草稿。使用用户已有的 Mail.Read OAuth 授权，读取前核验 Graph 身份为自有测试 Outlook 邮箱；未增加权限或启用产品邮件读取配置。Gmail 使用独立连接器读回标签及认证标头。原生 Outlook 也确认垃圾邮件文件夹与警告；原生查看源未返回可读标头，网页版加载超时，最终证据来自 Graph。
+
+- [Resend：How to avoid Outlook's spam folder](https://resend.com/guides/email/deliverability/avoid-outlook-spam-folder)：认证、SCL/BCL、低流量发信与信誉、测试箱限制及内容建议。
+- [Resend：Why are my emails going to spam?](https://resend.com/guides/email/deliverability/why-emails-go-to-spam)：域名认证、内容及 Deliverability Insights，未解决时联系支持。
+- [Microsoft：Anti-spam message headers](https://learn.microsoft.com/en-us/defender-office-365/message-headers-eop-mdo)：认证、垃圾邮件诊断字段；未公开字段只供微软内部诊断，不推测其含义。该文档面向云组织，Outlook.com 此次分类同时由实际 Junk Email 文件夹与 Mailbox-Delivery 标头佐证。
+- [Microsoft：Sender Support in Outlook.com](https://support.microsoft.com/en-au/outlook/sender-support-in-outlook-com)：IP、域名、认证、名单、投诉及内容共同影响过滤。
