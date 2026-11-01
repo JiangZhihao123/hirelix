@@ -1,4 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { getLogger } from "./logger";
+import { adminOriginAllowed } from "./admin-origin";
 import { sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { digest, validAdminHash, verifyAdminPassword } from "./admin-password";
@@ -49,8 +51,12 @@ export async function adminRequestAuthorized(req: { cookies: { get(name: string)
   return !!(await readAdminSession(req.cookies.get(adminCookieName())?.value));
 }
 export function adminSameOrigin(req: Request) {
-  const origin = req.headers.get("origin");
-  return origin === new URL(req.url).origin && req.headers.get("sec-fetch-site") !== "cross-site";
+  const allowed = adminOriginAllowed(req, process.env.NODE_ENV === "production");
+  if (allowed && process.env.NODE_ENV === "production" && new URL(req.url).origin !== "https://hirelix.online") {
+    // Only URL origin, never request headers, body, query, cookies or credentials.
+    getLogger({ component: "admin_auth" }).info({ request_origin: new URL(req.url).origin, public_origin: "https://hirelix.online" }, "Admin request uses proxy origin");
+  }
+  return allowed;
 }
 export function adminClientKey(req: Request) {
   // Vercel overwrites x-vercel-forwarded-for; never trust client x-forwarded-for there.

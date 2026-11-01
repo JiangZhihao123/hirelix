@@ -2,6 +2,12 @@
 
 2026-10-31，经用户明确授权，将 Hirelix 推广发信与日常工作邮件、产品通知分开。
 
+## 当前预约状态（2026-11-01 20:05，北京时间）
+
+用户明确要求暂停此前预约的推广邮件，等待 Resend 人工排查后再决定后续安排。已通过 Resend 官方取消预约接口取消下文两批共 **8 封**；操作前逐封核对 ID、From、单个收件人和主题，全部仍为 `scheduled`。8 次取消均返回对应 ID，逐封 GET 回读及最终全量清单均确认 `last_event=canceled`，`outreach.hirelix.online` 剩余待发预约为 **0**。
+
+原名单、文案与预约历史保留；取消的是原定 11 月 2–3 日北京时间的发送，不自动重新预约。原 `scheduled_at` 字段仍可能保留历史时间，当前是否发送应以 `last_event` 为准。取消回执见 [八封预约取消记录](assistant-subdomain-cancellations-2026-11-01.json)，完整操作日志在忽略目录 `output/outlook-deliverability-20261101/pause-scheduled-outreach-log.jsonl`。下文预约结果均为取消前的历史记录。
+
 ## 冷邮件渠道限制（配置完成后核实）
 
 Resend [Acceptable Use Policy](https://resend.com/legal/acceptable-use) 于 2026-10-13 更新，2026-10-31 核实：Prohibited Sending Purposes 第 1 条明确禁止 cold outreach；Appropriate Mailing Lists 要求所有收件人明确 opt in。官网公开工作邮箱、精准一对一、提供退出方式或用户授权，均不能替代收件人同意。

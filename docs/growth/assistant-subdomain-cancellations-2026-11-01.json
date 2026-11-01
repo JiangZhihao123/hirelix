@@ -1,0 +1,85 @@
+{
+  "action": "cancel_scheduled_outreach",
+  "reason": "用户要求暂停之前预约的推广邮件，等待Resend人工排查后再决定是否恢复",
+  "verified_at": "2026-11-01T12:05:20.152Z",
+  "sender": "Noah Jiang <noah@outreach.hirelix.online>",
+  "target_count": 8,
+  "cancel_accepted_count": 8,
+  "canceled_readback_count": 8,
+  "remaining_scheduled_outreach_count": 0,
+  "automatic_resume": false,
+  "targets": [
+    {
+      "resend_id": "01a1928e-acb7-73c9-ae38-690d593b1605",
+      "to": "kyle@mcintyreassociates.com",
+      "subject": "An assistant for the work around your searches",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 14:15:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:05.058Z"
+    },
+    {
+      "resend_id": "01a1928e-b31e-70de-b602-8974a6dc9019",
+      "to": "keith@techsearchllc.com",
+      "subject": "More time with clients, less recruiting paperwork",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 14:25:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:07.335Z"
+    },
+    {
+      "resend_id": "01a1928e-b9f4-7b0b-8443-3bf7d47ce19f",
+      "to": "sli@sandyliexec.com",
+      "subject": "Assistant help without another salary",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 17:15:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:09.280Z"
+    },
+    {
+      "resend_id": "01a192bc-692d-7ed0-ad3b-9f45d52ac962",
+      "to": "ryan@primertalent.com",
+      "subject": "More time for your searches, without another salary",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 15:30:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:11.225Z"
+    },
+    {
+      "resend_id": "01a192bc-7412-779d-bc85-d4ca3ad81d83",
+      "to": "marc@mdmrecruitingllc.com",
+      "subject": "An assistant for a one-person recruiting desk",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 15:20:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:13.124Z"
+    },
+    {
+      "resend_id": "01a192bc-7dc7-7c4c-a74f-43b04c91cdf0",
+      "to": "shawn@theolivergroupllc.com",
+      "subject": "Less recruiting paperwork, without an assistant's salary",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 17:30:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:15.122Z"
+    },
+    {
+      "resend_id": "01a192bc-876e-7d21-a508-816c8c044b7c",
+      "to": "contact@mamrecruiting.com",
+      "subject": "More time for your DFW clients, less desk work",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 15:35:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:17.097Z"
+    },
+    {
+      "resend_id": "01a192bc-956e-7665-bb53-74790f01de08",
+      "to": "puja@bauhiniasearch.com",
+      "subject": "Help preparing shortlist notes — $49/month",
+      "previous_status": "scheduled",
+      "current_status": "canceled",
+      "original_scheduled_at": "2026-11-02 17:45:00.000000+00",
+      "cancel_accepted_at": "2026-11-01T12:05:18.971Z"
+    }
+  ]
+}
