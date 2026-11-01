@@ -34,7 +34,9 @@ function profile(): BrightDataProfile {
   };
 }
 
-test("profile normalization canonicalizes identity and merges overlapping experience", () => {
+test("profile normalization canonicalizes identity and merges overlapping experience", (t) => {
+  // Keep the Present fixture stable as the calendar advances.
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-06-01T00:00:00Z") });
   const normalized = normalizeBrightProfile(profile());
   assert.equal(normalized.linkedinUrl, "https://www.linkedin.com/in/ada-example");
   assert.equal(normalized.countryCode, "US");
