@@ -1,0 +1,62 @@
+name: Build Linux web release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hirelix-web-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hirelix?sslmode=disable
+      BETTER_AUTH_SECRET: ci-build-only-not-a-production-secret
+      BETTER_AUTH_URL: https://hirelix.online
+      GOOGLE_CLIENT_ID: ci-build-only
+      GOOGLE_CLIENT_SECRET: ci-build-only
+      INTERNAL_API_SECRET: ci-build-only
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20.20.2'
+          cache: npm
+      - name: Load only public browser build configuration
+        env:
+          PUBLIC_BUILD_JSON: ${{ secrets.HIRELIX_WEB_PUBLIC_BUILD_JSON }}
+        run: |
+          python3 - <<'PY'
+          import os,json
+          values=json.loads(os.environ['PUBLIC_BUILD_JSON'])
+          allowed={'NEXT_PUBLIC_APP_URL','NEXT_PUBLIC_SITE_URL','NEXT_PUBLIC_PADDLE_CLIENT_TOKEN','NEXT_PUBLIC_PADDLE_ENV','NEXT_PUBLIC_PADDLE_AGENT_MONTHLY_PRICE_ID','NEXT_PUBLIC_PADDLE_AGENT_ANNUAL_PRICE_ID','NEXT_PUBLIC_PADDLE_PRO_MONTHLY_PRICE_ID','NEXT_PUBLIC_PADDLE_PRO_ANNUAL_PRICE_ID','NEXT_PUBLIC_PADDLE_STARTER_MONTHLY_PRICE_ID','NEXT_PUBLIC_PADDLE_STARTER_ANNUAL_PRICE_ID'}
+          assert set(values) == allowed
+          assert values['NEXT_PUBLIC_PADDLE_ENV'] == 'production'
+          assert values['NEXT_PUBLIC_PADDLE_CLIENT_TOKEN']
+          for k,v in values.items():
+              assert isinstance(v,str) and '\n' not in v and '\r' not in v
+              if v: print('::add-mask::'+v)
+          with open(os.environ['GITHUB_ENV'],'a') as f:
+              for k,v in values.items(): f.write(k+'='+v+'\n')
+          PY
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run test:unit
+      - run: npm run build
+      - name: Package Linux release without environment files
+        run: |
+          test "$(uname -m)" = x86_64
+          test -s .next/BUILD_ID
+          printf '%s\n' "$GITHUB_SHA" > RELEASE_SHA
+          tar --exclude=.next/cache -czf /tmp/hirelix-web.tgz .next node_modules public src next.config.ts package.json package-lock.json tsconfig.json RELEASE_SHA
+          cd /tmp && sha256sum hirelix-web.tgz > hirelix-web.tgz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hirelix-web-${{ github.sha }}
+          path: |
+            /tmp/hirelix-web.tgz
+            /tmp/hirelix-web.tgz.sha256
+          retention-days: 3
+          compression-level: 0
